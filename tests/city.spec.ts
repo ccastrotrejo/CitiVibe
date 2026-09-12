@@ -1,0 +1,190 @@
+import { expect, test } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
+
+test('live navigation, focus interruption, help focus, and static pause', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await page.goto('/');
+  await expect(page.getByText('City is living', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: /follow/i })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Next landmark' }).click();
+  await expect(page.getByText('Landmark view', { exact: true })).toBeVisible();
+  const scene = page.getByRole('region', { name: 'City navigation' });
+  await scene.focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.getByText('Free view', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Next landmark' }).click();
+  await page.getByRole('button', { name: 'Field guide' }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Close help' })).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('button', { name: 'Field guide' })).toBeFocused();
+  await expect(page.getByText('Free view', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Pause city' }).click();
+  await page.getByRole('button', { name: 'Reset overview' }).click();
+  await page.getByRole('button', { name: 'Next landmark' }).click();
+  await expect(page.getByText('Rainlight Pavilion', { exact: true }).first()).toBeVisible();
+  const before = await page.locator('canvas').screenshot();
+  await page.waitForTimeout(300);
+  expect(await page.locator('canvas').screenshot()).toEqual(before);
+  await page.getByRole('button', { name: 'Zoom in' }).click();
+  expect(await page.locator('canvas').screenshot()).not.toEqual(before);
+  await expect(page.getByRole('button', { name: /follow/i })).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test('reduced motion, focus cycling, DPR bounds, and accessible controls', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'Resume city' })).toBeEnabled();
+  await page.getByRole('region', { name: 'City navigation' }).focus();
+  await page.keyboard.press(']');
+  await expect(page.getByText('Rainlight Pavilion', { exact: true }).first()).toBeVisible();
+  await page.keyboard.press(']');
+  await expect(page.getByText('Terrace Steps', { exact: true }).first()).toBeVisible();
+  await page.keyboard.press(']');
+  await expect(page.getByText('Reed Garden', { exact: true }).first()).toBeVisible();
+  await page.keyboard.press(']');
+  await expect(page.getByText('Rainlight Pavilion', { exact: true }).first()).toBeVisible();
+  const dpr = await page.locator('canvas').evaluate((canvas: HTMLCanvasElement) => canvas.width / canvas.clientWidth);
+  expect(dpr).toBeLessThanOrEqual(1.5);
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  await page.getByRole('button', { name: 'Field guide' }).click();
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+});
+
+test('unsupported WebGL keeps landmark navigation, not a blank canvas', async ({ page }) => {
+  await page.addInitScript(() => {
+    const original = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function (type: string, ...args: unknown[]) {
+      if (type === 'webgl2') return null;
+      return Reflect.apply(original, this, [type, ...args]);
+    };
+  });
+  await page.goto('/');
+  await expect(page.getByText(/WebGL2 is unavailable/)).toBeVisible();
+  await page.getByRole('button', { name: 'Next landmark' }).click();
+  await expect(page.getByText(/A copper-roofed gathering place/)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Pause city' })).toBeDisabled();
+  expect(await page.locator('.city-poster').evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0)).toBe(true);
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+});
+
+test('a useful original still remains when JavaScript is disabled', async ({ browser }) => {
+  const context = await browser.newContext({ javaScriptEnabled: false });
+  const page = await context.newPage();
+  await page.goto('http://127.0.0.1:4178/');
+  await expect(page.getByRole('heading', { name: 'Rainlight Square' })).toBeVisible();
+  await expect(page.getByRole('img')).toBeVisible();
+  await expect(page.getByText(/JavaScript is disabled/)).toBeVisible();
+  await expect(page.getByText(/Sound is off/)).toBeVisible();
+  await context.close();
+});
+
+test('real WebGL context restores once and preserves paused selection', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByText('City is living', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Pause city' }).click();
+  await page.getByRole('button', { name: 'Next landmark' }).click();
+  const supported = await page.locator('canvas').evaluate((canvas: HTMLCanvasElement) => {
+    const extension = canvas.getContext('webgl2')?.getExtension('WEBGL_lose_context');
+    if (!extension) return false;
+    extension.loseContext();
+    setTimeout(() => extension.restoreContext(), 100);
+    return true;
+  });
+  expect(supported).toBe(true);
+  await expect(page.getByRole('button', { name: 'Resume city' })).toBeEnabled();
+  await expect(page.getByText('Rainlight Pavilion', { exact: true }).first()).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Zoom in' })).toBeEnabled();
+  await page.getByRole('button', { name: 'Zoom in' }).click();
+});
+
+test('the same paused seed reproduces the scene and does not load external resources', async ({ page }) => {
+  const external: string[] = [];
+  page.on('request', (request) => {
+    if (new URL(request.url()).origin !== 'http://127.0.0.1:4178') external.push(request.url());
+  });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'Resume city' })).toBeEnabled();
+  const first = await page.locator('canvas').screenshot();
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Resume city' })).toBeEnabled();
+  expect(await page.locator('canvas').screenshot()).toEqual(first);
+  expect(external).toEqual([]);
+});
+
+test('Command-drag orbits a landmark instead of panning it off its pivot', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'Resume city' })).toBeEnabled();
+  await page.getByRole('button', { name: 'Next landmark' }).click();
+  const canvas = page.locator('canvas');
+  const bounds = await canvas.boundingBox();
+  if (!bounds) throw new Error('Missing scene bounds');
+  const x = bounds.x + bounds.width / 2;
+  const y = bounds.y + bounds.height / 2;
+  await page.keyboard.down('Meta');
+  await page.mouse.move(x + 30, y);
+  await page.mouse.down();
+  await page.mouse.move(x + 150, y + 180, { steps: 12 });
+  await page.mouse.up();
+  await page.keyboard.up('Meta');
+  await expect(page.getByText('Free view', { exact: true })).toBeVisible();
+  await expect(canvas).not.toHaveAttribute('data-dragging');
+  await page.getByRole('button', { name: 'Clear selection' }).click();
+  await page.mouse.click(x, y);
+  await expect(page.getByText('Landmark view', { exact: true })).toBeVisible();
+  await expect(page.getByText('Rainlight Pavilion', { exact: true }).first()).toBeVisible();
+  await page.getByRole('button', { name: 'More street-level' }).click();
+  await expect(page.getByText('Free view', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'More overhead' }).click();
+  await expect(page.getByRole('button', { name: 'Resume city' })).toBeEnabled();
+});
+
+test('mouse gestures yield the camera without touching overlay controls', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByText('City is living', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Next landmark' }).click();
+  const box = await page.locator('canvas').boundingBox();
+  expect(box).not.toBeNull();
+  if (!box) throw new Error('Missing scene bounds');
+  const x = box.x + box.width * 0.6;
+  const y = box.y + box.height * 0.5;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x + 60, y + 10, { steps: 5 });
+  await page.mouse.up();
+  await expect(page.getByText('Free view', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Next landmark' }).click();
+  await page.getByRole('button', { name: 'Dismiss navigation hint' }).click();
+  await expect(page.getByText('Landmark view', { exact: true })).toBeVisible();
+  await page.mouse.move(x, y);
+  await page.mouse.wheel(0, -80);
+  await expect(page.getByText('Free view', { exact: true })).toBeVisible();
+});
+
+for (const [width, height] of [[1024, 768], [1440, 900], [1920, 1080]]) {
+  test(`controls stay reachable without horizontal overflow at ${width}x${height}`, async ({ page }) => {
+    await page.setViewportSize({ width, height });
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto('/');
+    await expect(page.getByRole('button', { name: 'Resume city' })).toBeEnabled();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    for (const name of ['Resume city', 'Next landmark', 'Previous landmark', 'Zoom in', 'Pan up', 'Rotate left', 'More overhead', 'More street-level', 'Field guide']) {
+      const button = page.getByRole('button', { name, exact: true });
+      await button.scrollIntoViewIfNeeded();
+      const bounds = await button.boundingBox();
+      expect(bounds?.width).toBeGreaterThanOrEqual(44);
+      expect(bounds?.height).toBeGreaterThanOrEqual(44);
+      await expect(button).toBeVisible();
+      expect(await button.evaluate((element) => {
+        const rect = element.getBoundingClientRect();
+        return element.contains(document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2));
+      })).toBe(true);
+    }
+    await page.getByRole('button', { name: 'Next landmark' }).click();
+    await expect(page.getByText(/A copper-roofed gathering place/)).toBeVisible();
+  });
+}

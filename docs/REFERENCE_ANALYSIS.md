@@ -97,7 +97,7 @@ Use [desktop](../research/reference-images/desktop.png), [night](../research/ref
 | --- | --- | --- |
 | Navigation help | Page-declared drag to pan; scroll/pinch to zoom; right-drag, sideways two-finger swipe, or Shift-scroll to rotate. Safari twist is a help claim, not a Safari test. | Provide equivalent accessible navigation with explicit buttons and keyboard alternatives. |
 | Selection | Help describes sign hover preview and click/tap focus/card; selection UI was captured. | Select an original landmark; brief noncommercial status, no ad card or directory. |
-| Follow | Tested bus flow shows "Following" and "Stop"; the source couples it to a moving ad card. | Follow an ordinary bus/drone and show status/Stop only. Drone help/control presence does not prove every drone edge case was tested. |
+| Follow | Tested bus flow shows "Following" and "Stop"; the source couples it to a moving ad card. | Excluded by the user's 2026-09-12 decision. The drone was subsequently removed entirely; street activity remains. Source drone help/control presence does not prove every edge case was tested. |
 | Tour | Help declares high views, street glides, brand pauses, short bus/drone rides, or orbit around current selection. | Original landmark pauses and contextual tours; exact scheduling is proposed. |
 | Direct controls | Zoom +/-, rotate, reset, tour, pause/play, audio, fullscreen, settings, intro hide/show. | Retain world controls, replace promotional intro with concise dismissible help. |
 | Weather | Sunny, Cloudy, Rain, Mist; optional natural changes. | Local simulated presets and optional seeded transitions. |

@@ -1,6 +1,10 @@
 # Ambient-only roadmap
 
-**Status: entirely unimplemented. All tasks intentionally remain unchecked.** This is a bounded plan for when the user requests implementation, not authorization to start now. Read [AGENTS.md](../AGENTS.md) and the [product boundary](PRODUCT_BRIEF.md) first.
+**Status: all roadmap goals M1-M8 authorized on 2026-09-12; implementation and verification in progress.** The latest requests expand the initial M1-M3 scope, add an NYC-inspired visual identity, and ask for detailed updates. Earlier removals remain binding: no actor-follow features, no drone, and no mobile-edge-case work. The planned occasional airplane is included in the all-roadmap implementation scope. Read [AGENTS.md](../AGENTS.md) and the [product boundary](PRODUCT_BRIEF.md) first.
+
+**Milestone checkpoint (M5 reached).** The live build now integrates the full M1-M3 foundation, M4 camera/orbit and motion/hint/fullscreen settings, the **M5 environment + audio surface** (Sunny/Cloudy/Rain/Mist, Afternoon/Night/Local/Cycle time, quality tiers, pause-safe clocks, and gesture-gated ambient sound with mute/volume), and the **occasional airplane**. The world was also enlarged around the tuned core (a deterministic outer skyline revealed on pan/zoom-out) within the same draw-call/material budget, and the app is configured for static deployment on Vercel (`vercel.json` + verified production build). Remaining: complete M4 tours/preferences, M6 desktop/accessibility hardening, M7 performance/reliability sign-off, and the M8 NYC identity pass. Unchecked items below are not completed-product claims; final legibility/perf/accessibility verification is deferred to M6/M7 after the M8 artwork.
+
+**Platform update:** desktop/laptop-first. The user explicitly excluded mobile edge-case work; phone-specific acceptance/profiling is no longer required. Current layout verification targets 1024x768, 1440x900, and 1920x1080.
 
 Dependencies favor working vertical slices. Accessibility, cleanup, failure handling, and basic profiling start in milestone 1; the later hardening milestones broaden coverage rather than postponing those responsibilities.
 
@@ -10,22 +14,23 @@ Dependencies favor working vertical slices. Accessibility, cleanup, failure hand
 | --- | --- | --- | --- |
 | M1 | Small interactive original slice | Explicit implementation request; confirm reference devices | 16-28 h |
 | M2 | Original coherent district | M1 | 24-42 h |
-| M3 | Believable street and aerial activity | M2 route/anchor contracts | 22-40 h |
+| M3 | Believable street activity | M2 route/anchor contracts | 22-40 h |
 | M4 | Complete controls and contextual views | M1 camera contract; M2/M3 targets | 16-30 h |
 | M5 | Weather, light, and optional sound | M1 clocks; M2 art; M3 activity | 14-26 h |
 | M6 | Responsive and accessibility hardening | M4/M5 complete feature surfaces | 14-26 h |
 | M7 | Performance and long-session reliability | M1-M6 | 14-28 h |
-| Total | Polished ambient scope | No commercial systems | **120-220 h** |
+| M8 | NYC-inspired world and interface | M2 art; M4/M5 behavior | Profile and scope before estimating |
+| Original total | M1-M7 ambient scope, excluding the later M8 addition | No commercial systems | **120-220 h** |
 
 ### M1 - Small interactive original slice
 
-- [ ] Confirm a modest original scene concept, camera projection, named laptop/mobile reference devices, and implementation stack/package manager.
+- [ ] Confirm a modest original scene concept, camera projection, reference desktop/laptop, and implementation stack/package manager.
 - [ ] Build one small original block, one original landmark, and one closed route with an ordinary bus.
-- [ ] Connect real pan/zoom/rotate/reset, landmark focus, bus follow/stop, pause/resume, and keyboard alternatives.
+- [ ] Connect real pan/zoom/rotate/reset, landmark focus, pause/resume, and keyboard alternatives.
 - [ ] Provide an original loading still and useful static fallback; implement error and teardown paths, hidden-tab suspension, muted-by-default behavior even before audio exists.
 - [ ] Add camera/clock tests and a small browser interaction path.
 
-**Done when:** the slice is genuinely interactive, not a fake poster/demo; navigation cancels follow predictably; pause and a hidden-tab return cause no actor jump; controls are operable at 375 px and desktop; mount/unmount leaves no active loop. Satisfy applicable AC-01 through AC-07 and AC-17 through AC-20 in [acceptance criteria](ACCEPTANCE_CRITERIA.md).
+**Done when:** the slice is genuinely interactive, not a fake poster/demo; navigation cancels focus transitions predictably; pause and a hidden-tab return cause no actor jump; controls are operable on supported desktop layouts; mount/unmount leaves no active loop. Satisfy applicable AC-01 through AC-07 and AC-17 through AC-20 in [acceptance criteria](ACCEPTANCE_CRITERIA.md).
 
 ### M2 - Original district
 
@@ -37,20 +42,30 @@ Dependencies favor working vertical slices. Accessibility, cleanup, failure hand
 
 **Done when:** regeneration retains semantic references, asset provenance is complete, no source artwork or names are copied, the district is navigable without clipping, and the initial geometry budget is measured. Applicable AC-03, AC-05, AC-15, AC-16, AC-19.
 
-### M3 - Street and aerial activity
+### M3 - Street activity
 
 - [ ] Add cars, pedestrians, bus stop dwell, and explicit crossing/intersection conflict rules.
 - [ ] Vary speeds and route phases deterministically; include a few waiting/sitting people.
-- [ ] Add one ordinary drone route and follow target; keep population bounded.
+- [ ] Keep the moving population bounded to one bus, three cars, and eight walkers; no drone.
 - [ ] Add restrained micro-animation and occasional seeded events after core movement is stable.
-- [ ] Treat cyclists, motorcycles, skating figures, balloons, and aircraft as optional density/art refinements, not parallel systems required before completion.
+- [ ] Treat cyclists, motorcycles, skating figures, and balloons as optional refinements, not systems required before completion.
 
 **Done when:** route loops are continuous, cars and crossing pedestrians obey the chosen conflict rules, bus stops are believable, target IDs survive quality changes, and the seeded scene runs ten minutes without runaway spawning or deadlock. Applicable AC-04, AC-05, AC-08, AC-15, AC-18.
+
+### Additional approved goal - Occasional airplane fly-by
+
+**Initially plan-only; included by the subsequent all-roadmap authorization.** Replace the removed drone concept with a rare, distant airplane passing above the district. No airplane-follow control, selection action, notification, or new audio requirement.
+
+- [x] Author one original lightweight airplane silhouette with an above-rooftop flight corridor and off-screen entry/exit.
+- [x] Schedule at most one airplane at a time with seeded gaps. Working proposal: one pass every 90-180 simulated seconds, with no permanent circling or spawning buildup.
+- [x] Drive both travel and scheduling from the simulation clock: pause freezes them; hidden-tab return must not catch up or burst-spawn. Suppress passes under reduced motion.
+- [x] Verify deterministic timing, bounded allocation/cleanup, desktop composition, and safe separation from buildings before enabling it.
 
 ### M4 - Controls and contextual tours
 
 - [ ] Complete original-landmark focus cycling and concise contextual status without a directory/card catalog.
-- [ ] Implement global/contextual tour segments and explicit follow/stop for bus and drone.
+- [x] Support Command/Control-drag and right-drag orbit with bounded vertical tilt, projection-correct panning, and equivalent buttons/shortcuts across the whole modeled district.
+- [ ] Implement global/contextual tour segments and explicit tour Stop.
 - [ ] Wire interruption, modal-close, pause, unavailable-target, and reduced-motion guided-view behavior through one camera state machine.
 - [ ] Complete help, fullscreen or clearly labeled expanded-view fallback, and preference controls.
 - [ ] Add cross-input parity tests so toolbar, shortcuts, and touch invoke the same commands.
@@ -59,23 +74,23 @@ Dependencies favor working vertical slices. Accessibility, cleanup, failure hand
 
 ### M5 - Weather, light, and optional sound
 
-- [ ] Add Sunny/Cloudy/Rain/Mist with explicit presets and optional seeded natural changes.
-- [ ] Add Afternoon/Night/Local clock/Day-night cycle with clear fictional-weather labeling.
-- [ ] Implement pause-safe environment clocks and local-time lighting resynchronization.
-- [ ] Add a small original audio design, master volume/mute, explicit enable, and visible failure/retry state.
-- [ ] Tie effects to quality and reduced-motion settings without removing essential control.
+- [x] Add Sunny/Cloudy/Rain/Mist with explicit presets and optional seeded natural changes.
+- [x] Add Afternoon/Night/Local clock/Day-night cycle with clear fictional-weather labeling.
+- [x] Implement pause-safe environment clocks and local-time lighting resynchronization.
+- [x] Add a small original audio design, master volume/mute, explicit enable, and visible failure/retry state.
+- [x] Tie effects to quality and reduced-motion settings without removing essential control.
 
-**Done when:** every weather/time combination remains legible, no environment effect catches up through hidden time, sound is silent until explicitly enabled each load, and audio suspends/disposes correctly. Applicable AC-06 through AC-11, AC-15, AC-17, AC-18.
+**Done when:** every weather/time combination remains legible, no environment effect catches up through hidden time, sound is silent until explicitly enabled each load, and audio suspends/disposes correctly. Applicable AC-06 through AC-11, AC-15, AC-17, AC-18. _Integrated and unit-verified; final cross-combination legibility sign-off rides with M6/M7 after the M8 artwork._
 
-### M6 - Responsive and accessibility hardening
+### M6 - Desktop and accessibility hardening
 
-- [ ] Exercise 320/375/390/414/768 px widths and desktop 1440 px; landscape, safe areas, and enlarged text.
+- [ ] Exercise 1024/1440/1920 px computer layouts and enlarged text.
 - [ ] Check every control's visibility/hit target and prevent overlay input leaking to the world.
 - [ ] Complete modal focus, shortcut scoping/help, meaningful status announcements, and screen-reader fallback.
 - [ ] Test reduced-motion transitions, stepwise tours, static focus navigation, and sound-independent operation.
-- [ ] Test physical iOS Safari and Android Chrome, not only emulated Chromium.
+- [ ] Test supported desktop browsers and assistive technology on a physical computer.
 
-**Done when:** the complete keyboard route and fallback are usable without adding a directory; no primary control is obscured; mobile panels scroll without moving the scene. Applicable AC-02, AC-09 through AC-14, AC-19.
+**Done when:** the complete keyboard route and fallback are usable without adding a directory; no primary control is obscured; panels scroll without moving the scene. Applicable AC-02, AC-09 through AC-14, AC-19.
 
 ### M7 - Optimization and hardening
 
@@ -86,6 +101,20 @@ Dependencies favor working vertical slices. Accessibility, cleanup, failure hand
 - [ ] Record the measured result and any approved budget revisions; leave no claim supported only by a screenshot.
 
 **Done when:** the applicable full [acceptance matrix](ACCEPTANCE_CRITERIA.md) passes or explicit limitations are approved and documented. No hidden analytics, backend, commercial features, or unlicensed runtime assets.
+
+### M8 - NYC-inspired world and interface
+
+Replace the initial garden-village feel with an **original fictional NYC-like neighborhood**, not a literal map or a recreation of named buildings. Execute this visual pass before the final M6/M7 accessibility and performance sign-off so measurements cover the final artwork.
+
+- [ ] Create a denser street-wall silhouette with original brick/brownstone and limestone mid-rises, varied cornices, fire escapes, rooftop water tanks, and restrained taller accents.
+- [ ] Rework streets and public space toward asphalt, concrete sidewalks, curb details, railings, small tree pits, and pocket parks. Keep all vehicle/walker paths and crossings physically aligned.
+- [ ] Give ordinary cars a restrained yellow-cab visual cue without copying taxi-company branding, logos, or commercial signage. Preserve buses, pedestrians, and the rare airplane; no drone or camera-follow actions.
+- [ ] Replace the soft garden palette and decorative UI voice with an understated urban/transit-inspired desktop control system: clear typography, charcoal/stone surfaces, warm brick, and limited yellow accents. Keep the world dominant, not a marketing page.
+- [ ] Update landmark names/descriptions/forms and camera compositions coherently; preserve stable semantic IDs where possible and explicitly migrate/revalidate changed references.
+- [ ] Regenerate the original static illustration, revise asset provenance/versioning, and inspect overview, focused, night, rain, and mist views.
+- [ ] Re-run scene budgets, desktop accessibility, deterministic visuals, and resource-lifetime checks after the art change.
+
+**Done when:** the scene and chrome read as one NYC-inspired experience at supported desktop sizes, not just a color swap; no exact real-city layout, source artwork, branded billboard, directory, or commercial feature has been introduced; camera/actor/fallback behavior remains correct.
 
 ## Estimate interpretation
 
