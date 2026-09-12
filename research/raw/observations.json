@@ -1,0 +1,738 @@
+{
+  "capturedAt": "2026-09-12T18:48:46.560Z",
+  "headers": {
+    "cache-control": "private, no-store",
+    "content-encoding": "gzip",
+    "content-type": "text/html; charset=utf-8",
+    "date": "Sat, 12 Sep 2026 18:48:35 GMT",
+    "fly-request-id": "01M2BF6CJHK0ND9R41HCY9SPZS-ewr",
+    "link": "</brand-logo-128.png>; rel=preload; as=\"image\", </city/city-poster.png>; rel=preload; as=\"image\"",
+    "server": "Fly/728d0e526 (2026-09-10)",
+    "vary": "RSC, Next-Router-State-Tree, Next-Router-Prefetch, Next-Router-Segment-Prefetch, Next-Url, X-Vinext-Interception-Context, X-Vinext-Mounted-Slots, X-Vinext-Rsc-Render-Mode",
+    "via": "2 fly.io, 2 fly.io"
+  },
+  "desktop": {
+    "title": "Opportunity.city — Small city. Big ideas.",
+    "text": "Help Opportunity.city improve with optional usage analytics. We use PostHog to understand city visits and interactions. Change your choice in How it works or My placements. Privacy\n\nNo thanks\nAccept analytics\nOpportunity.city\nEARLY ACCESS\nExplore city\nThe directory\nHow it works\nBrowse\nthe city\nA CITY OF POSSIBILITIES\nSmall city.\nBig ideas.\n\nDiscover something good.\nOr put your own idea on the map.\n\nHow Opportunity.city works\n37 spots waiting for an idea\nIDEAS ON THE MOVE\nFollow a bus\nFollow a drone\nFounders Square\nWhere the next big idea begins.\n14:48\nSunny, 24°\nYOUR VIEW OF THE CITY\n\nWeather\n\nSunny\nCloudy\nRain\nMist\nLet the weather change naturally\nTime of day\nFollow my clock\nAfternoon\nNight\nDay & night cycle\nCity detail\nAutomatic\nHigh\nLightweight\nA little world, always moving.\n2\nonline\n224\nvisits\nYour next chapter has an address.",
+    "styles": [
+      {
+        "selector": "body",
+        "font": "Geist, Arial, Helvetica, sans-serif",
+        "size": "16px",
+        "weight": "400",
+        "lineHeight": "24px",
+        "letterSpacing": "normal",
+        "color": "rgb(39, 55, 46)",
+        "background": "rgb(245, 245, 238)",
+        "bounds": {
+          "x": 0,
+          "y": 0,
+          "width": 1440,
+          "height": 1000
+        }
+      },
+      {
+        "selector": ".topbar",
+        "font": "Geist, Arial, Helvetica, sans-serif",
+        "size": "16px",
+        "weight": "400",
+        "lineHeight": "24px",
+        "letterSpacing": "normal",
+        "color": "rgb(41, 55, 47)",
+        "background": "rgb(251, 252, 246)",
+        "bounds": {
+          "x": 0,
+          "y": 0,
+          "width": 1440,
+          "height": 76
+        }
+      },
+      {
+        "selector": ".world",
+        "font": "Geist, Arial, Helvetica, sans-serif",
+        "size": "16px",
+        "weight": "400",
+        "lineHeight": "24px",
+        "letterSpacing": "normal",
+        "color": "rgb(41, 55, 47)",
+        "background": "rgba(0, 0, 0, 0)",
+        "bounds": {
+          "x": 0,
+          "y": 0,
+          "width": 1440,
+          "height": 1000
+        }
+      },
+      {
+        "selector": ".city-intro h1",
+        "font": "Georgia, serif",
+        "size": "40px",
+        "weight": "400",
+        "lineHeight": "41.2px",
+        "letterSpacing": "-1.7px",
+        "color": "rgb(41, 55, 47)",
+        "background": "rgba(0, 0, 0, 0)",
+        "bounds": {
+          "x": 55,
+          "y": 142.5,
+          "width": 234,
+          "height": 82.375
+        }
+      },
+      {
+        "selector": ".city-intro p",
+        "font": "Geist, Arial, Helvetica, sans-serif",
+        "size": "12px",
+        "weight": "400",
+        "lineHeight": "21.6px",
+        "letterSpacing": "normal",
+        "color": "rgb(89, 107, 81)",
+        "background": "rgba(0, 0, 0, 0)",
+        "bounds": {
+          "x": 55,
+          "y": 236.875,
+          "width": 234,
+          "height": 43.1875
+        }
+      },
+      {
+        "selector": ".wordmark",
+        "font": "Geist, Arial, Helvetica, sans-serif",
+        "size": "25px",
+        "weight": "400",
+        "lineHeight": "37.5px",
+        "letterSpacing": "normal",
+        "color": "rgb(41, 55, 47)",
+        "background": "rgba(0, 0, 0, 0)",
+        "bounds": {
+          "x": 32,
+          "y": 18,
+          "width": 357.078125,
+          "height": 39
+        }
+      },
+      {
+        "selector": ".bottom-bar",
+        "font": "Geist, Arial, Helvetica, sans-serif",
+        "size": "13px",
+        "weight": "600",
+        "lineHeight": "19.5px",
+        "letterSpacing": "normal",
+        "color": "rgb(63, 83, 64)",
+        "background": "rgb(250, 251, 245)",
+        "bounds": {
+          "x": 0,
+          "y": 952,
+          "width": 1440,
+          "height": 48
+        }
+      },
+      {
+        "selector": ".weather-controls",
+        "font": "Geist, Arial, Helvetica, sans-serif",
+        "size": "16px",
+        "weight": "400",
+        "lineHeight": "24px",
+        "letterSpacing": "normal",
+        "color": "rgb(41, 55, 47)",
+        "background": "rgba(255, 255, 244, 0.93)",
+        "bounds": {
+          "x": 32,
+          "y": 895,
+          "width": 275.859375,
+          "height": 48
+        }
+      }
+    ],
+    "tokens": {
+      "--font-geist-sans": "Geist",
+      "--font-geist-mono": "Geist Mono",
+      "--background": "#f5f5ee",
+      "--foreground": "#27372e",
+      "--primary": "#304e3d",
+      "--radius": ".65rem"
+    },
+    "canvases": [
+      {
+        "width": 1440,
+        "height": 1000,
+        "attributes": [
+          [
+            "data-engine",
+            "three.js r185"
+          ],
+          [
+            "width",
+            "1440"
+          ],
+          [
+            "height",
+            "1000"
+          ],
+          [
+            "style",
+            "display: block; touch-action: none; width: 1440px; height: 1000px;"
+          ]
+        ]
+      },
+      {
+        "width": 448,
+        "height": 150,
+        "attributes": [
+          [
+            "width",
+            "448"
+          ],
+          [
+            "height",
+            "150"
+          ]
+        ]
+      }
+    ],
+    "threeRevision": "185",
+    "links": [
+      {
+        "text": "Privacy",
+        "href": "https://opportunity.city/privacy/app"
+      }
+    ],
+    "fontFaces": [
+      {
+        "family": "Geist",
+        "status": "unloaded",
+        "weight": "100 900"
+      },
+      {
+        "family": "Geist",
+        "status": "unloaded",
+        "weight": "100 900"
+      },
+      {
+        "family": "Geist",
+        "status": "unloaded",
+        "weight": "100 900"
+      },
+      {
+        "family": "Geist",
+        "status": "unloaded",
+        "weight": "100 900"
+      },
+      {
+        "family": "Geist",
+        "status": "loaded",
+        "weight": "100 900"
+      },
+      {
+        "family": "Geist Mono",
+        "status": "unloaded",
+        "weight": "100 900"
+      },
+      {
+        "family": "Geist Mono",
+        "status": "unloaded",
+        "weight": "100 900"
+      },
+      {
+        "family": "Geist Mono",
+        "status": "unloaded",
+        "weight": "100 900"
+      },
+      {
+        "family": "Geist Mono",
+        "status": "unloaded",
+        "weight": "100 900"
+      },
+      {
+        "family": "Geist Mono",
+        "status": "unloaded",
+        "weight": "100 900"
+      },
+      {
+        "family": "Geist Mono",
+        "status": "unloaded",
+        "weight": "100 900"
+      }
+    ]
+  },
+  "howItWorks": "A city built around big ideas.\n\nEvery sign has a story. Yours could be next.\n\n01\nFind a little corner.\n\nExplore buildings, the landmark, buses, and one drone. Tap a sign to see who lives there this week.\n\n02\nMake an entrance.\n\nEvery sign in Founders Square can hold an idea for seven days at a published rate. Empty corners stay empty until someone takes them.\n\n03\nKeep your place in the skyline.\n\nLeave Opportunity.city on a second screen. Listen, look up when you want, and visit a neighbor when something catches your eye.\n\nA good neighborhood for everyone.\n\nAd text and artwork must be suitable for a general audience. Uploaded logos are sent to Sightengine for automated checks before publishing. Questions or a mistaken rejection? Contact contact@opportunity.city.\n\nAbout\nRules\nContact & imprint\nPrivacy\nPrivacy choices\nBrowse the city\nClose",
+  "settings": "YOUR VIEW OF THE CITY\n\nWeather\n\nSunny\nCloudy\nRain\nMist\nLet the weather change naturally\nTime of day\nFollow my clock\nAfternoon\nNight\nDay & night cycle\nCity detail\nAutomatic\nHigh\nLightweight",
+  "directory": "FOUNDERS SQUARE · THE DIRECTORY\nMeet the neighborhood.\n\nFind your next favorite thing. Or find a place for your own.\n\nFeatured\nAvailable first\nName A–Z\nAll spots\nBuildings\nLandmark billboards\nBuses\nDrones\nAvailable only\n37 places to discover\nYour brand here\nMercury House\nBuilding\nAVAILABLE\n$49\nYour brand here\nJuniper Works\nBuilding\nAVAILABLE\n$49\nYour brand here\nAtlas Tower\nBuilding\nAVAILABLE\n$49\nYour brand here\nCedar Exchange\nBuilding\nAVAILABLE\n$49\nYour brand here\nAster Hotel\nBuilding\nAVAILABLE\n$49\nYour brand here\nGlasshouse\nBuilding\nAVAILABLE\n$49\nYour brand here\nAssembly Studios\nBuilding\nAVAILABLE\n$49\nYour brand here\nThe Daily Market\nBuilding\nAVAILABLE\n$49\nYour brand here\nUnion House\nBuilding\nAVAILABLE\n$49\nYour brand here\nLumen Hall\nBuilding\nAVAILABLE\n$49\nYour brand here\nFoundry 09\nBuilding\nAVAILABLE\n$49\nYour brand here\nNorthstar\nBuilding\nAVAILABLE\n$49\nYour brand here\nTerrace Club\nBuilding\nAVAILABLE\n$49\nYour brand here\nCivic Library\nBuilding\nAVAILABLE\n$49\nYour brand here\nSunday Coffee\nBuilding\nAVAILABLE\n$49\nYour brand here\nMosaic Apartments\nBuilding\nAVAILABLE\n$49\nYour brand here\nAcorn Works\nBuilding\nAVAILABLE\n$49\nYour brand here\nFable Studio\nBuilding\nAVAILABLE\n$49\nYour brand here\nNook Bakery\nBuilding\nAVAILABLE\n$49\nYour brand here\nMarlow Hall\nBuilding\nAVAILABLE\n$49\nYour brand here\nGoodwill Goods\nBuilding\nAVAILABLE\n$49\nYour brand here\nCanvas Collective\nBuilding\nAVAILABLE\n$49\nYour brand here\nField House\nBuilding\nAVAILABLE\n$49\nYour brand here\nIndigo Office\nBuilding\nAVAILABLE\n$49\nYour brand here\nCorner Bookshop\nBuilding\nAVAILABLE\n$49\nYour brand here\nThe Green Room\nBuilding\nAVAILABLE\n$49\nYour brand here\nScout Goods\nBuilding\nAVAILABLE\n$49\nYour brand here\nStillwater\nBuilding\nAVAILABLE\n$49\nYour brand here\nOpen Workshop\nBuilding\nAVAILABLE\n$49\nYour brand here\nGood Company\nBuilding\nAVAILABLE\n$49\nYour brand here\nCentral Post\nBuilding\nAVAILABLE\n$49\nYour brand here\nThe Local\nBuilding\nAVAILABLE\n$49\nYour brand here\nThe Promenade Landmark\nLandmark billboard\nAVAILABLE\n$149\nYour brand here\nThe Downtown Flyer\nDrone\nAVAILABLE\n$99\nYour brand here\nThe Boulevard Loop\nBus\nAVAILABLE\n$59\nYour brand here\nThe Market Line\nBus\nAVAILABLE\n$59\nYour brand here\nThe Crosstown\nBus\nAVAILABLE\n$59",
+  "directoryControls": [
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "aria": "Close directory",
+      "placeholder": null
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "aria": "Search brands and locations",
+      "placeholder": "Search brands, buildings, or a little inspiration…"
+    },
+    {
+      "tag": "SELECT",
+      "text": "Featured\nAvailable first\nName A–Z",
+      "aria": "Sort locations",
+      "placeholder": null
+    },
+    {
+      "tag": "BUTTON",
+      "text": "All spots",
+      "aria": null,
+      "placeholder": null
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Buildings",
+      "aria": null,
+      "placeholder": null
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Landmark billboards",
+      "aria": null,
+      "placeholder": null
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Buses",
+      "aria": null,
+      "placeholder": null
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Drones",
+      "aria": null,
+      "placeholder": null
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "aria": null,
+      "placeholder": null
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Your brand here\nMercury House\nBuilding\nAVAILABLE\n$49",
+      "aria": null,
+      "placeholder": null
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Your brand here\nJuniper Works\nBuilding\nAVAILABLE\n$49",
+      "aria": null,
+      "placeholder": null
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Your brand here\nAtlas Tower\nBuilding\nAVAILABLE\n$49",
+      "aria": null,
+      "placeholder": null
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Your brand here\nCedar Exchange\nBuilding\nAVAILABLE\n$49",
+      "aria": null,
+      "placeholder": null
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Your brand here\nAster Hotel\nBuilding\nAVAILABLE\n$49",
+      "aria": null,
+      "placeholder": null
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Your brand here\nGlasshouse\nBuilding\nAVAILABLE\n$49",
+      "aria": null,
+      "placeholder": null
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Your brand here\nAssembly Studios\nBuilding\nAVAILABLE\n$49",
+      "aria": null,
+      "placeholder": null
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Your brand here\nThe Daily Market\nBuilding\nAVAILABLE\n$49",
+      "aria": null,
+      "placeholder": null
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Your brand here\nUnion House\nBuilding\nAVAILABLE\n$49",
+      "aria": null,
+      "placeholder": null
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Your brand here\nLumen Hall\nBuilding\nAVAILABLE\n$49",
+      "aria": null,
+      "placeholder": null
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Your brand here\nFoundry 09\nBuilding\nAVAILABLE\n$49",
+      "aria": null,
+      "placeholder": null
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Your brand here\nNorthstar\nBuilding\nAVAILABLE\n$49",
+      "aria": null,
+      "placeholder": null
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Your brand here\nTerrace Club\nBuilding\nAVAILABLE\n$49",
+      "aria": null,
+      "placeholder": null
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Your brand here\nCivic Library\nBuilding\nAVAILABLE\n$49",
+      "aria": null,
+      "placeholder": null
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Your brand here\nSunday Coffee\nBuilding\nAVAILABLE\n$49",
+      "aria": null,
+      "placeholder": null
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Your brand here\nMosaic Apartments\nBuilding\nAVAILABLE\n$49",
+      "aria": null,
+      "placeholder": null
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Your brand here\nAcorn Works\nBuilding\nAVAILABLE\n$49",
+      "aria": null,
+      "placeholder": null
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Your brand here\nFable Studio\nBuilding\nAVAILABLE\n$49",
+      "aria": null,
+      "placeholder": null
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Your brand here\nNook Bakery\nBuilding\nAVAILABLE\n$49",
+      "aria": null,
+      "placeholder": null
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Your brand here\nMarlow Hall\nBuilding\nAVAILABLE\n$49",
+      "aria": null,
+      "placeholder": null
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Your brand here\nGoodwill Goods\nBuilding\nAVAILABLE\n$49",
+      "aria": null,
+      "placeholder": null
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Your brand here\nCanvas Collective\nBuilding\nAVAILABLE\n$49",
+      "aria": null,
+      "placeholder": null
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Your brand here\nField House\nBuilding\nAVAILABLE\n$49",
+      "aria": null,
+      "placeholder": null
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Your brand here\nIndigo Office\nBuilding\nAVAILABLE\n$49",
+      "aria": null,
+      "placeholder": null
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Your brand here\nCorner Bookshop\nBuilding\nAVAILABLE\n$49",
+      "aria": null,
+      "placeholder": null
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Your brand here\nThe Green Room\nBuilding\nAVAILABLE\n$49",
+      "aria": null,
+      "placeholder": null
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Your brand here\nScout Goods\nBuilding\nAVAILABLE\n$49",
+      "aria": null,
+      "placeholder": null
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Your brand here\nStillwater\nBuilding\nAVAILABLE\n$49",
+      "aria": null,
+      "placeholder": null
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Your brand here\nOpen Workshop\nBuilding\nAVAILABLE\n$49",
+      "aria": null,
+      "placeholder": null
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Your brand here\nGood Company\nBuilding\nAVAILABLE\n$49",
+      "aria": null,
+      "placeholder": null
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Your brand here\nCentral Post\nBuilding\nAVAILABLE\n$49",
+      "aria": null,
+      "placeholder": null
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Your brand here\nThe Local\nBuilding\nAVAILABLE\n$49",
+      "aria": null,
+      "placeholder": null
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Your brand here\nThe Promenade Landmark\nLandmark billboard\nAVAILABLE\n$149",
+      "aria": null,
+      "placeholder": null
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Your brand here\nThe Downtown Flyer\nDrone\nAVAILABLE\n$99",
+      "aria": null,
+      "placeholder": null
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Your brand here\nThe Boulevard Loop\nBus\nAVAILABLE\n$59",
+      "aria": null,
+      "placeholder": null
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Your brand here\nThe Market Line\nBus\nAVAILABLE\n$59",
+      "aria": null,
+      "placeholder": null
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Your brand here\nThe Crosstown\nBus\nAVAILABLE\n$59",
+      "aria": null,
+      "placeholder": null
+    }
+  ],
+  "responses": [
+    {
+      "url": "https://opportunity.city/",
+      "status": 200,
+      "type": "document",
+      "contentType": "text/html; charset=utf-8"
+    },
+    {
+      "url": "https://opportunity.city/brand-logo-128.png",
+      "status": 200,
+      "type": "image",
+      "contentType": "image/png",
+      "bytes": "14295"
+    },
+    {
+      "url": "https://opportunity.city/city/city-poster.png",
+      "status": 200,
+      "type": "image",
+      "contentType": "image/png",
+      "bytes": "233097"
+    },
+    {
+      "url": "https://opportunity.city/_next/static/css/index.C9Xx3SNR.css",
+      "status": 200,
+      "type": "stylesheet",
+      "contentType": "text/css; charset=utf-8"
+    },
+    {
+      "url": "https://opportunity.city/_next/static/chunks/rolldown-runtime-C60lm6uB.js",
+      "status": 200,
+      "type": "script",
+      "contentType": "text/javascript; charset=utf-8"
+    },
+    {
+      "url": "https://opportunity.city/_next/static/chunks/hash-Cp347hhd.js",
+      "status": 200,
+      "type": "script",
+      "contentType": "text/javascript; charset=utf-8"
+    },
+    {
+      "url": "https://opportunity.city/_next/static/chunks/layout-segment-context-ef6f5wf4.js",
+      "status": 200,
+      "type": "script",
+      "contentType": "text/javascript; charset=utf-8"
+    },
+    {
+      "url": "https://opportunity.city/_next/static/chunks/product-analytics-policy-CIn2rTDn.js",
+      "status": 200,
+      "type": "script",
+      "contentType": "text/javascript; charset=utf-8"
+    },
+    {
+      "url": "https://opportunity.city/_next/static/chunks/app-rsc-cache-busting-BczU-qyJ.js",
+      "status": 200,
+      "type": "script",
+      "contentType": "text/javascript; charset=utf-8"
+    },
+    {
+      "url": "https://opportunity.city/_next/static/chunks/protocol-headers-B9-bVeat.js",
+      "status": 200,
+      "type": "script",
+      "contentType": "text/javascript; charset=utf-8"
+    },
+    {
+      "url": "https://opportunity.city/_next/static/chunks/query-DWOJKAZx.js",
+      "status": 200,
+      "type": "script",
+      "contentType": "text/javascript; charset=utf-8"
+    },
+    {
+      "url": "https://opportunity.city/_next/static/chunks/deployment-id-DFhHa9wO.js",
+      "status": 200,
+      "type": "script",
+      "contentType": "text/javascript; charset=utf-8"
+    },
+    {
+      "url": "https://opportunity.city/_next/static/chunks/record-uXSNv6cl.js",
+      "status": 200,
+      "type": "script",
+      "contentType": "text/javascript; charset=utf-8"
+    },
+    {
+      "url": "https://opportunity.city/_next/static/chunks/headers-C_MtfdF4.js",
+      "status": 200,
+      "type": "script",
+      "contentType": "text/javascript; charset=utf-8"
+    },
+    {
+      "url": "https://opportunity.city/_next/static/chunks/navigation-errors-D5LMQqDL.js",
+      "status": 200,
+      "type": "script",
+      "contentType": "text/javascript; charset=utf-8"
+    },
+    {
+      "url": "https://opportunity.city/_next/static/chunks/app-elements-H_Dr48wG.js",
+      "status": 200,
+      "type": "script",
+      "contentType": "text/javascript; charset=utf-8"
+    },
+    {
+      "url": "https://opportunity.city/_next/static/chunks/framework-D_rUT4EX.js",
+      "status": 200,
+      "type": "script",
+      "contentType": "text/javascript; charset=utf-8"
+    },
+    {
+      "url": "https://opportunity.city/_next/static/chunks/city-app-BF4Se68R.js",
+      "status": 200,
+      "type": "script",
+      "contentType": "text/javascript; charset=utf-8"
+    },
+    {
+      "url": "https://opportunity.city/_next/static/chunks/app-route-prefetch-policy-C8l5A_UB.js",
+      "status": 200,
+      "type": "script",
+      "contentType": "text/javascript; charset=utf-8"
+    },
+    {
+      "url": "https://opportunity.city/_next/static/chunks/app-rsc-render-mode-CvTCGruk.js",
+      "status": 200,
+      "type": "script",
+      "contentType": "text/javascript; charset=utf-8"
+    },
+    {
+      "url": "https://opportunity.city/_next/static/chunks/city-data-D-55ljJl.js",
+      "status": 200,
+      "type": "script",
+      "contentType": "text/javascript; charset=utf-8"
+    },
+    {
+      "url": "https://opportunity.city/fonts/geist-98bbbccb.woff2",
+      "status": 200,
+      "type": "font",
+      "contentType": "font/woff2",
+      "bytes": "29288"
+    },
+    {
+      "url": "https://opportunity.city/_next/static/chunks/index-DCMK6ml7.js",
+      "status": 200,
+      "type": "script",
+      "contentType": "text/javascript; charset=utf-8"
+    },
+    {
+      "url": "https://opportunity.city/favicon.svg?v=6",
+      "status": 200,
+      "type": "other",
+      "contentType": "image/svg+xml"
+    },
+    {
+      "url": "https://opportunity.city/api/analytics/config",
+      "status": 200,
+      "type": "fetch",
+      "contentType": "application/json"
+    },
+    {
+      "url": "https://opportunity.city/_next/static/chunks/city-runtime-DyCs9NVF.js",
+      "status": 200,
+      "type": "script",
+      "contentType": "text/javascript; charset=utf-8"
+    },
+    {
+      "url": "https://opportunity.city/api/city",
+      "status": 200,
+      "type": "fetch",
+      "contentType": "application/json"
+    },
+    {
+      "url": "https://opportunity.city/api/presence",
+      "status": 200,
+      "type": "fetch",
+      "contentType": "application/json"
+    },
+    {
+      "url": "https://opportunity.city/city/city.glb?v=landmark-20260909",
+      "status": 200,
+      "type": "fetch",
+      "contentType": "model/gltf-binary",
+      "bytes": "8872140"
+    },
+    {
+      "url": "https://opportunity.city/api/presence",
+      "status": 200,
+      "type": "fetch",
+      "contentType": "application/json"
+    },
+    {
+      "url": "https://opportunity.city/api/buyer/session",
+      "status": 200,
+      "type": "fetch",
+      "contentType": "application/json"
+    },
+    {
+      "url": "https://opportunity.city/api/city",
+      "status": 200,
+      "type": "fetch",
+      "contentType": "application/json"
+    }
+  ],
+  "errors": []
+}

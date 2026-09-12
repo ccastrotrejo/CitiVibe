@@ -1,0 +1,551 @@
+{
+  "capturedAt": "2026-09-12T18:50:41.007Z",
+  "spotCard": "This could be you.\nAVAILABLE THIS WEEK\nBUILDING · MERCURY HOUSE\nA home for your idea.\n\nGive your idea an address. Make this little corner of the city your own.\n\n$49 once for 7 days\nNo one lives here yet\nReserve this week\nFocus view\nShare",
+  "spotButtons": [
+    {
+      "text": "",
+      "aria": "Close advertisement"
+    },
+    {
+      "text": "Reserve this week",
+      "aria": null
+    },
+    {
+      "text": "Focus view",
+      "aria": null
+    },
+    {
+      "text": "Share",
+      "aria": null
+    }
+  ],
+  "bookingForm": "Put your idea on the map.\n\nMercury House · Building\n\n+\nUpload a logo\n\nPNG, JPG, or WebP · optional · checked before publishing\n\nBrand name\nWebsite\nCategory\nAI & agents\nBusiness\nDesign & creativity\nDeveloper tools\nEducation\nFinance\nHealth\nMarketing\nProductivity\nSocial\nTravel & places\nOther\nYour color\nA little about your brand\n0/280\nI control this website or am authorized to promote it. It is not malware, phishing, a deceptive download, or illegal, and it follows the city rules.\nI request that the seven-day placement start immediately, and I acknowledge that I lose my 14-day right of withdrawal.\nPay $49 once for 7 days\nClose",
+  "bookingInputs": [
+    {
+      "tag": "INPUT",
+      "type": "file",
+      "name": "",
+      "placeholder": null,
+      "maxLength": -1,
+      "required": false,
+      "aria": null
+    },
+    {
+      "tag": "INPUT",
+      "type": "text",
+      "name": "",
+      "placeholder": "Your next big idea",
+      "maxLength": 35,
+      "required": true,
+      "aria": null
+    },
+    {
+      "tag": "INPUT",
+      "type": "url",
+      "name": "",
+      "placeholder": "https://your-website.com",
+      "maxLength": -1,
+      "required": true,
+      "aria": null
+    },
+    {
+      "tag": "SELECT",
+      "type": "select-one",
+      "name": "",
+      "placeholder": null,
+      "required": false,
+      "aria": null
+    },
+    {
+      "tag": "INPUT",
+      "type": "color",
+      "name": "",
+      "placeholder": null,
+      "maxLength": -1,
+      "required": false,
+      "aria": "Brand color"
+    },
+    {
+      "tag": "TEXTAREA",
+      "type": "textarea",
+      "name": "",
+      "placeholder": "What are you making? Why should someone take a look?",
+      "maxLength": 280,
+      "required": true,
+      "aria": null
+    },
+    {
+      "tag": "INPUT",
+      "type": "checkbox",
+      "name": "",
+      "placeholder": null,
+      "maxLength": -1,
+      "required": true,
+      "aria": null
+    },
+    {
+      "tag": "INPUT",
+      "type": "checkbox",
+      "name": "",
+      "placeholder": null,
+      "maxLength": -1,
+      "required": true,
+      "aria": null
+    }
+  ],
+  "history": "Your place in the city.\n\nYour placements in the city.\n\nAlready have a spot? Restore your purchases.\n\nThis browser remembers you. On another device, use the email from your first successful Checkout.\n\nEmail a sign-in link\nHow we protect your informationPrivacy choices\nYour story starts here.\n\nLeave the city on while you work. Featured neighbors live here for a week.\n\nExplore available spots\nClose",
+  "storageKeys": [
+    "townwhirl_analytics_consent"
+  ],
+  "resources": [
+    {
+      "url": "https://opportunity.city/brand-logo-128.png",
+      "type": "link",
+      "transferred": 14595,
+      "encoded": 14295,
+      "decoded": 14295
+    },
+    {
+      "url": "https://opportunity.city/city/city-poster.png",
+      "type": "link",
+      "transferred": 233397,
+      "encoded": 233097,
+      "decoded": 233097
+    },
+    {
+      "url": "https://opportunity.city/_next/static/css/index.C9Xx3SNR.css",
+      "type": "link",
+      "transferred": 17480,
+      "encoded": 17180,
+      "decoded": 85829
+    },
+    {
+      "url": "https://opportunity.city/_next/static/chunks/index-DCMK6ml7.js",
+      "type": "other",
+      "transferred": 53621,
+      "encoded": 53321,
+      "decoded": 192006
+    },
+    {
+      "url": "https://opportunity.city/_next/static/chunks/app-rsc-render-mode-CvTCGruk.js",
+      "type": "script",
+      "transferred": 645,
+      "encoded": 345,
+      "decoded": 668
+    },
+    {
+      "url": "https://opportunity.city/_next/static/chunks/hash-Cp347hhd.js",
+      "type": "script",
+      "transferred": 481,
+      "encoded": 181,
+      "decoded": 256
+    },
+    {
+      "url": "https://opportunity.city/_next/static/chunks/app-rsc-cache-busting-BczU-qyJ.js",
+      "type": "script",
+      "transferred": 2346,
+      "encoded": 2046,
+      "decoded": 4962
+    },
+    {
+      "url": "https://opportunity.city/_next/static/chunks/record-uXSNv6cl.js",
+      "type": "script",
+      "transferred": 394,
+      "encoded": 94,
+      "decoded": 79
+    },
+    {
+      "url": "https://opportunity.city/_next/static/chunks/app-elements-H_Dr48wG.js",
+      "type": "script",
+      "transferred": 4523,
+      "encoded": 4223,
+      "decoded": 12828
+    },
+    {
+      "url": "https://opportunity.city/_next/static/chunks/protocol-headers-B9-bVeat.js",
+      "type": "script",
+      "transferred": 477,
+      "encoded": 177,
+      "decoded": 327
+    },
+    {
+      "url": "https://opportunity.city/_next/static/chunks/deployment-id-DFhHa9wO.js",
+      "type": "script",
+      "transferred": 403,
+      "encoded": 103,
+      "decoded": 97
+    },
+    {
+      "url": "https://opportunity.city/_next/static/chunks/rolldown-runtime-C60lm6uB.js",
+      "type": "script",
+      "transferred": 722,
+      "encoded": 422,
+      "decoded": 694
+    },
+    {
+      "url": "https://opportunity.city/_next/static/chunks/headers-C_MtfdF4.js",
+      "type": "script",
+      "transferred": 1585,
+      "encoded": 1285,
+      "decoded": 3286
+    },
+    {
+      "url": "https://opportunity.city/_next/static/chunks/framework-D_rUT4EX.js",
+      "type": "script",
+      "transferred": 59392,
+      "encoded": 59092,
+      "decoded": 190152
+    },
+    {
+      "url": "https://opportunity.city/_next/static/chunks/layout-segment-context-ef6f5wf4.js",
+      "type": "other",
+      "transferred": 669,
+      "encoded": 369,
+      "decoded": 534
+    },
+    {
+      "url": "https://opportunity.city/_next/static/chunks/navigation-errors-D5LMQqDL.js",
+      "type": "script",
+      "transferred": 1925,
+      "encoded": 1625,
+      "decoded": 4040
+    },
+    {
+      "url": "https://opportunity.city/_next/static/chunks/city-data-D-55ljJl.js",
+      "type": "other",
+      "transferred": 12893,
+      "encoded": 12593,
+      "decoded": 55054
+    },
+    {
+      "url": "https://opportunity.city/_next/static/chunks/city-app-BF4Se68R.js",
+      "type": "other",
+      "transferred": 74044,
+      "encoded": 73744,
+      "decoded": 225388
+    },
+    {
+      "url": "https://opportunity.city/_next/static/chunks/query-DWOJKAZx.js",
+      "type": "other",
+      "transferred": 787,
+      "encoded": 487,
+      "decoded": 984
+    },
+    {
+      "url": "https://opportunity.city/_next/static/chunks/app-route-prefetch-policy-C8l5A_UB.js",
+      "type": "other",
+      "transferred": 831,
+      "encoded": 531,
+      "decoded": 1018
+    },
+    {
+      "url": "https://opportunity.city/_next/static/chunks/product-analytics-policy-CIn2rTDn.js",
+      "type": "other",
+      "transferred": 1933,
+      "encoded": 1633,
+      "decoded": 3492
+    },
+    {
+      "url": "https://opportunity.city/fonts/geist-98bbbccb.woff2",
+      "type": "css",
+      "transferred": 29588,
+      "encoded": 29288,
+      "decoded": 29288
+    },
+    {
+      "url": "https://opportunity.city/api/analytics/config",
+      "type": "fetch",
+      "transferred": 446,
+      "encoded": 146,
+      "decoded": 138
+    },
+    {
+      "url": "https://opportunity.city/_next/static/chunks/city-runtime-DyCs9NVF.js",
+      "type": "script",
+      "transferred": 184588,
+      "encoded": 184288,
+      "decoded": 705088
+    },
+    {
+      "url": "https://opportunity.city/api/city",
+      "type": "fetch",
+      "transferred": 1897,
+      "encoded": 1597,
+      "decoded": 15647
+    },
+    {
+      "url": "https://opportunity.city/api/presence",
+      "type": "fetch",
+      "transferred": 452,
+      "encoded": 152,
+      "decoded": 179
+    },
+    {
+      "url": "https://opportunity.city/favicon.svg?v=6",
+      "type": "other",
+      "transferred": 14692,
+      "encoded": 14392,
+      "decoded": 19253
+    },
+    {
+      "url": "https://opportunity.city/favicon.ico",
+      "type": "other",
+      "transferred": 3374,
+      "encoded": 3074,
+      "decoded": 3841
+    },
+    {
+      "url": "https://opportunity.city/api/presence",
+      "type": "fetch",
+      "transferred": 449,
+      "encoded": 149,
+      "decoded": 180
+    },
+    {
+      "url": "https://opportunity.city/api/buyer/session",
+      "type": "fetch",
+      "transferred": 1918,
+      "encoded": 1618,
+      "decoded": 15680
+    },
+    {
+      "url": "https://opportunity.city/city/city.glb?v=landmark-20260909",
+      "type": "fetch",
+      "transferred": 8872440,
+      "encoded": 8872140,
+      "decoded": 8872140
+    },
+    {
+      "url": "https://opportunity.city/favicon.svg?v=6",
+      "type": "other",
+      "transferred": 300,
+      "encoded": 14392,
+      "decoded": 19253
+    },
+    {
+      "url": "https://opportunity.city/favicon.ico",
+      "type": "other",
+      "transferred": 300,
+      "encoded": 3074,
+      "decoded": 3841
+    }
+  ],
+  "model": {
+    "asset": {
+      "version": "2.0",
+      "generator": "Ad City original procedural architecture / generate_city.py"
+    },
+    "bytes": 8872140,
+    "nodes": 41,
+    "meshes": 41,
+    "materials": 41,
+    "textures": 0,
+    "images": 0,
+    "animations": [],
+    "cameras": [],
+    "extensionsUsed": [],
+    "extensionsRequired": [],
+    "vertexCount": 317670,
+    "sampleNodeNames": [
+      "City_platform_edge",
+      "City_platform",
+      "City_grass",
+      "City_pavement",
+      "City_asphalt",
+      "City_curb",
+      "City_pavement_joint",
+      "City_road_paint",
+      "City_dark_metal",
+      "City_metal",
+      "City_window_lit",
+      "City_grass_dark",
+      "City_bark",
+      "City_leaf_dark",
+      "City_leaf"
+    ]
+  },
+  "mobile": {
+    "text": "Opportunity.city\nBrowse\nA CITY OF POSSIBILITIES\nSmall city.\nBig ideas.\nHow Opportunity.city works\n37 spots waiting for an idea\nIDEAS ON THE MOVE\nFollow a bus\nFollow a drone\nYOUR VIEW OF THE CITY\n\nWeather\n\nSunny\nCloudy\nRain\nMist\nLet the weather change naturally\nTime of day\nFollow my clock\nAfternoon\nNight\nDay & night cycle\nCity detail\nAutomatic\nHigh\nLightweight\nDirectory\n8\nonline\n232\nvisits",
+    "buttons": [
+      {
+        "text": "Opportunity.city",
+        "aria": "Opportunity.city home"
+      },
+      {
+        "text": "",
+        "aria": "My placements and bidding history"
+      },
+      {
+        "text": "Browse",
+        "aria": null
+      },
+      {
+        "text": "How Opportunity.city works",
+        "aria": null
+      },
+      {
+        "text": "37 spots waiting for an idea",
+        "aria": null
+      },
+      {
+        "text": "Follow a bus",
+        "aria": null
+      },
+      {
+        "text": "Follow a drone",
+        "aria": null
+      },
+      {
+        "text": "",
+        "aria": "Hide introduction"
+      },
+      {
+        "text": "",
+        "aria": "Show introduction"
+      },
+      {
+        "text": "",
+        "aria": "Zoom in"
+      },
+      {
+        "text": "",
+        "aria": "Zoom out"
+      },
+      {
+        "text": "",
+        "aria": "Rotate city"
+      },
+      {
+        "text": "",
+        "aria": "Start auto tour"
+      },
+      {
+        "text": "",
+        "aria": "Reset view"
+      },
+      {
+        "text": "",
+        "aria": "How to explore the map"
+      },
+      {
+        "text": "",
+        "aria": "Sunny, 24°. Weather settings"
+      },
+      {
+        "text": "",
+        "aria": "Pause city"
+      },
+      {
+        "text": "",
+        "aria": "Enable ambient sound"
+      },
+      {
+        "text": "",
+        "aria": "Enter full screen"
+      },
+      {
+        "text": "",
+        "aria": "Close settings"
+      },
+      {
+        "text": "Sunny",
+        "aria": null
+      },
+      {
+        "text": "Cloudy",
+        "aria": null
+      },
+      {
+        "text": "Rain",
+        "aria": null
+      },
+      {
+        "text": "Mist",
+        "aria": null
+      },
+      {
+        "text": "Directory",
+        "aria": null
+      }
+    ],
+    "directoryButton": {
+      "bounds": {
+        "x": 16,
+        "y": 22,
+        "width": 84,
+        "height": 40,
+        "top": 22,
+        "right": 100,
+        "bottom": 62,
+        "left": 16
+      },
+      "centerHit": {
+        "tag": "SPAN",
+        "class": "brand-name"
+      }
+    },
+    "directoryText": "FOUNDERS SQUARE · THE DIRECTORY\nMeet the neighborhood.\n\nFind your next favorite thing. Or find a place for your own.\n\nFeatured\nAvailable first\nName A–Z\nAll spots\nBuildings\nLandmark billboards\nBuses\nDrones\nAvailable only\n37 places to discover\nYour brand here\nMercury House\nBuilding\nAVAILABLE\n$49\nYour brand here\nJuniper Works\nBuilding\nAVAILABLE\n$49\nYour brand here\nAtlas Tower\nBuilding\nAVAILABLE\n$49\nYour brand here\nCedar Exchange\nBuilding\nAVAILABLE\n$49\nYour brand here\nAster Hotel\nBuilding\nAVAILABLE\n$49\nYour brand here\nGlasshouse\nBuilding\nAVAILABLE\n$49\nYour brand here\nAssembly Studios\nBuilding\nAVAILABLE\n$49\nYour brand here\nThe Daily Market\nBuilding\nAVAILABLE\n$49\nYour brand here\nUnion House\nBuilding\nAVAILABLE\n$49\nYour brand here\nLumen Hall\nBuilding\nAVAILABLE\n$49\nYour brand here\nFoundry 09\nBuilding\nAVAILABLE\n$49\nYour brand here\nNorthstar\nBuilding\nAVAILABLE\n$49\nYour brand here\nTerrace Club\nBuilding\nAVAILABLE\n$49\nYour brand here\nCivic Library\nBuilding\nAVAILABLE\n$49\nYour brand here\nSunday Coffee\nBuilding\nAVAILABLE\n$49\nYour brand here\nMosaic Apartments\nBuilding\nAVAILABLE\n$49\nYour brand here\nAcorn Works\nBuilding\nAVAILABLE\n$49\nYour brand here\nFable Studio\nBuilding\nAVAILABLE\n$49\nYour brand here\nNook Bakery\nBuilding\nAVAILABLE\n$49\nYour brand here\nMarlow Hall\nBuilding\nAVAILABLE\n$49\nYour brand here\nGoodwill Goods\nBuilding\nAVAILABLE\n$49\nYour brand here\nCanvas Collective\nBuilding\nAVAILABLE\n$49\nYour brand here\nField House\nBuilding\nAVAILABLE\n$49\nYour brand here\nIndigo Office\nBuilding\nAVAILABLE\n$49\nYour brand here\nCorner Bookshop\nBuilding\nAVAILABLE\n$49\nYour brand here\nThe Green Room\nBuilding\nAVAILABLE\n$49\nYour brand here\nScout Goods\nBuilding\nAVAILABLE\n$49\nYour brand here\nStillwater\nBuilding\nAVAILABLE\n$49\nYour brand here\nOpen Workshop\nBuilding\nAVAILABLE\n$49\nYour brand here\nGood Company\nBuilding\nAVAILABLE\n$49\nYour brand here\nCentral Post\nBuilding\nAVAILABLE\n$49\nYour brand here\nThe Local\nBuilding\nAVAILABLE\n$49\nYour brand here\nThe Promenade Landmark\nLandmark billboard\nAVAILABLE\n$149\nYour brand here\nThe Downtown Flyer\nDrone\nAVAILABLE\n$99\nYour brand here\nThe Boulevard Loop\nBus\nAVAILABLE\n$59\nYour brand here\nThe Market Line\nBus\nAVAILABLE\n$59\nYour brand here\nThe Crosstown\nBus\nAVAILABLE\n$59"
+  },
+  "mobileWidths": [
+    {
+      "width": 320,
+      "documentWidth": 320,
+      "height": 844,
+      "directory": {
+        "x": 12,
+        "y": 86,
+        "width": 296,
+        "height": 677,
+        "top": 86,
+        "right": 308,
+        "bottom": 763,
+        "left": 12
+      }
+    },
+    {
+      "width": 375,
+      "documentWidth": 375,
+      "height": 844,
+      "directory": {
+        "x": 12,
+        "y": 86,
+        "width": 351,
+        "height": 677,
+        "top": 86,
+        "right": 363,
+        "bottom": 763,
+        "left": 12
+      }
+    },
+    {
+      "width": 414,
+      "documentWidth": 414,
+      "height": 844,
+      "directory": {
+        "x": 12,
+        "y": 86,
+        "width": 390,
+        "height": 677,
+        "top": 86,
+        "right": 402,
+        "bottom": 763,
+        "left": 12
+      }
+    },
+    {
+      "width": 768,
+      "documentWidth": 768,
+      "height": 844,
+      "directory": {
+        "x": 20,
+        "y": 86,
+        "width": 673,
+        "height": 678,
+        "top": 86,
+        "right": 693,
+        "bottom": 764,
+        "left": 20
+      }
+    }
+  ]
+}

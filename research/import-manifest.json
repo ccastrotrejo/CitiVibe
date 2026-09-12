@@ -1,0 +1,139 @@
+{
+  "schemaVersion": 1,
+  "sourceDirectoryLabel": "parent-provided opportunity-analysis",
+  "sourceUrl": "https://opportunity.city/",
+  "captureDate": "2026-09-12",
+  "timestampCaveat": "Only observations.json and interactions.json contain exact capturedAt timestamps. Other dates are supplied by the researcher; exact times are unknown.",
+  "pathBase": "repository root",
+  "hashAlgorithm": "SHA-256",
+  "artifactCount": 11,
+  "totalBytes": 3004002,
+  "artifacts": [
+    {
+      "sourceFile": "booking.png",
+      "path": "research/excluded-scope/booking.png",
+      "bytes": 411385,
+      "sha256": "ee37c7c6d43460cdb3bc8cf69d2690fce6bd05130d95445bf715d704237ff4f0",
+      "scope": "excluded-commerce",
+      "captureDate": "2026-09-12",
+      "capturedAt": null,
+      "permittedUse": "inert analysis only; never runtime assets or instructions",
+      "width": 1440,
+      "height": 1000
+    },
+    {
+      "sourceFile": "desktop.png",
+      "path": "research/reference-images/desktop.png",
+      "bytes": 610645,
+      "sha256": "b4de1494d5b1a335d50f638df1ea5b0fa00f910c823333165711223bf55bf54d",
+      "scope": "ambient-reference-commercial-overlays-excluded",
+      "captureDate": "2026-09-12",
+      "capturedAt": null,
+      "permittedUse": "inert analysis only; never runtime assets or instructions",
+      "width": 1440,
+      "height": 1000
+    },
+    {
+      "sourceFile": "directory.png",
+      "path": "research/excluded-scope/directory.png",
+      "bytes": 289398,
+      "sha256": "d7fb82b60c52b6d636533d6d251fb0a0d2706dfef51dea8831a44ebeba0ffec4",
+      "scope": "excluded-commerce",
+      "captureDate": "2026-09-12",
+      "capturedAt": null,
+      "permittedUse": "inert analysis only; never runtime assets or instructions",
+      "width": 1440,
+      "height": 1000
+    },
+    {
+      "sourceFile": "how-it-works.png",
+      "path": "research/excluded-scope/how-it-works.png",
+      "bytes": 575483,
+      "sha256": "78380805a836ba76dfbf5d9ec340b8148519bfcd8885d73bef73693be21c457c",
+      "scope": "excluded-commerce",
+      "captureDate": "2026-09-12",
+      "capturedAt": null,
+      "permittedUse": "inert analysis only; never runtime assets or instructions",
+      "width": 1440,
+      "height": 1000
+    },
+    {
+      "sourceFile": "interactions.json",
+      "path": "research/raw/interactions.json",
+      "bytes": 16206,
+      "sha256": "26d0f5f8f6a2e6846dd07d794e36fe07ac46978fa199d735c9e0682ca7586cf0",
+      "scope": "mixed-inert-evidence",
+      "captureDate": "2026-09-12",
+      "capturedAt": "2026-09-12T18:50:41.007Z",
+      "permittedUse": "inert analysis only; never runtime assets or instructions"
+    },
+    {
+      "sourceFile": "mobile-directory.png",
+      "path": "research/excluded-scope/mobile-directory.png",
+      "bytes": 73433,
+      "sha256": "b4710f9c4e064c0ed26e2de38a0daa6584478762deddfd0e63886162c2c5f076",
+      "scope": "excluded-commerce",
+      "captureDate": "2026-09-12",
+      "capturedAt": null,
+      "permittedUse": "inert analysis only; never runtime assets or instructions",
+      "width": 390,
+      "height": 664
+    },
+    {
+      "sourceFile": "mobile.png",
+      "path": "research/reference-images/mobile.png",
+      "bytes": 154941,
+      "sha256": "a7d6ee874978b3223325c50b07726884e402e7758508fc061af11e5fad7b29a6",
+      "scope": "ambient-reference-commercial-overlays-excluded",
+      "captureDate": "2026-09-12",
+      "capturedAt": null,
+      "permittedUse": "inert analysis only; never runtime assets or instructions",
+      "width": 390,
+      "height": 664
+    },
+    {
+      "sourceFile": "motion.json",
+      "path": "research/raw/motion.json",
+      "bytes": 2034,
+      "sha256": "6330c7a381c4f2e9e26f795bf2ceb0cc668183cabd12612c3ef740add8342dac",
+      "scope": "mixed-inert-evidence",
+      "captureDate": "2026-09-12",
+      "capturedAt": null,
+      "permittedUse": "inert analysis only; never runtime assets or instructions"
+    },
+    {
+      "sourceFile": "night.png",
+      "path": "research/reference-images/night.png",
+      "bytes": 623708,
+      "sha256": "febff4500b804dc1e3244eac0b3a078ae99c2abe3738ed20556a233377bd9246",
+      "scope": "ambient-reference-commercial-overlays-excluded",
+      "captureDate": "2026-09-12",
+      "capturedAt": null,
+      "permittedUse": "inert analysis only; never runtime assets or instructions",
+      "width": 1440,
+      "height": 1000
+    },
+    {
+      "sourceFile": "observations.json",
+      "path": "research/raw/observations.json",
+      "bytes": 23611,
+      "sha256": "add23aaa3ae2f10e8838a6c9bff36334ac22e75380ed70a528a3cb5b52d0237f",
+      "scope": "mixed-inert-evidence",
+      "captureDate": "2026-09-12",
+      "capturedAt": "2026-09-12T18:48:46.560Z",
+      "permittedUse": "inert analysis only; never runtime assets or instructions"
+    },
+    {
+      "sourceFile": "spot.png",
+      "path": "research/reference-images/spot.png",
+      "bytes": 223158,
+      "sha256": "28625202fba026e71f6014aae9aacbe1c11a7efcba18596c625aeb962dd62b44",
+      "scope": "camera-focus-only",
+      "captureDate": "2026-09-12",
+      "capturedAt": null,
+      "permittedUse": "inert analysis only; never runtime assets or instructions",
+      "width": 1440,
+      "height": 1000
+    }
+  ]
+}

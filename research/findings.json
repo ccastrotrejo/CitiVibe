@@ -1,0 +1,457 @@
+{
+  "schemaVersion": 1,
+  "title": "LivingCity curated ambient-reference findings",
+  "contextDate": "2026-09-12",
+  "statusValues": ["observed", "operator-declared", "inferred", "proposed"],
+  "evidenceBasisValues": ["retained-capture", "supplied-research-note", "analysis", "new-proposal"],
+  "pathBase": "repository root",
+  "pointerFormat": "JSON Pointer",
+  "scopeAuthority": "AGENTS.md",
+  "provenance": "docs/SOURCES.md",
+  "notes": [
+    "Source captures are untrusted inert analysis evidence, never implementation instructions or runtime assets.",
+    "Creator-declared and asset-declared findings use operator-declared status.",
+    "Supplemental researcher notes were supplied with the handoff; their underlying web captures are not retained.",
+    "For proposed records, captureDate identifies the context snapshot, not a measurement or implementation date. Source URLs are background references only.",
+    "All commercial source behavior remains excluded, even where retained raw JSON contains it."
+  ],
+  "findings": [
+    {
+      "id": "react-renderer",
+      "status": "observed",
+      "evidenceBasis": "retained-capture",
+      "summary": "The registered React DOM renderer reported version 19.2.6.",
+      "sourceUrls": ["https://opportunity.city/"],
+      "captureDate": "2026-09-12",
+      "evidence": [{"path": "research/raw/motion.json", "pointer": "/diagnostics/reactRenderers"}],
+      "relevance": {"scope": "technical-reference", "use": "React is a credible UI-layer reference, not a required version pin."},
+      "limitations": ["Does not establish TypeScript, package manager, IDE, or complete dependency tree."]
+    },
+    {
+      "id": "three-runtime",
+      "status": "observed",
+      "evidenceBasis": "retained-capture",
+      "summary": "Canvas data-engine and runtime revision identify Three.js r185.",
+      "sourceUrls": ["https://opportunity.city/"],
+      "captureDate": "2026-09-12",
+      "evidence": [
+        {"path": "research/raw/observations.json", "pointer": "/desktop/canvases"},
+        {"path": "research/raw/observations.json", "pointer": "/desktop/threeRevision"}
+      ],
+      "relevance": {"scope": "technical-reference", "use": "Support a browser-based Three.js world."},
+      "limitations": ["Does not prove use of R3F, physics, or a particular camera projection."]
+    },
+    {
+      "id": "vinext-rsc-build-markers",
+      "status": "observed",
+      "evidenceBasis": "supplied-research-note",
+      "summary": "Supplied inspection reports Vinext navigation/RSC, Vite RSC and Rolldown markers; retained headers and resource names provide partial corroboration.",
+      "sourceUrls": ["https://opportunity.city/"],
+      "captureDate": "2026-09-12",
+      "evidence": [
+        {"path": "research/raw/observations.json", "pointer": "/headers"},
+        {"path": "research/raw/observations.json", "pointer": "/responses"},
+        {"path": "docs/REFERENCE_ANALYSIS.md"}
+      ],
+      "relevance": {"scope": "technical-reference", "use": "Understand the source without importing unnecessary server complexity."},
+      "limitations": ["Original bundles were not retained.", "/_next paths do not prove standard Next.js or Vercel."]
+    },
+    {
+      "id": "tailwind-header",
+      "status": "observed",
+      "evidenceBasis": "supplied-research-note",
+      "summary": "Supplied CSS inspection reported Tailwind CSS 4.2.1.",
+      "sourceUrls": ["https://opportunity.city/_next/static/css/index.C9Xx3SNR.css"],
+      "captureDate": "2026-09-12",
+      "evidence": [{"path": "docs/REFERENCE_ANALYSIS.md"}],
+      "relevance": {"scope": "technical-reference", "use": "Styling-tool context only; choose compatible versions later."},
+      "limitations": ["Stylesheet not retained or fetched during import.", "Dated hashed URL may change."]
+    },
+    {
+      "id": "ui-primitives-icons",
+      "status": "observed",
+      "evidenceBasis": "supplied-research-note",
+      "summary": "Supplied DOM inspection identified Base UI markers and Lucide SVGs.",
+      "sourceUrls": ["https://opportunity.city/"],
+      "captureDate": "2026-09-12",
+      "evidence": [{"path": "docs/REFERENCE_ANALYSIS.md"}],
+      "relevance": {"scope": "technical-reference", "use": "Optional accessible primitives/icons, not mandatory dependencies."},
+      "limitations": ["Exact package versions and complete DOM inspection are not retained."]
+    },
+    {
+      "id": "unverified-toolchain",
+      "status": "observed",
+      "evidenceBasis": "supplied-research-note",
+      "summary": "Research did not verify R3F, GSAP, physics, TypeScript, package manager, IDE/harness, CI, database, ORM, or an official source repository.",
+      "sourceUrls": ["https://opportunity.city/"],
+      "captureDate": "2026-09-12",
+      "evidence": [{"path": "docs/SOURCES.md"}],
+      "relevance": {"scope": "evidence-limitation", "use": "Prevent unsupported toolchain and backend claims."},
+      "limitations": ["Not verified does not mean absent or nonexistent."]
+    },
+    {
+      "id": "model-metadata",
+      "status": "observed",
+      "evidenceBasis": "retained-capture",
+      "summary": "Captured GLB metadata describes a glTF 2.0 city with no embedded textures, animation tracks, cameras, or declared extensions.",
+      "data": {
+        "bytes": 8872140,
+        "nodes": 41,
+        "meshes": 41,
+        "materials": 41,
+        "summedPositionVertexCount": 317670,
+        "textures": 0,
+        "images": 0,
+        "animationTracks": 0,
+        "cameras": 0,
+        "extensionsUsed": [],
+        "extensionsRequired": []
+      },
+      "sourceUrls": ["https://opportunity.city/city/city.glb?v=landmark-20260909"],
+      "captureDate": "2026-09-12",
+      "evidence": [{"path": "research/raw/interactions.json", "pointer": "/model"}],
+      "relevance": {"scope": "asset-technique-reference", "use": "Colored geometry is viable; create a new original model."},
+      "limitations": ["Model not retained; do not download or reuse.", "Vertex count is not triangle count.", "41 meshes is not a building or measured draw-call count."]
+    },
+    {
+      "id": "python-generator-declaration",
+      "status": "operator-declared",
+      "evidenceBasis": "retained-capture",
+      "summary": "The asset generator string is 'Ad City original procedural architecture / generate_city.py'.",
+      "sourceUrls": ["https://opportunity.city/city/city.glb?v=landmark-20260909"],
+      "captureDate": "2026-09-12",
+      "evidence": [{"path": "research/raw/interactions.json", "pointer": "/model/asset/generator"}],
+      "relevance": {"scope": "asset-technique-reference", "use": "Consider an independently authored Python procedural pipeline."},
+      "limitations": ["Self-described metadata, not recovered source script.", "Blender/Spline usage not confirmed."]
+    },
+    {
+      "id": "material-batching-inference",
+      "status": "inferred",
+      "evidenceBasis": "analysis",
+      "summary": "Material-like node names and equal mesh/material counts suggest batching by material.",
+      "sourceUrls": ["https://opportunity.city/city/city.glb?v=landmark-20260909"],
+      "captureDate": "2026-09-12",
+      "evidence": [{"path": "research/raw/interactions.json", "pointer": "/model/sampleNodeNames"}],
+      "relevance": {"scope": "asset-technique-reference", "use": "Evaluate sharing/batching and instancing for original art."},
+      "limitations": ["Actual draw calls, culling layout, and material assignment were not measured."]
+    },
+    {
+      "id": "static-world-runtime-actors",
+      "status": "inferred",
+      "evidenceBasis": "analysis",
+      "summary": "The likely composition is a mostly static GLB plus runtime actors, camera/environment systems and HTML overlays; separate dynamic sign textures are possible.",
+      "sourceUrls": ["https://opportunity.city/"],
+      "captureDate": "2026-09-12",
+      "evidence": [
+        {"path": "research/raw/interactions.json", "pointer": "/model"},
+        {"path": "research/raw/observations.json", "pointer": "/desktop/canvases"}
+      ],
+      "relevance": {"scope": "technical-reference", "use": "Separate static art, dynamic systems and semantic controls; omit advertising surfaces."},
+      "limitations": ["The 448 x 150 auxiliary canvas role is unproven.", "No source actor/camera algorithms were recovered."]
+    },
+    {
+      "id": "sampled-resource-budget",
+      "status": "observed",
+      "evidenceBasis": "retained-capture",
+      "summary": "The captured 33-entry resource sample is dominated by the city model.",
+      "data": {
+        "encodedTotalBytes": 9601153,
+        "javascriptEncodedBytes": 396559,
+        "cssEncodedBytes": 17180,
+        "modelEncodedBytes": 8872140,
+        "posterEncodedBytes": 233097,
+        "cityRuntimeEncodedBytes": 184288,
+        "cityRuntimeDecodedBytes": 705088,
+        "cityAppEncodedBytes": 73744,
+        "cityAppDecodedBytes": 225388,
+        "modelSharePercentApprox": 92.4
+      },
+      "sourceUrls": ["https://opportunity.city/"],
+      "captureDate": "2026-09-12",
+      "evidence": [{"path": "research/raw/interactions.json", "pointer": "/resources"}],
+      "relevance": {"scope": "performance-reference", "use": "Prioritize original model delivery costs and measure new budgets."},
+      "limitations": ["Includes repeated entries and non-script-category JS.", "Not universal cold-load bandwidth, real-device FPS, or Web Vitals."]
+    },
+    {
+      "id": "desktop-layout-typography",
+      "status": "observed",
+      "evidenceBasis": "retained-capture",
+      "summary": "The 1440 x 1000 scene sits behind a 76 px topbar and 48 px footer; heading uses Georgia 40/41.2 px with -1.7 px tracking; body names Geist.",
+      "sourceUrls": ["https://opportunity.city/"],
+      "captureDate": "2026-09-12",
+      "evidence": [
+        {"path": "research/raw/observations.json", "pointer": "/desktop/styles"},
+        {"path": "research/raw/observations.json", "pointer": "/desktop/fontFaces"},
+        {"path": "research/reference-images/desktop.png"}
+      ],
+      "relevance": {"scope": "design-reference", "use": "Study scene/chrome balance, not duplicate layout or identity."},
+      "limitations": ["Source font assets are not licensed project assets.", "Geist Mono faces were unloaded in the captured list."]
+    },
+    {
+      "id": "source-color-system",
+      "status": "observed",
+      "evidenceBasis": "supplied-research-note",
+      "summary": "Warm cream/forest/sage UI tokens were captured in part and supplemented by CSS inspection notes.",
+      "data": {
+        "background": "#f5f5ee",
+        "foreground": "#27372e",
+        "primary": "#304e3d",
+        "primaryForeground": "#fffef3",
+        "card": "#fffff8",
+        "popover": "#fffffb",
+        "secondary": "#e6e9de",
+        "muted": "#ebede5",
+        "mutedForeground": "#7b8275",
+        "accent": "#dbe5d5",
+        "border": "#d9dfd2",
+        "input": "#d9dfd2",
+        "ring": "#708e64",
+        "radius": ".65rem"
+      },
+      "sourceUrls": ["https://opportunity.city/", "https://opportunity.city/_next/static/css/index.C9Xx3SNR.css"],
+      "captureDate": "2026-09-12",
+      "evidence": [
+        {"path": "research/raw/observations.json", "pointer": "/desktop/tokens"},
+        {"path": "docs/REFERENCE_ANALYSIS.md"}
+      ],
+      "relevance": {"scope": "design-reference", "use": "Understand the source; design an independent visual identity."},
+      "limitations": ["Only background, foreground, primary and radius are retained in the raw token subset.", "Not a required new palette."]
+    },
+    {
+      "id": "miniature-composition",
+      "status": "observed",
+      "evidenceBasis": "retained-capture",
+      "summary": "Miniature orthographic-like presentation shows repeated building modules, varied heights, roads/crossings, plazas, vegetation and construction details.",
+      "sourceUrls": ["https://opportunity.city/"],
+      "captureDate": "2026-09-12",
+      "evidence": [
+        {"path": "research/reference-images/desktop.png"},
+        {"path": "research/reference-images/night.png"},
+        {"path": "research/reference-images/spot.png"}
+      ],
+      "relevance": {"scope": "design-reference", "use": "Study scale and environmental richness; spot.png is camera-focus reference only."},
+      "limitations": ["Actual projection, lighting and shadow parameters are unknown.", "Night screenshot is not a timed settled-transition test.", "Omit commercial overlays/signs; do not trace source composition."]
+    },
+    {
+      "id": "navigation-tour-help",
+      "status": "operator-declared",
+      "evidenceBasis": "retained-capture",
+      "summary": "Help describes drag pan, scroll/pinch zoom, right-drag/two-finger/Shift-scroll rotation, Safari twist, focus/follow and contextual auto-tour.",
+      "sourceUrls": ["https://opportunity.city/"],
+      "captureDate": "2026-09-12",
+      "evidence": [{"path": "research/raw/motion.json", "pointer": "/exploreHelp"}],
+      "relevance": {"scope": "interaction-reference", "use": "Retain useful navigation, replacing ad/brand subjects with original noncommercial POIs."},
+      "limitations": ["Help text is not proof every gesture was tested.", "Safari twist and exact tour scheduling were not verified."]
+    },
+    {
+      "id": "tested-bus-follow",
+      "status": "observed",
+      "evidenceBasis": "retained-capture",
+      "summary": "The tested source bus-follow flow displayed Following and Stop alongside a selected bus.",
+      "sourceUrls": ["https://opportunity.city/"],
+      "captureDate": "2026-09-12",
+      "evidence": [{"path": "research/raw/motion.json", "pointer": "/busFollow"}],
+      "relevance": {"scope": "interaction-reference", "use": "Follow an ordinary bus/drone with compact status and explicit Stop."},
+      "limitations": ["Source ad-card coupling is excluded.", "No exhaustive target-loss, interruption or drone-follow testing."]
+    },
+    {
+      "id": "pause-control-evidence",
+      "status": "observed",
+      "evidenceBasis": "retained-capture",
+      "summary": "The pause interaction changed the accessible action label to Play city.",
+      "sourceUrls": ["https://opportunity.city/"],
+      "captureDate": "2026-09-12",
+      "evidence": [{"path": "research/raw/motion.json", "pointer": "/pauseButtons"}],
+      "relevance": {"scope": "interaction-reference", "use": "Provide pause/resume with an explicit new cross-system contract."},
+      "limitations": ["Label change does not establish exactly which source clocks/camera/audio systems freeze."]
+    },
+    {
+      "id": "environment-quality-controls",
+      "status": "observed",
+      "evidenceBasis": "retained-capture",
+      "summary": "Settings offer Sunny/Cloudy/Rain/Mist, optional natural weather, local clock/Afternoon/Night/day-night cycle, and Automatic/High/Lightweight quality.",
+      "sourceUrls": ["https://opportunity.city/"],
+      "captureDate": "2026-09-12",
+      "evidence": [{"path": "research/raw/observations.json", "pointer": "/settings"}],
+      "relevance": {"scope": "interaction-reference", "use": "Useful local ambient controls, not a live weather API."},
+      "limitations": ["Exact source transition timing and quality algorithms are unknown."]
+    },
+    {
+      "id": "audio-context-sample",
+      "status": "observed",
+      "evidenceBasis": "retained-capture",
+      "summary": "One AudioContext was created during sound enable and no audio-file requests appeared in that sample.",
+      "sourceUrls": ["https://opportunity.city/"],
+      "captureDate": "2026-09-12",
+      "evidence": [
+        {"path": "research/raw/motion.json", "pointer": "/diagnostics/contextsCreated"},
+        {"path": "research/raw/motion.json", "pointer": "/soundResources"}
+      ],
+      "relevance": {"scope": "technical-reference", "use": "Web Audio is a viable optional ambient layer."},
+      "limitations": ["One interaction is not a complete audio/network inventory."]
+    },
+    {
+      "id": "synthesized-audio-inference",
+      "status": "inferred",
+      "evidenceBasis": "analysis",
+      "summary": "Fully synthesized source audio is plausible but not proven by the AudioContext and empty audio request sample.",
+      "sourceUrls": ["https://opportunity.city/"],
+      "captureDate": "2026-09-12",
+      "evidence": [{"path": "research/raw/motion.json"}],
+      "relevance": {"scope": "technical-reference", "use": "Consider original synthesis, or separately licensed audio when justified."},
+      "limitations": ["Cached, embedded, or differently loaded audio cannot be ruled out by this sample."]
+    },
+    {
+      "id": "mobile-hit-target-lesson",
+      "status": "observed",
+      "evidenceBasis": "retained-capture",
+      "summary": "At width 390 a separate source Directory button center hit the brand-name span; main Browse worked. Excluded directory layouts fit tested 320/375/414/768 widths.",
+      "sourceUrls": ["https://opportunity.city/"],
+      "captureDate": "2026-09-12",
+      "evidence": [
+        {"path": "research/raw/interactions.json", "pointer": "/mobile/directoryButton"},
+        {"path": "research/raw/interactions.json", "pointer": "/mobileWidths"},
+        {"path": "research/reference-images/mobile.png"}
+      ],
+      "relevance": {"scope": "ambient-control-lesson-only", "use": "Test ordinary control occlusion and panel size; never reintroduce a directory."},
+      "limitations": ["Chromium emulation, not real iOS Safari.", "Width-fit result concerns the archived directory, not the whole site."]
+    },
+    {
+      "id": "loading-webgl-fallback-reference",
+      "status": "observed",
+      "evidenceBasis": "supplied-research-note",
+      "summary": "Research reported poster/loading and WebGL fallback support; a poster preload/resource is retained.",
+      "sourceUrls": ["https://opportunity.city/"],
+      "captureDate": "2026-09-12",
+      "evidence": [
+        {"path": "research/raw/observations.json", "pointer": "/headers/link"},
+        {"path": "research/raw/interactions.json", "pointer": "/resources"},
+        {"path": "docs/REFERENCE_ANALYSIS.md"}
+      ],
+      "relevance": {"scope": "resilience-reference", "use": "Provide original loading/failure/fallback art and useful controls."},
+      "limitations": ["Complete source fallback behavior and context-restoration tests are not retained.", "Source poster is not a project asset."]
+    },
+    {
+      "id": "reported-world-activity",
+      "status": "operator-declared",
+      "evidenceBasis": "supplied-research-note",
+      "summary": "Source accessible descriptions named pedestrians, cyclists, skateboarders, rollerskaters, cafe guests, cars, motorcycles, buses, drones, balloons and an airplane.",
+      "sourceUrls": ["https://opportunity.city/"],
+      "captureDate": "2026-09-12",
+      "evidence": [{"path": "docs/REFERENCE_ANALYSIS.md"}],
+      "relevance": {"scope": "ambient-activity-reference", "use": "Incremental variety after basic traffic/pedestrian routes work."},
+      "limitations": ["Not an independently counted population or proof of full physics/shared simulation.", "All actor classes are not required at launch."]
+    },
+    {
+      "id": "creator-second-screen",
+      "status": "operator-declared",
+      "evidenceBasis": "supplied-research-note",
+      "summary": "Contact identifies Leonardo Gomes Cardoso / @leocardz; About describes second-screen use.",
+      "sourceUrls": ["https://opportunity.city/contact", "https://opportunity.city/about"],
+      "captureDate": "2026-09-12",
+      "evidence": [{"path": "docs/SOURCES.md"}],
+      "relevance": {"scope": "provenance-and-product-reference", "use": "Attribute the reference and preserve the ambient use case."},
+      "limitations": ["Underlying page captures were not retained in the supplied folder."]
+    },
+    {
+      "id": "creator-generation-claims",
+      "status": "operator-declared",
+      "evidenceBasis": "supplied-research-note",
+      "summary": "Creator posts reportedly name GPT-6 Astra and five prompts for Founders Square, cite Silicon Valley intro inspiration, and recall the first prompt; project launch was announced September 12.",
+      "sourceUrls": [
+        "https://x.com/leocardz/status/2098734429305016466",
+        "https://x.com/opportunicity/status/2098740951057342630",
+        "https://x.com/leocardz/status/2098778657682825451"
+      ],
+      "captureDate": "2026-09-12",
+      "evidence": [{"path": "docs/SOURCES.md"}, {"path": "docs/REFERENCE_ANALYSIS.md"}],
+      "relevance": {"scope": "historical-context", "use": "Preserve attribution and claimed creative process, not an effort guarantee."},
+      "limitations": ["Not independently verified generation history.", "Does not establish all backend/app work in five prompts or any IDE/harness.", "No art reuse rights follow from inspiration claims."]
+    },
+    {
+      "id": "proposed-static-client-architecture",
+      "status": "proposed",
+      "evidenceBasis": "new-proposal",
+      "summary": "Use React, strict TypeScript, Vite and Three.js; React owns controls/product state while an imperative loop owns frame updates.",
+      "sourceUrls": ["https://opportunity.city/"],
+      "captureDate": "2026-09-12",
+      "evidence": [{"path": "docs/TECHNICAL_ARCHITECTURE.md"}],
+      "relevance": {"scope": "ambient-implementation-proposal", "use": "No backend/database/login/analytics; avoid per-frame React state and speculative libraries."},
+      "limitations": ["Not implemented or version-locked.", "Source runtime evidence is context, not proof of this architecture."]
+    },
+    {
+      "id": "proposed-pause-camera-contract",
+      "status": "proposed",
+      "evidenceBasis": "new-proposal",
+      "summary": "Pause freezes autonomous progression; manual controls remain usable. Hidden tabs suspend and resume without catch-up. One camera controller arbitrates user input, focus, follow and tour.",
+      "sourceUrls": ["https://opportunity.city/"],
+      "captureDate": "2026-09-12",
+      "evidence": [{"path": "docs/EXPERIENCE_SPEC.md"}, {"path": "docs/ACCEPTANCE_CRITERIA.md"}],
+      "relevance": {"scope": "ambient-implementation-proposal", "use": "Make interruptions and time semantics explicit for future agents."},
+      "limitations": ["New behavior contract, not recovered source semantics.", "Local-clock lighting uses an explicit 10-second resume blend exception."]
+    },
+    {
+      "id": "proposed-accessible-world",
+      "status": "proposed",
+      "evidenceBasis": "new-proposal",
+      "summary": "Use keyboard world controls, shortcut help, original landmark focus cycling, reduced-motion guided views and an original noncommercial static fallback.",
+      "sourceUrls": ["https://opportunity.city/"],
+      "captureDate": "2026-09-12",
+      "evidence": [{"path": "docs/EXPERIENCE_SPEC.md"}, {"path": "docs/ACCEPTANCE_CRITERIA.md"}],
+      "relevance": {"scope": "ambient-implementation-proposal", "use": "Make every feature reachable without a directory or ad-card catalog."},
+      "limitations": ["Proposed, not an accessibility certification.", "Requires real keyboard, screen-reader and device testing."]
+    },
+    {
+      "id": "proposed-original-art-pipeline",
+      "status": "proposed",
+      "evidenceBasis": "new-proposal",
+      "summary": "Create an original seeded low-poly district using a new Python generator, optional trimesh/Blender, and profile-driven glTF/Meshopt optimization; keep semantic manifests separate.",
+      "sourceUrls": ["https://opportunity.city/city/city.glb?v=landmark-20260909"],
+      "captureDate": "2026-09-12",
+      "evidence": [{"path": "docs/ART_AND_ASSETS.md"}, {"path": "docs/TECHNICAL_ARCHITECTURE.md"}],
+      "relevance": {"scope": "ambient-implementation-proposal", "use": "Original art, shared geometry/materials, instancing and stable POI/route/anchor IDs."},
+      "limitations": ["No original source generator or model is available for reuse.", "No tool installs or asset generation authorized by this handoff."]
+    },
+    {
+      "id": "proposed-performance-effort",
+      "status": "proposed",
+      "evidenceBasis": "new-proposal",
+      "summary": "Aim at about 60 FPS on an agreed reference laptop, 30 FPS on an agreed midrange phone, and 3-5 MB compressed district geometry; estimate 120-220 hours for polished ambient scope.",
+      "data": {
+        "viewportWidthsCssPx": [320, 375, 390, 414, 768, 1440],
+        "highDprCeiling": 1.75,
+        "automaticInitialDprCeiling": 1.5,
+        "lightweightDprCeiling": 1,
+        "visualPrototypeHours": [40, 80],
+        "polishedAmbientHours": [120, 220]
+      },
+      "sourceUrls": ["https://opportunity.city/"],
+      "captureDate": "2026-09-12",
+      "evidence": [{"path": "docs/ACCEPTANCE_CRITERIA.md"}, {"path": "docs/ROADMAP.md"}],
+      "relevance": {"scope": "ambient-planning-proposal", "use": "Measure exact thresholds and validate with Vitest/RTL/Playwright plus real-device profiling when implemented."},
+      "limitations": ["No app benchmarks or tests exist.", "Prototype estimate overlaps total and is not additive.", "Not verified source-author effort; old full-commerce estimate does not apply."]
+    },
+    {
+      "id": "excluded-commerce-evidence",
+      "status": "observed",
+      "evidenceBasis": "retained-capture",
+      "summary": "Commercial directory, placement and booking UI was captured and retained in an explicitly excluded archive.",
+      "sourceUrls": ["https://opportunity.city/", "https://opportunity.city/privacy/app"],
+      "captureDate": "2026-09-12",
+      "evidence": [{"path": "research/excluded-scope/README.md"}],
+      "relevance": {"scope": "excluded-history", "use": "Preserve research completeness only; provider/auth/analytics declarations are labeled separately in the archive."},
+      "limitations": ["No source commerce functionality belongs in LivingCity.", "No payments/uploads/recovery flow submitted.", "App notice declared sandbox; production readiness unverified."]
+    },
+    {
+      "id": "research-rights-boundary",
+      "status": "observed",
+      "evidenceBasis": "supplied-research-note",
+      "summary": "No license to reuse source artwork/code was established and no original model, bundles, fonts or logos were retained.",
+      "sourceUrls": ["https://opportunity.city/", "https://opportunity.city/contact"],
+      "captureDate": "2026-09-12",
+      "evidence": [{"path": "docs/SOURCES.md"}, {"path": "research/import-manifest.json"}],
+      "relevance": {"scope": "provenance-constraint", "use": "Attribute research captures; create original or separately licensed runtime assets."},
+      "limitations": ["Attribution alone is not reuse permission.", "Publication/distribution requires a third-party evidence rights review."]
+    }
+  ]
+}

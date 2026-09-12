@@ -1,0 +1,31 @@
+{
+  "exploreHelp": "Make yourself at home.\n\nExplore the city at your own pace.\n\nDrag\nMove around the city.\nScroll or pinch\nGet closer or pull back.\nHover a sign\nPeek at a larger version of the brand.\nClick or tap\nCenter the sign and open its card. Moving ads stay in view as they travel.\nRotate\nRight-drag, swipe sideways with two fingers, or Shift-scroll. Safari also supports a two-finger twist.\nAuto tour\nA mix of high views, street glides, a pause at a brand, and a short ride with a bus or drone. With a sign open, it turns slowly around that one.\nFull screen\nFill the display. Press Esc or the button again to leave.",
+  "busFollow": "Opportunity.city\nEARLY ACCESS\nExplore city\nThe directory\nHow it works\nBrowse\nthe city\nFollowing The Boulevard Loop\nStop\nFounders Square\nWhere the next big idea begins.\n14:51\nThis could be you.\nAVAILABLE THIS WEEK\nBUS · THE BOULEVARD LOOP\nA home for your idea.\n\nYour idea, around every corner. A moving advertisement on both sides of a city bus, following its daily street route.\n\n$59 once for 7 days\nNo one lives here yet\nReserve this week\nFollow bus\nShare\nSunny, 24°\nYOUR VIEW OF THE CITY\n\nWeather\n\nSunny\nCloudy\nRain\nMist\nLet the weather change naturally\nTime of day\nFollow my clock\nAfternoon\nNight\nDay & night cycle\nCity detail\nAutomatic\nHigh\nLightweight\nA little world, always moving.\n9\nonline\n233\nvisits\nYour next chapter has an address.",
+  "diagnostics": {
+    "contextsCreated": 1,
+    "reactRenderers": [
+      {
+        "version": "19.2.6",
+        "rendererPackageName": "react-dom"
+      }
+    ]
+  },
+  "soundResources": [],
+  "pauseButtons": [
+    "Opportunity.city home",
+    "My placements and bidding history",
+    "Close advertisement",
+    "Zoom in",
+    "Zoom out",
+    "Rotate city",
+    "Start auto tour",
+    "Reset view",
+    "How to explore the map",
+    "Sunny, 24°. Weather settings",
+    "Play city",
+    "Mute ambient sound",
+    "Enter full screen",
+    "City settings",
+    "Close settings"
+  ]
+}
