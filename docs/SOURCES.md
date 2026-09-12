@@ -60,6 +60,6 @@ No payment, upload, advertiser submission, recovery email request, or private au
 
 Opportunity.city screenshots and quoted public content are preserved for analysis, attributed to Opportunity.city and its identified creator Leonardo Gomes Cardoso / @leocardz. No source-art/code license or permission for runtime reuse was established. No blanket license in this repository grants rights to third-party evidence.
 
-Use the captures only to understand behavior, composition constraints, and research history. Do not ship them, trace the city, extract source textures, recreate its distinctive artwork, or reuse brand names/identity. The new product requires original or separately licensed assets with their own provenance. Attribution alone is not a reuse license.
+Use the captures only to understand behavior, composition constraints, and research history. Do not ship them as runtime assets, trace the city, extract source textures, recreate its distinctive artwork, or reuse brand names/identity. The new product requires original or separately licensed assets with their own provenance. Attribution alone is not a reuse license.
 
-If the repository is later published or distributed, review third-party evidence rights and attribution first. No GitHub remote or publication is part of this handoff.
+The initial documentation import was local-only. The user subsequently authorized pushing the reviewed documentation and research bundle to the [canonical GitHub destination](../README.md). This authorization does not grant third-party rights or permit runtime reuse; preserve attribution and analysis-only restrictions when redistributing evidence.
