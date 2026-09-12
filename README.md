@@ -4,6 +4,12 @@ An original, interactive miniature city for exploring or leaving on a second scr
 
 **Current status: documentation and research only.** There is no application, runnable demo, package manifest, generated city model, or implemented feature. This repository preserves the supplied research captured on **2026-09-12** and a proposed ambient-only implementation plan. It does not contain the original website's model or source code.
 
+## Future GitHub destination
+
+The user supplied [ccastrotrejo/CitiVibe](https://github.com/ccastrotrejo/CitiVibe) as the canonical destination for future pushes on 2026-09-12. **Recording this destination does not request a push.** Do not create a GitHub repository, clone, or configure/change Git remotes as part of this update.
+
+The local checkout remains `/Users/carloscastro/Desktop/LivingCity`; do not rename the Desktop folder or project. The ambient-only product scope below is unchanged.
+
 ## Product boundary
 
 The user's direction is a city that is "dynamic," has "lots of user controls," and "feels alive," without the directory or marketing side of the reference. The reference is [opportunity.city](https://opportunity.city/); the new city must have its own composition, architecture, identity, and assets.
