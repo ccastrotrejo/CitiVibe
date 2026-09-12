@@ -1,0 +1,257 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900" viewBox="0 0 1200 900" role="img" aria-labelledby="title description">
+  <title id="title">Rainlight Square in the afternoon</title>
+  <desc id="description">An original miniature garden district on a sand-colored base. A copper-roofed pavilion stands in the center-left plaza, with terracotta terrace steps to the right and a reed garden below-left. Cream and teal houses frame the square. An orange bus, three small cars, and walkers share the district. This is a static illustration.</desc>
+  <metadata>Original authored vector artwork for LivingCity, 2026-09-12. Asset rainlight-001. No external artwork, fonts, textures or source-site assets. Focus points in the 1200 by 900 viewBox: rainlight-pavilion 589.4,299; terrace-steps 738,462; reed-garden 441,413.</metadata>
+  <defs>
+    <pattern id="windows" width="1.55" height="2" patternUnits="userSpaceOnUse">
+      <rect x=".4" y=".58" width=".72" height="1.08" fill="#354f53"/>
+      <rect x=".33" y=".44" width=".86" height=".1" fill="#f0dec0"/>
+    </pattern>
+    <g id="tree">
+      <ellipse cx="9" cy="3" rx="23" ry="10" fill="#887a5e" opacity=".17"/>
+      <path d="M0 0V-39" stroke="#9c7952" stroke-width="5"/>
+      <path d="M0-66 18-57 25-35 16-18-6-16-23-32-20-52Z" fill="#70866a"/>
+      <path d="M0-66 18-57 9-37-20-32-20-52Z" fill="#9aa478"/>
+      <path d="M9-37 25-35 16-18-6-16Z" fill="#627a62"/>
+    </g>
+    <g id="sapling">
+      <ellipse cx="5" cy="2" rx="15" ry="7" fill="#887a5e" opacity=".15"/>
+      <path d="M0 0V-29" stroke="#9c7952" stroke-width="4"/>
+      <path d="M-3-48 11-44 17-27 7-13-8-15-17-29-14-42Z" fill="#9aa478"/>
+      <path d="M-14-42-3-48 3-31-17-29Z" fill="#afba89"/>
+      <path d="M3-31 17-27 7-13-8-15Z" fill="#84966f"/>
+    </g>
+    <g id="lamp">
+      <path d="M0 0V-33" stroke="#80553e" stroke-width="2"/>
+      <path d="M-4-37 0-40 5-37 1-33Z" fill="#80553e"/>
+      <path d="M-3-36 1-33 4-35V-31L1-29-3-32Z" fill="#f5e8c9"/>
+    </g>
+    <g id="bench">
+      <path d="M-13 1V8M9 15V22" stroke="#80553e" stroke-width="3"/>
+      <path d="M-16-4 12 17 20 11-8-11Z" fill="#ab855b"/>
+      <path d="M-16-4 12 17V10L-16-11Z" fill="#9c7952"/>
+      <path d="M-16-11 12 10V4L-16-17Z" fill="#b99568"/>
+    </g>
+    <g id="car">
+      <path d="M-22-16 5 5 23-9V-18L-4-39-22-25Z" fill="currentColor"/>
+      <path d="M-18-27-5-37 17-20 4-10Z" fill="#354f53"/>
+      <path d="M-13-33-5-39 9-28 1-22Z" fill="currentColor"/>
+      <path d="M5 5 23-9V-18L5-4Z" fill="#4c5651" opacity=".17"/>
+      <ellipse cx="-14" cy="-11" rx="2.8" ry="4.2" fill="#3b4643" transform="rotate(-25 -14 -11)"/>
+      <ellipse cx="3" cy="2" rx="2.8" ry="4.2" fill="#3b4643" transform="rotate(-25 3 2)"/>
+      <path d="M14-2 18-5" stroke="#f4e7cb" stroke-width="2.5"/>
+    </g>
+    <g id="walker">
+      <path d="M-2 0V-7M2 0V-7" stroke="#3b4643" stroke-width="2.5"/>
+      <path d="M-3-15H3L4-6H-4Z" fill="currentColor"/>
+      <path d="M-4-13-6-7M4-13 6-7" stroke="currentColor" stroke-width="2"/>
+      <path d="M-3-19 0-21 3-19 3-16 0-14-3-16Z" fill="#bd8e68"/>
+    </g>
+    <g id="vehicle-signal">
+      <path d="M0 0V-30" stroke="#80553e" stroke-width="1.7"/>
+      <rect x="-4" y="-38" width="8" height="10" rx="1.3" fill="#3b4643"/>
+      <circle cy="-35.5" r="1.4" fill="#59615b"/>
+      <circle cy="-31.5" r="1.4" fill="#86b97f"/>
+    </g>
+    <g id="pedestrian-signal">
+      <path d="M0 0V-21" stroke="#80553e" stroke-width="1.7"/>
+      <rect x="-4" y="-28" width="8" height="10" rx="1.3" fill="#3b4643"/>
+      <circle cy="-25.5" r="1.4" fill="#de6151"/>
+      <circle cy="-21.5" r="1.4" fill="#59615b"/>
+    </g>
+  </defs>
+  <rect width="1200" height="900" fill="#e9e2d3"/>
+  <ellipse cx="612" cy="635" rx="365" ry="178" fill="#b1a48a" opacity=".12"/>
+  <g transform="translate(0 13)">
+    <g transform="matrix(10.6066 8.1251 -10.6066 8.1251 600 425)">
+      <rect x="-26" y="-22" width="52" height="44" rx="4" fill="#b9aa8e"/>
+    </g>
+  </g>
+  <g transform="matrix(10.6066 8.1251 -10.6066 8.1251 600 425)">
+    <rect x="-26" y="-22" width="52" height="44" rx="4" fill="#d6c7aa"/>
+    <rect x="-20" y="-16" width="40" height="32" rx="6" fill="none" stroke="#ebdcc0" stroke-width="9.6"/>
+    <rect x="-20" y="-16" width="40" height="32" rx="6" fill="none" stroke="#727f7c" stroke-width="4"/>
+    <rect x="-21.85" y="-17.85" width="43.7" height="35.7" rx="7.85" fill="none" stroke="#f4e7cb" stroke-width=".09"/>
+    <rect x="-18.15" y="-14.15" width="36.3" height="28.3" rx="4.15" fill="none" stroke="#f4e7cb" stroke-width=".09"/>
+    <path d="M-5 2H-3V13H-5ZM1.5-4H7V-2H1.5Z" fill="#ebdcc0"/>
+    <rect x="-9.5" y="-8" width="11" height="10" fill="#ebdcc0"/>
+    <path d="M-8.4.6V1.8M-6.65.6V1.8M-4.9.6V1.8M-3.15.6V1.8M-1.4.6V1.8M.35.6V1.8" stroke="#d6c7aa" stroke-width=".04"/>
+    <rect x="-12.9" y="4.25" width="8.6" height="6.3" fill="#9aa478"/>
+    <g id="reed-garden">
+      <rect x="-10.6" y="5.3" width="5.2" height="3.4" fill="#bbaa8b"/>
+      <rect x="-10.35" y="5.55" width="4.7" height="2.9" fill="#739d98"/>
+      <path d="M-9.6 6.6H-7.9M-8.6 7.3H-6.4M-9.8 7.8H-8.5" stroke="#aec3b1" stroke-width=".07"/>
+    </g>
+    <g id="terrace-steps">
+      <path d="M6.2-3H11.8V-5.5H6.2Z" fill="#ebdcc0"/>
+      <path d="M6.2-3.4H11.8M6.2-3.85H11.8M6.2-4.3H11.8M6.2-4.75H11.8" stroke="#b8a98d" stroke-width=".08"/>
+      <path d="M5.6-5.15H6.1V-2.85H5.6ZM11.9-5.15H12.4V-2.85H11.9Z" fill="#bc745b"/>
+    </g>
+    <rect x="-11.9" y="-13.65" width="5.8" height="1.3" fill="#ebdcc0"/>
+    <path d="M-11.9-13.85H-6.1" stroke="#f4e7cb" stroke-width=".16"/>
+    <path d="M-1.3-17.6H1.3M-1.3-16.8H1.3M-1.3-16H1.3M-1.3-15.2H1.3M-1.3-14.4H1.3" stroke="#f4e7cb" stroke-width=".36"/>
+  </g>
+  <!-- Rear edge and the taller, quieter skyline. -->
+  <use href="#sapling" transform="translate(736 216)"/>
+  <use href="#tree" transform="translate(432 182) scale(.9)"/>
+  <g transform="translate(578.8 251.5)">
+    <path d="M-53-80.1 6.4-34.6V40.6L-53-4.9Z" fill="#568581"/>
+    <path d="M6.4-34.6 53-70.3V4.9L6.4 40.6Z" fill="#456e6c"/>
+    <path d="M-6.4-115.8 53-70.3 6.4-34.6-53-80.1Z" fill="#f0dec0"/>
+    <path d="M-6.4-110 45-70.6 6.4-41-45-80.4Z" fill="#626c67"/>
+    <path d="M-55-80.5 6.4-33.5 55-70.7" fill="none" stroke="#f0dec0" stroke-width="3"/>
+    <g transform="matrix(10.6066 8.1251 0 -9.642 -53 -4.9)">
+      <rect x=".3" y=".5" width="5" height="7" fill="url(#windows)"/>
+    </g>
+    <g transform="matrix(10.6066 -8.1251 0 -9.642 6.4 40.6)">
+      <rect x=".3" y=".5" width="3.8" height="7" fill="url(#windows)"/>
+    </g>
+    <path d="M-25 2V-14L-14-6V10Z" fill="#354f53"/>
+    <path d="M-29-15-17-24-1-12-13-3Z" fill="#9c7952"/>
+  </g>
+  <g transform="translate(665.7 310) scale(.93 1)">
+    <path d="M-51.4-105.6 6.9-60.9V39.4L-51.4-5.3Z" fill="#f0dec0"/>
+    <path d="M6.9-60.9 51.4-95V5.3L6.9 39.4Z" fill="#d6bea0"/>
+    <path d="M-6.9-139.7 51.4-95 6.9-60.9-51.4-105.6Z" fill="#f8ecd5"/>
+    <path d="M-6.9-133.7 43-95.5 6.9-67.9-43-106.1Z" fill="#626c67"/>
+    <path d="M-53-106 6.9-60 53-95.3" fill="none" stroke="#f8ecd5" stroke-width="3"/>
+    <g transform="matrix(10.6066 8.1251 0 -9.642 -51.4 -5.3)">
+      <rect x=".25" y=".5" width="5" height="9.5" fill="url(#windows)"/>
+    </g>
+    <g transform="matrix(10.6066 -8.1251 0 -9.642 6.9 39.4)">
+      <rect x=".3" y=".5" width="3.7" height="9.5" fill="url(#windows)"/>
+    </g>
+    <path d="M-24 2V-15L-12-6V11Z" fill="#354f53"/>
+    <path d="M-29-16-16-26 2-12-11-2Z" fill="#9c7952"/>
+  </g>
+  <path d="M607 219V195" stroke="#80553e" stroke-width="1.8"/>
+  <path d="M601 189 609 195V202L601 196Z" fill="#568581"/>
+  <path d="M603 193 607 196" stroke="#f0dec0" stroke-width="2"/>
+  <g transform="translate(789.9 427.8)">
+    <path d="M-64.2-68.1 5.8-14.5V49.2L-64.2-4.4Z" fill="#bc745b"/>
+    <path d="M5.8-14.5 64.2-59.2V4.4L5.8 49.2Z" fill="#9f604c"/>
+    <path d="M-5.8-112.8 64.2-59.2 5.8-14.5-64.2-68.1Z" fill="#f0dec0"/>
+    <path d="M-5.8-107 56-59.7 5.8-21.2-56-68.5Z" fill="#626c67"/>
+    <g transform="matrix(10.6066 8.1251 0 -9.642 -64.2 -4.4)">
+      <rect x=".25" y=".6" width="6" height="5.8" fill="url(#windows)"/>
+    </g>
+    <g transform="matrix(10.6066 -8.1251 0 -9.642 5.8 49.2)">
+      <rect x=".3" y=".5" width="4.9" height="5.9" fill="url(#windows)"/>
+    </g>
+    <path d="M-33-101 18-62V-43L-33-82Z" fill="#bc745b"/>
+    <path d="M18-62 53-89V-70L18-43Z" fill="#9f604c"/>
+    <path d="M2-128 53-89 18-62-33-101Z" fill="#f0dec0"/>
+    <path d="M2-122 45-89 18-69-25-101Z" fill="#626c67"/>
+    <path d="M-35-102 18-61 55-89.5" fill="none" stroke="#f0dec0" stroke-width="3"/>
+    <path d="M-26 20V3L-13 13V30Z" fill="#354f53"/>
+    <path d="M-31 2-17-9 3 6-11 17Z" fill="#9c7952"/>
+  </g>
+  <use href="#tree" transform="translate(463 279)"/>
+  <use href="#tree" transform="translate(437 323) scale(.9)"/>
+  <use href="#lamp" transform="translate(489 242)"/>
+  <use href="#lamp" transform="translate(839 510)"/>
+  <use href="#sapling" transform="translate(773 531)"/>
+  <use href="#tree" transform="translate(843 611) scale(.85)"/>
+  <!-- Pavilion: a broad eight-sided copper canopy, open cream colonnade and low plinth. -->
+  <g id="rainlight-pavilion">
+    <path d="M543 360 558 340 603 338 637 360 638 387 604 411 559 411 533 389Z" fill="#b6a68a" opacity=".22"/>
+    <path d="M550 345 590 331 631 351 645 376 617 402 575 408 538 386 534 362Z" fill="#c5b394"/>
+    <path d="M550 341 590 327 631 347 645 372 617 398 575 404 538 382 534 358Z" fill="#f0dec0"/>
+    <path d="M559 333V372M576 318V357M605 322V361M625 338V377" stroke="#d6bea0" stroke-width="6"/>
+    <path d="M562 369 594 393 618 375 586 351Z" fill="#9c7952"/>
+    <path d="M560 365 594 391 620 371 586 345Z" fill="#b99568"/>
+    <path d="M548 343V382M572 360V399M603 363V402M629 345V384" stroke="#f5e6ca" stroke-width="6"/>
+    <path d="M544 379 548 382 552 379V386L548 389 544 386ZM568 396 572 399 576 396V403L572 406 568 403ZM599 399 603 402 607 399V406L603 409 599 406ZM625 381 629 384 633 381V388L629 391 625 388Z" fill="#d6c7aa"/>
+    <path d="M542 289 589 270 637 291 654 321 630 352 589 367 548 349 525 319Z" fill="#80553e"/>
+    <path d="M542 284 589 265 637 286 654 316 630 347 589 362 548 344 525 314Z" fill="#b97850"/>
+    <path d="M589 299 542 284 589 265 637 286Z" fill="#d69a69"/>
+    <path d="M589 299 637 286 654 316 630 347Z" fill="#a86545"/>
+    <path d="M589 299 630 347 589 362 548 344Z" fill="#bd8056"/>
+    <path d="M589 299 548 344 525 314 542 284Z" fill="#ce9566"/>
+    <path d="M589 299 589 265M589 299 654 316M589 299 589 362M589 299 525 314" stroke="#80553e" stroke-width=".9" opacity=".45"/>
+    <path d="M583 299 589 294 596 299 589 304Z" fill="#80553e"/>
+    <path d="M589 286 594 295 589 299 584 295Z" fill="#b97850"/>
+  </g>
+  <use href="#bench" transform="translate(443 366) scale(.72)"/>
+  <use href="#bench" transform="translate(681 439) scale(.72)"/>
+  <use href="#lamp" transform="translate(361 340)"/>
+  <use href="#tree" transform="translate(554 453)"/>
+  <use href="#tree" transform="translate(633 502) scale(1.1)"/>
+  <use href="#tree" transform="translate(365 394) scale(1.1)"/>
+  <g fill="none" stroke="#70866a" stroke-width="2.1" stroke-linecap="round">
+    <path d="M432 391V377M439 397V380M447 403V390M455 409V392M463 415V400M470 421V402"/>
+    <path d="M408 409V394M416 415V398M424 421V408M432 427V410M440 433V418M448 439V420"/>
+  </g>
+  <g stroke="#a5ae7c" stroke-width="4" stroke-linecap="round">
+    <path d="M432 378V373M447 391V386M463 401V396M416 399V394M432 411V406M448 421V416"/>
+  </g>
+  <use href="#sapling" transform="translate(427 460)"/>
+  <use href="#bench" transform="translate(431 467) scale(.72)"/>
+  <g transform="translate(661.5 576.5)">
+    <path d="M-49.9-39.4-1.1-2V36.6L-49.9-.8Z" fill="#f0dec0"/>
+    <path d="M-1.1-2 49.9-41.1V.8L-1.1 36.6Z" fill="#d6bea0"/>
+    <path d="M1.1-78.4 49.9-41.1-1.1-2-49.9-39.4Z" fill="#626c67"/>
+    <path d="M0-55-1.1-2-49.9-39.4Z" fill="#7b8778"/>
+    <path d="M0-55 49.9-41.1-1.1-2Z" fill="#55645d"/>
+    <path d="M0-55 1.1-78.4" stroke="#91a08c" stroke-width=".8"/>
+    <g transform="matrix(10.6066 8.1251 0 -9.642 -49.9 -.8)">
+      <rect x=".3" y=".4" width="4" height="3.2" fill="url(#windows)"/>
+    </g>
+    <g transform="matrix(10.6066 -8.1251 0 -9.642 -1.1 36.6)">
+      <rect x=".3" y=".4" width="4.2" height="3.2" fill="url(#windows)"/>
+    </g>
+    <path d="M-30 14V-2L-18 7V23Z" fill="#354f53"/>
+    <path d="M-34-3-21-13-2 2-15 12Z" fill="#9c7952"/>
+  </g>
+  <g transform="translate(543.8 512.3)">
+    <path d="M-49.3-38.2 5.8 4V37.8L-49.3-4.4Z" fill="#568581"/>
+    <path d="M5.8 4 49.3-29.4V4.4L5.8 37.8Z" fill="#456e6c"/>
+    <path d="M-5.8-71.5 49.3-29.4 5.8 4-49.3-38.2Z" fill="#626c67"/>
+    <path d="M0-50 5.8 4-49.3-38.2Z" fill="#7b8778"/>
+    <path d="M0-50 49.3-29.4 5.8 4Z" fill="#55645d"/>
+    <path d="M0-50-5.8-71.5" stroke="#91a08c" stroke-width=".8"/>
+    <g transform="matrix(10.6066 8.1251 0 -9.642 -49.3 -4.4)">
+      <rect x=".3" y=".3" width="4.6" height="2.8" fill="url(#windows)"/>
+    </g>
+    <g transform="matrix(10.6066 -8.1251 0 -9.642 5.8 37.8)">
+      <rect x=".3" y=".3" width="3.5" height="2.8" fill="url(#windows)"/>
+    </g>
+    <path d="M-28 11V-5L-16 4V20Z" fill="#354f53"/>
+    <path d="M-33-6-20-16-1-1-14 9Z" fill="#9c7952"/>
+  </g>
+  <use href="#lamp" transform="translate(711 608)"/>
+  <!-- An ordinary orange bus, pointing along the near road toward the left. -->
+  <g transform="translate(502 612)">
+    <ellipse cx="2" cy="5" rx="37" ry="12" fill="#887a5e" opacity=".2"/>
+    <path d="M-32-29 14 6V-13L-32-48Z" fill="#db8b57"/>
+    <path d="M14 6 35-10V-29L14-13Z" fill="#bc745b"/>
+    <path d="M-32-48-11-64 35-29 14-13Z" fill="#f0dec0"/>
+    <path d="M-26-46 12-17V-10L-26-39Z" fill="#354f53"/>
+    <path d="M17-16 31-27V-18L17-7Z" fill="#354f53"/>
+    <path d="M-17-39V-31M-7-31V-23M3-23V-15" stroke="#f0dec0" stroke-width="2"/>
+    <path d="M-34-29 12 6" stroke="#80553e" stroke-width="2"/>
+    <ellipse cx="-21" cy="-18" rx="4" ry="6" fill="#3b4643" transform="rotate(-25 -21 -18)"/>
+    <ellipse cx="5" cy="2" rx="4" ry="6" fill="#3b4643" transform="rotate(-25 5 2)"/>
+    <ellipse cx="-21" cy="-18" rx="1.8" ry="3" fill="#d6c7aa" transform="rotate(-25 -21 -18)"/>
+    <ellipse cx="5" cy="2" rx="1.8" ry="3" fill="#d6c7aa" transform="rotate(-25 5 2)"/>
+    <path d="M-31-34-27-31M-20-41-16-38" stroke="#f4e7cb" stroke-width="2.5"/>
+  </g>
+  <use href="#sapling" transform="translate(273 481)"/>
+  <use href="#tree" transform="translate(400 579)"/>
+  <use href="#sapling" transform="translate(527 676)"/>
+  <use href="#tree" transform="translate(758 676)"/>
+  <use href="#car" color="#568581" transform="translate(862 562) scale(-1 1)"/>
+  <use href="#car" color="#f0dec0" transform="translate(710 250)"/>
+  <use href="#car" color="#bc745b" transform="translate(353 498)"/>
+  <use href="#walker" color="#568581" transform="translate(960 376)"/>
+  <use href="#walker" color="#bc745b" transform="translate(854 295)"/>
+  <use href="#walker" color="#568581" transform="translate(664 149)"/>
+  <use href="#walker" color="#9aa478" transform="translate(345 230)"/>
+  <use href="#walker" color="#bc745b" transform="translate(239 474)"/>
+  <use href="#walker" color="#568581" transform="translate(473 652)"/>
+  <use href="#walker" color="#bc745b" transform="translate(791 669)"/>
+  <use href="#walker" color="#f0dec0" transform="translate(793 269)"/>
+  <use href="#vehicle-signal" transform="translate(761 243)"/>
+  <use href="#pedestrian-signal" transform="translate(816 285)"/>
+  <use href="#pedestrian-signal" transform="translate(723 305)"/>
+</svg>

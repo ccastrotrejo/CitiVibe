@@ -1,6 +1,14 @@
 # Technical architecture
 
-**Status: recommendation only.** No listed packages, modules, interfaces, or services are implemented. These choices serve the [ambient-only product](PRODUCT_BRIEF.md), not the reference's commercial platform.
+**Status: M1-M5 implementation plus future recommendations.** The application uses React, strict TypeScript, Vite, direct Three.js, and npm with exact locked versions. Camera/clock/input/lifecycle, original content/art, bounded actor simulation, the environment/audio/quality managers, the occasional airplane, and persistent local preferences are implemented and wired into the live runtime; the world was enlarged around the tuned core within the existing draw-call/material budget. Tours/preferences completion (M4), the NYC pass (M8), and final hardening (M6/M7) remain. No services or backend exist; the app ships as a static Vite build (see Deployment).
+
+## Current implementation
+
+`src/app/App.tsx` owns React status, help/focus, and lazy renderer loading with late-load cancellation. A retained `WorldModel` owns the camera controller and actor simulation, so retry/context restoration retains pause, selection, route progress, and pose. `createWorld.ts` owns one RAF chain, a fixed-step clock, GPU resources, scene-only input, and visibility/context listeners. `input.ts` locks gestures and clears pointer capture on cancellation, blur, and suspension. UI changes publish semantic status; frame updates do not run through React.
+
+`src/content/city.ts` keeps versioned semantic IDs, bounded landmark anchors, and the closed distance-parameterized street route separate from `scene.ts` geometry. The M2 reproducible workflow is direct authored TypeScript geometry, not a downloaded or opaque GLB. Vite hashes the generated application chunks. The original SVG is separately versioned as `rainlight-001.svg`.
+
+The clock runs at 30 simulation steps/second with at most three steps per rendered frame; actors currently render at the latest completed tick. Sub-tick visual interpolation is not claimed. Paused worlds render only on explicit changes; hidden worlds schedule no RAF chain. The default renderer uses capped DPR 1.5 and static afternoon lighting. There is no Automatic-quality selector or claimed adaptive tier yet.
 
 ## Recommended stack and exclusions
 
@@ -25,7 +33,7 @@ React sends typed commands; the runtime publishes meaningful state changes and t
 
 ## Proposed module layout
 
-This is a future layout sketch, not permission to create scaffolding now.
+This remains the broader future layout sketch; current implemented modules above are deliberately smaller.
 
 ```text
 src/
@@ -78,11 +86,11 @@ Vehicle routes include stop lines, turn constraints, bus stops, and merge/crossi
 
 Prioritize simple rules over full physics. Test crossing exclusivity, loop continuity, stop dwell, target validity, and bounded population counts. Avoid deadlocks through explicit conflict ordering and maximum-wait diagnostics during development, not teleporting actors through conflicts.
 
-Aerial routes use safe altitude bands and scripted loops; they do not need aerodynamics. Optional rare events are seeded and bounded with minimum gaps. Parked people, plants, and props can have cheaper animation/detail tiers than moving followed actors.
+Aerial routes use safe altitude bands and scripted loops; they do not need aerodynamics. Optional rare events are seeded and bounded with minimum gaps. Parked people, plants, and props can have cheaper animation/detail tiers than moving actors.
 
 ## Semantic manifests and example contracts
 
-Geometry must not be the database of interaction identity. Store original POIs, routes, follow anchors, and tour anchors separately from the GLB. IDs survive geometry regeneration and mesh batching; never use a mesh array index as a persistent selection ID.
+Geometry must not be the database of interaction identity. Store original POIs, routes, and camera/tour anchors separately from the geometry. IDs survive geometry regeneration and mesh batching; never use a mesh array index as a persistent selection ID.
 
 Proposed conventions: meters, Y-up, right-handed coordinates, versioned schema, explicit asset version, seed, and bounded scene extents. Validate unique IDs, finite coordinates, references, route continuity, positive durations, and camera bounds before showing ready. Report malformed authored content as a load error.
 
@@ -90,7 +98,7 @@ Illustrative TypeScript contracts, not executable project files:
 
 ```ts
 type Vec3 = readonly [number, number, number];
-type CameraMode = "overview" | "free" | "focus" | "follow" | "tour";
+type CameraMode = "overview" | "free" | "focus" | "tour";
 
 interface Landmark {
   id: string;
@@ -119,7 +127,6 @@ interface ActorRoute {
 type WorldCommand =
   | { type: "set-paused"; paused: boolean }
   | { type: "focus-landmark"; id: string }
-  | { type: "follow-actor"; id: string }
   | { type: "start-tour" }
   | { type: "stop-camera" }
   | { type: "reset-view" };
@@ -181,7 +188,7 @@ Audio is owned by one graph with a master gain. Require an explicit user gesture
 
 Quality controls DPR, render cadence, shadows, particle budgets, and population/detail tiers. Proposed initial ceilings: High DPR 1.75, Automatic no higher than 1.5 until profiled, Lightweight 1.0 and a 30 FPS render target. Do not couple simulation speed to frame rate.
 
-Automatic quality samples a rolling local frame-time window (for example five seconds), downgrades after sustained budget misses, upgrades only after longer stable headroom (for example 20 seconds), and waits at least 30 seconds between tier changes. Ignore hidden/startup samples. Preserve semantic identity and routes when reducing density; keep selected/followed actors alive. Exact thresholds are calibration proposals.
+Automatic quality samples a rolling local frame-time window (for example five seconds), downgrades after sustained budget misses, upgrades only after longer stable headroom (for example 20 seconds), and waits at least 30 seconds between tier changes. Ignore hidden/startup samples. Preserve semantic identity and routes when reducing density. Exact thresholds are calibration proposals.
 
 ## Preferences and input coordination
 
@@ -197,4 +204,8 @@ Pure units: clock/pause math, route interpolation, stop/conflict arbitration, se
 
 Component tests: accessible control names/states, settings changes, modal focus return, errors/fallback, and no world input through overlays. Browser tests: actual canvas hit routing, WebGL lifecycle, pointer/touch/keyboard, visibility, audio gating, fullscreen, and deterministic visual captures. Real devices: GPU/frame behavior, thermal/long-session stability, mobile Safari and Android interaction.
 
-The complete proposed matrix is in [acceptance criteria](ACCEPTANCE_CRITERIA.md). No tests or build tools exist yet.
+The complete matrix and implementation verification record are in [acceptance criteria](ACCEPTANCE_CRITERIA.md). Current tooling is Vitest + React Testing Library + Playwright, with ESLint and TypeScript checks. Physical-device profiling remains outstanding.
+
+## Deployment
+
+The app is a static single-page bundle with no backend, so any static host serves it. `vercel.json` at the repository root configures Vercel directly: framework preset `vite`, build command `npm run build` (`tsc -b && vite build`), output directory `dist`, and an SPA rewrite so every path resolves to the app shell. Vercel reads the Node version from `package.json` `engines`. No environment variables or runtime services are required; local-only preferences persist in the browser. This deployment configuration introduces no backend, database, analytics, or commercial system, consistent with the product boundary.

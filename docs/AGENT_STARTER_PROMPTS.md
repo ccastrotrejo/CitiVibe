@@ -1,6 +1,6 @@
 # Agent starter prompts
 
-**Templates only. Do not execute these during the documentation handoff.** Each prompt is a bounded future task. The user must explicitly request implementation first.
+**Bounded task templates.** All roadmap goals M1-M7 are now authorized, including the previously planned occasional airplane. Work through verified vertical slices. The user's removals of camera-follow and the drone remain binding; prioritize desktop/laptop use and do not restore removed scope from historical references.
 
 Use this prefix with every prompt:
 
@@ -8,7 +8,7 @@ Use this prefix with every prompt:
 
 ## 1. First interactive slice
 
-> Implementation is now authorized for M1 only. Read docs/TECHNICAL_ARCHITECTURE.md and docs/ART_AND_ASSETS.md. Resolve the first-slice projection and device assumptions explicitly. Create the smallest complete original district block with one landmark and an ordinary bus route using the recommended simple stack unless a concrete constraint requires otherwise. Wire pan/zoom/rotate/reset, landmark focus, bus follow/stop, pause, visibility handling, keyboard alternatives, original loading/fallback, and proper cleanup end-to-end. No per-frame React state. Verify applicable AC-01 through AC-07 and AC-17 through AC-20. Report actual results and remaining limits, not plans described as passing tests. Stop before expanding the district.
+> Implementation is now authorized for M1 only. Read docs/TECHNICAL_ARCHITECTURE.md and docs/ART_AND_ASSETS.md. Resolve the first-slice projection and device assumptions explicitly. Create the smallest complete original district block with one landmark and an ordinary bus route using the recommended simple stack unless a concrete constraint requires otherwise. Wire pan/zoom/rotate/reset, landmark focus, pause, visibility handling, keyboard alternatives, original loading/fallback, and proper cleanup end-to-end. No per-frame React state. Verify applicable AC-01 through AC-07 and AC-17 through AC-20. Report actual results and remaining limits, not plans described as passing tests. Stop before expanding the district.
 
 ## 2. Original district and manifests
 
@@ -16,11 +16,11 @@ Use this prefix with every prompt:
 
 ## 3. Believable actor systems
 
-> Implement M3 using the existing manifests and clock. Add bounded cars/pedestrians, bus dwell, crossing/intersection rules, and one ordinary drone. Vary route phases and speeds deterministically. Preserve followed actor IDs across quality changes. Verify continuity, conflict exclusivity, pause/hidden resume, target removal, and a ten-minute seeded run without runaway spawning. Defer optional skating figures, aircraft, and complex physics unless required for the approved milestone. Stop after the actor slice is coherent.
+> Implement M3 using the existing manifests and clock. Add bounded cars/pedestrians, bus dwell, crossing/intersection rules, and resting figures; no drone. Vary route phases and speeds deterministically. Preserve actor IDs across quality changes. Verify continuity, conflict exclusivity, pause/hidden resume, and a ten-minute seeded run without runaway spawning. Keep the requested occasional airplane in the future plan only. Defer optional skating figures and complex physics. Stop after the actor slice is coherent.
 
 ## 4. Camera and control completion
 
-> Implement M4 using one camera state machine. Finish noncommercial landmark focus cycling, bus/drone follow, global/contextual tours, Stop, modal interruption, shortcut help, and fullscreen/expanded-view handling. Follow the exact proposed pause/interruption contract or document an approved replacement before changing behavior. Manual navigation must cancel automation without snapping; modal dismissal must not restart it. Reduced motion uses stepwise guided views. Add state-transition and cross-input tests. Never introduce a directory or ad-style card.
+> Implement M4 using one camera state machine. Finish noncommercial landmark focus cycling, global/contextual tours, Stop, modal interruption, shortcut help, and fullscreen/expanded-view handling. Follow the exact proposed pause/interruption contract or document an approved replacement before changing behavior. Manual navigation must cancel automation without snapping; modal dismissal must not restart it. Reduced motion uses stepwise guided views. Add state-transition and cross-input tests. Never introduce a directory or ad-style card.
 
 ## 5. Environment and sound
 
@@ -28,7 +28,7 @@ Use this prefix with every prompt:
 
 ## 6. Responsive and accessibility hardening
 
-> Implement M6 without changing product scope. Exercise 320/375/390/414/768 and desktop 1440 widths, short/landscape viewports, safe areas, and enlarged text. Fix control occlusion, modal focus/return, keyboard parity, scene/overlay input routing, and meaningful noncommercial static fallback. Test reduced-motion behavior and no-autoplay sound. Use world focus cycling, not a directory/catalog, as the landmark keyboard path. Distinguish automated Chromium checks from physical-device and screen-reader results; report unavailable devices as gaps.
+> Implement M6 without changing product scope. Prioritize 1024/1440/1920 px desktop/laptop layouts and enlarged text; mobile edge cases are outside the latest user request. Fix control occlusion, modal focus/return, keyboard parity, scene/overlay input routing, and meaningful noncommercial static fallback. Test reduced-motion behavior and no-autoplay sound. Use world focus cycling, not a directory/catalog, as the landmark keyboard path. Distinguish automated Chromium checks from physical-computer and screen-reader results; report unavailable devices as gaps.
 
 ## 7. Performance and lifecycle hardening
 

@@ -2,13 +2,19 @@
 
 ## Authority and current task
 
-This root file controls work throughout the repository. Current status is **docs-only**: no app, dependencies, tests, or generated assets exist. Do not scaffold, install packages, generate art, or execute the starter prompts until implementation is explicitly requested. Do not create a remote or push without explicit permission.
+This root file controls work throughout the repository. On 2026-09-12 the user expanded authorization from M1-M3 to **all roadmap goals, M1-M7**, and requested detailed progress/change reports. The repository includes a React/TypeScript/Vite/Three.js application, original procedural art, and behavior tests. Complete and verify bounded vertical slices rather than adding placeholder controls. Do not create a remote, commit, or push without explicit permission.
+
+The user subsequently specified **desktop/laptop-first use** and asked not to consider mobile edge cases. Prioritize computer layouts, mouse/trackpad and keyboard, desktop accessibility, and desktop performance. Retain working basic responsive behavior, but do not spend effort on mobile-specific hardening or gate milestones on phone testing.
+
+The roadmap now also includes **M8: an NYC-inspired visual identity** for the original world and desktop UI. Use an original fictional neighborhood, not a literal NYC map, copied landmark models, brands, ads, or directories. Apply the visual pass before final performance/accessibility sign-off.
+
+**Current execution state: paused for reflection at the user's request on 2026-09-12.** The live foundation and M4 control work are retained. Environment/audio and airplane modules are not connected to the live experience. Do not start another milestone or integrate those modules until the user explicitly resumes implementation. Existing workers may finish only their current coherent unit and report a handoff.
 
 Read [README](README.md), [product brief](docs/PRODUCT_BRIEF.md), [experience spec](docs/EXPERIENCE_SPEC.md), and the relevant [roadmap](docs/ROADMAP.md) milestone first. Then read [architecture](docs/TECHNICAL_ARCHITECTURE.md), [art/assets](docs/ART_AND_ASSETS.md), and [acceptance criteria](docs/ACCEPTANCE_CRITERIA.md) for the task. Update directly affected docs when an approved decision changes.
 
 ## Non-negotiable scope
 
-Build an original ambient miniature city with rich activity and user control. Preserve noncommercial landmark focus, ordinary bus/drone follow, tours, pause, weather/time, sound, quality, fullscreen, responsive and accessible interaction.
+Build an original ambient miniature city with rich activity and user control. Preserve noncommercial landmark focus, ordinary street activity, tours, pause, weather/time, sound, quality, fullscreen, responsive and accessible interaction. The user explicitly removed bus/drone camera-follow features and subsequently removed the drone entirely on 2026-09-12. Do not restore those controls or the drone. The later **all-roadmap** authorization includes the planned occasional airplane fly-by; implement it as rare ambient activity, not a replacement follow target.
 
 Do **not** add a directory, listings, advertiser features, sponsored/branded placements, monetized signs/billboards, marketing sections, checkout, payments, bidding/auctions, buyer identity/recovery, ad moderation, advertiser analytics, or business metrics. No backend, database, login, presence service, or analytics is required. Persist only non-sensitive local preferences. Multiplayer, city editing, GIS, and live weather APIs need a new explicit user request.
 
@@ -40,4 +46,4 @@ Keep these labels distinct:
 - Follow the recommended simple stack unless a concrete requirement justifies a change. No speculative physics/ECS library, framework collection, or backend.
 - Add behavior tests with the chosen project's tools; the proposed plan is Vitest + React Testing Library + Playwright and real-device profiling. Do not claim planned tests were run. Re-read changes, validate the exact requirement, and surface unresolved limitations.
 
-For documentation-only maintenance: parse JSON, verify relative links and artifact hashes, and preserve the raw files byte-for-byte. There is no application build to run yet.
+For documentation-only maintenance: parse JSON, verify relative links and artifact hashes, and preserve the raw files byte-for-byte. For application changes use `npm run typecheck`, `npm run lint`, `npm test`, `npm run build`, and the applicable `npm run test:e2e` checks.
