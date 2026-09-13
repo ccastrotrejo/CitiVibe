@@ -1,6 +1,6 @@
 # Acceptance criteria and verification plan
 
-**Status: the night-lighting follow-up has passed local automated checks and isolated renderer review; served-browser and physical-device gates remain open.** The current scene retains thirty-six intersections, twenty-four blocks, 94 buildings and a 78 x 176 m park within a 220 x 340 m map. It has full-size basketball/pickleball courts, 186 people/vehicle rigs, two balls, eight compact subway entrances, seven additional sidewalk sheds and four additional facade scaffold sections. The published main integration at `48dc3fe` and its earlier checkpoints remain historical records below. Automated coverage does not substitute for physical-device FPS, long-session, cross-combination or assistive-technology verification. Production readiness is not claimed; camera-follow and the drone remain excluded.
+**Status: population diversity and night lighting are integrated for combined verification; served-browser and physical-device gates remain open.** The current scene retains thirty-six intersections, twenty-four blocks, 94 buildings and a 78 x 176 m park within a 220 x 340 m map. It has 224 active/posable people (260 rigs including vehicles), eight resting neighbors, two balls, full-size courts with six new light poles, eight compact subway entrances and unchanged scaffolding. The population and lighting checkpoints below are historical, not a substitute for combined verification. Automated coverage does not establish physical-device FPS, long-session, cross-combination or assistive-technology acceptance. Production readiness is not claimed; camera-follow and the drone remain excluded.
 
 Use this matrix when implementing each [roadmap](ROADMAP.md) milestone. Numerical budgets are working targets; name the reference devices and record actual results before declaring them met. The [experience spec](EXPERIENCE_SPEC.md) is authoritative for pause/camera behavior.
 
@@ -8,7 +8,7 @@ Use this matrix when implementing each [roadmap](ROADMAP.md) milestone. Numerica
 
 Six new twin-head poles illuminate the basketball/pickleball parcel shown in the user's follow-up image. All bases remain outside both full runoff areas and the shared passage, with no street, building, player or court-layout changes. Physical heads, smooth ground footprints and focused-view spotlights use the same inward targets. Dusk activation, Lightweight cues, weather/snow support and deterministic pause/recovery use the existing lighting lifecycle.
 
-**Current local checks:** all **434 Vitest cases in 21 files passed** with `--maxWorkers=1` in 131.74 seconds; typecheck, lint and production build passed. Added tests cover all six placements, invalid parcel/runoff/passage positions, inward footprint matrices, focused court lighting and daytime switch-off. An earlier full run had one 30-second traffic-soak timeout while 433 cases passed; the unchanged-timeout rerun passed completely. No simulation behavior or timeout was relaxed.
+**Pre-merge lighting checkpoint:** all **434 Vitest cases in 21 files passed** with `--maxWorkers=1` in 131.74 seconds; typecheck, lint and production build passed. Added tests cover all six placements, invalid parcel/runoff/passage positions, inward footprint matrices, focused court lighting and daytime switch-off. An earlier full run had one 30-second traffic-soak timeout while 433 cases passed; the unchanged-timeout rerun passed completely. No simulation behavior or timeout was relaxed.
 
 | Current CPU accounting | Triangles | Visible mesh submissions | Visible materials | Geometries |
 | --- | --- | --- | --- | --- |
@@ -42,7 +42,26 @@ The production renderer chunk is **447.37 kB minified / 119.16 kB gzip**; the en
 
 **Remaining environment limitations:** the applicable `test:e2e` command selected nighttime-rain and weather/recovery scenarios, but Chromium crashed at launch (`SIGSEGV`) before any application assertion; the second scenario did not run. WebKit launches but still times out navigating to the local served URL. The isolated renderer does not establish production loading, persistent browser preferences, physical-device FPS, all-angle occlusion or long-session behavior. No deployment, commit, push or new pull request was performed.
 
-## Version-005 integration - 2026-09-13
+## Population diversity verification - 2026-09-13
+
+**442 tests in 22 files pass** in the complete single-worker Vitest run (180.93 s). Strict TypeScript, ESLint and the production build pass. The requested increase is 144 street walkers, 36 park walkers, eighteen runners, twelve cyclists, six court players and eight meadow family figures; eight picnic figures remain separately counted. Stable IDs, all thirteen work roles, five age bands, seven skin tones, independent appearance, actual clothing/accessory geometry and purposeful pace are covered. See [people and research](PEOPLE_AND_ACTIVITY.md).
+
+Geometry tests verify age-scaled planted-foot contact, running flight, shorts/trainers, actual per-instance skin/clothing colors and a conservative 0.8 x 1.2 m swept body envelope. Expanding the old collision proxy revealed tight-park-bend overlaps; 1.9 m route headway and 1.65 m geometric clearance correct them. Fourteen twenty-minute traffic/weather scenarios and five fifteen-minute park seeds pass with the larger crowd, retaining existing road/cyclist/signal fingerprints. Sidewalk headway scans are grouped by route.
+
+Meadow tests cover six smaller children and two guardians, two-minute dry/snow body-clearance samples, complete loop/gait seam continuity, bounded speed, grounded soles, invalid inputs and deterministic retained-time reconstruction. Scene checks verify all 232 human figures, including resting people, and clear paths/static props around the play envelope. Runtime coverage exercises actual meadow wiring through movement, pause, hidden time, snow support, graphics restoration and reduced-motion stills. Existing court contacts and full-size surfaces remain unchanged.
+
+| Current source-scene accounting | Triangles | Visible submissions | Visible materials | Visible geometries |
+| --- | ---: | ---: | ---: | ---: |
+| Base scene | 582,904 | 88 | 32 | 36 |
+| Accumulated snow | 901,614 | 143 | 36 | 38 |
+
+The richer, roughly 49% larger active human population explicitly revises the base triangle allowance from 550,000 to **600,000** (+9.1%); 110 submissions and 36 materials remain the base limits. People use two shared primitive geometries and one neutral material with per-instance colors. Snow remains separately accounted, with 48 snow meshes and three foliage batches. These are CPU traversal/allocation results, not physical-device FPS or complete GPU/memory measurements.
+
+Isolated in-memory WebKit rendering captures a 24-person appearance sheet, six children/two guardians in the meadow, reservoir runners, street detail and the city overview at 1440 x 1000, without reported page/shader errors. This directly verifies rendered original people, not served-app navigation or complete UI/browser acceptance. The regular Chromium smoke check crashes during browser startup (`SIGSEGV`) before any application assertions; HTTP-responsive local preview alone is not a substitute. No physical-device, long-session or complete weather/lighting matrix sign-off is claimed.
+
+The production renderer chunk is 444.13 KB minified / 118.62 KB gzip; the entry chunk is 527.13 KB / 157.58 KB gzip. The existing >500 KB Vite warning remains visible. Documentation validation resolves 124 relative links across fifteen documents; all nine tracked JSON files parse, and all eleven original research artifacts retain their byte counts/hashes. No source assets or research images are shipped. The user approved committing, pushing and opening a pull request with the limitations above; deployment remains excluded.
+
+## Historical version-005 integration - 2026-09-13
 
 Basketball is 28.6512 x 15.24 m and pickleball 13.4112 x 6.096 m, with full runoff areas, a continuous 2 m passage and unchanged human scale. Grounded practice cycles, paddle/hand contacts, fixed rim/net targets under snow, pause/recovery and reduced-motion stills remain covered. The scene uses approximately 0.20 x 0.26 x 0.016 m paddle blades and a 0.037 m pickleball radius. Camera/semantic tests cover both court runoffs while excluding adjoining streets; the original fallback uses matching dimensions, placement and focus metadata.
 

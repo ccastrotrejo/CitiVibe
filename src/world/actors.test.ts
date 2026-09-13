@@ -3,21 +3,23 @@ import { Vector3 } from 'three';
 import { describe, expect, it, vi } from 'vitest';
 import { PARK_ACTORS, PARK_BOUNDS, PARK_PATHS, PARK_ROUTES, PARK_RUNNING_ROUTE, sampleParkRoute } from '../content/park';
 import { STREET_X, STREET_Z, TRAFFIC_ACTORS } from '../content/streets';
+import { PERSON_SPACE } from '../content/people';
 import { ActorSimulation, type ActorState } from './actors';
 
 const DT = 1 / 30;
 const outsidePark = ({ x, z }: { x: number; z: number }) => Math.abs(x) > PARK_BOUNDS.x || Math.abs(z) > PARK_BOUNDS.z;
 
 function pedestriansOverlap(first: ActorState, second: ActorState): boolean {
-  if (Math.hypot(first.position.x - second.position.x, first.position.z - second.position.z) >= Math.SQRT2 * 0.7) return false;
+  if (Math.hypot(first.position.x - second.position.x, first.position.z - second.position.z) >=
+    Math.hypot(PERSON_SPACE.width, PERSON_SPACE.length)) return false;
   const afx = Math.sin(first.heading);
   const afz = Math.cos(first.heading);
   const bfx = Math.sin(second.heading);
   const bfz = Math.cos(second.heading);
   for (const [x, z] of [[afx, afz], [afz, -afx], [bfx, bfz], [bfz, -bfx]]) {
     const separation = Math.abs((first.position.x - second.position.x) * x + (first.position.z - second.position.z) * z);
-    const radius = 0.35 * (Math.abs(afx * x + afz * z) + Math.abs(afz * x - afx * z) +
-      Math.abs(bfx * x + bfz * z) + Math.abs(bfz * x - bfx * z));
+    const radius = PERSON_SPACE.length / 2 * (Math.abs(afx * x + afz * z) + Math.abs(bfx * x + bfz * z)) +
+      PERSON_SPACE.width / 2 * (Math.abs(afz * x - afx * z) + Math.abs(bfz * x - bfx * z));
     if (separation >= radius - 1e-7) return false;
   }
   return true;
@@ -56,16 +58,16 @@ describe('connected car-free park', () => {
     expect(simulation.getActor('square-bus')).toBeUndefined();
     expect(simulation.getActor('car-1')).toBeUndefined();
     expect(Object.isFrozen(simulation.actors)).toBe(true);
-    expect(actors).toHaveLength(180);
+    expect(actors).toHaveLength(246);
     expect(actors.filter(({ kind }) => kind === 'car' || kind === 'bus')).toHaveLength(36);
     expect(actors.filter(({ kind }) => kind === 'cyclist')).toHaveLength(12);
-    expect(actors.filter(({ kind }) => kind === 'pedestrian')).toHaveLength(132);
-    expect(actors.filter(({ gait }) => gait === 'walk')).toHaveLength(24);
-    expect(actors.filter(({ gait }) => gait === 'run')).toHaveLength(12);
-    expect(new Set(actors.map(({ id }) => id)).size).toBe(180);
+    expect(actors.filter(({ kind }) => kind === 'pedestrian')).toHaveLength(198);
+    expect(actors.filter(({ gait }) => gait === 'walk')).toHaveLength(36);
+    expect(actors.filter(({ gait }) => gait === 'run')).toHaveLength(18);
+    expect(new Set(actors.map(({ id }) => id)).size).toBe(246);
     expect(PARK_ACTORS.map(({ id }) => id)).toEqual([
-      ...Array.from({ length: 24 }, (_, index) => `walker-${index + 1}`),
-      ...Array.from({ length: 12 }, (_, index) => `runner-${index + 1}`),
+      ...Array.from({ length: 36 }, (_, index) => `walker-${index + 1}`),
+      ...Array.from({ length: 18 }, (_, index) => `runner-${index + 1}`),
     ]);
     simulation.step(DT);
     actors.forEach((actor, index) => {
@@ -129,8 +131,8 @@ describe('connected car-free park', () => {
     const walkers = simulation.actors.filter(({ gait }) => gait === 'walk');
     const runners = simulation.actors.filter(({ gait }) => gait === 'run');
     const parkActors = [...walkers, ...runners];
-    expect(walkers).toHaveLength(24);
-    expect(runners).toHaveLength(12);
+    expect(walkers).toHaveLength(36);
+    expect(runners).toHaveLength(18);
     const transitions = new Uint16Array(walkers.length);
     const gates = Array.from({ length: walkers.length }, () => new Map<string, number>());
     const wasOutside = walkers.map(({ position }) => outsidePark(position));
@@ -147,10 +149,10 @@ describe('connected car-free park', () => {
       walkers.forEach((actor, index) => {
         next.set(actor.position.x, 0, actor.position.z);
         const movement = next.distanceTo(previous[index]);
-        if (movement >= 0.037) throw new Error(`Visitor jump: ${actor.id}, seed ${seed}, tick ${tick}.`);
+        if (movement >= 1.3 * DT) throw new Error(`Visitor jump: ${actor.id}, seed ${seed}, tick ${tick}.`);
         const route = PARK_ROUTES[index % PARK_ROUTES.length];
         sampleParkRoute(route, actor.distance, expectedWalker);
-        if (next.distanceTo(expectedWalker) > 1e-8 || actor.speed < 0 || actor.speed > 1.051) {
+        if (next.distanceTo(expectedWalker) > 1e-8 || actor.speed < 0 || actor.speed > 1.29) {
           throw new Error(`Visitor left its walking route or speed bound: ${actor.id}, seed ${seed}, tick ${tick}.`);
         }
         walkerDistance[index] += actor.speed * DT;

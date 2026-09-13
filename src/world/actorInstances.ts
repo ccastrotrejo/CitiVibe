@@ -38,6 +38,11 @@ export class ActorInstances {
       mesh.receiveShadow = true;
       // The fixed population crosses the whole city; stale local bounds must never cull it.
       mesh.frustumCulled = false;
+      if (meshes.some((source) => source.userData.instanceColor instanceof THREE.Color)) {
+        const white = new THREE.Color(0xffffff);
+        meshes.forEach((source, index) => mesh.setColorAt(index,
+          source.userData.instanceColor instanceof THREE.Color ? source.userData.instanceColor : white));
+      }
       meshes.forEach((source) => { source.visible = false; });
       this.group.add(mesh);
       this.batches.push({ mesh, sources: meshes });

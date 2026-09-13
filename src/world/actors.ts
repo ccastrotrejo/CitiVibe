@@ -1,6 +1,7 @@
 import { Vector3 } from 'three';
 import { PARK_ACTORS, PARK_ROUTES, PARK_RUNNING_ROUTE, sampleParkRoute } from '../content/park';
 import type { Position } from '../content/city';
+import { createPersonProfile, PERSON_SPACE } from '../content/people';
 import { CityTraffic } from './traffic';
 
 export interface ActorState {
@@ -47,6 +48,7 @@ export class ActorSimulation {
     const occupied: Vector3[] = [];
     this.walkers = PARK_ACTORS.map(({ id, gait }, index) => {
       const running = gait === 'run';
+      const person = createPersonProfile(id, running ? 'runner' : 'park');
       const route = running ? PARK_RUNNING_ROUTE : PARK_ROUTES[index % PARK_ROUTES.length];
       const group = PARK_ACTORS.filter((actor) => actor.gait === gait);
       const ordinal = group.findIndex((actor) => actor.id === id);
@@ -55,7 +57,7 @@ export class ActorSimulation {
       let placed = false;
       for (let attempt = 0; attempt < 32; attempt++) {
         sampleParkRoute(route, distance, position);
-        if (occupied.every((other) => other.distanceTo(position) > 1.4)) { placed = true; break; }
+        if (occupied.every((other) => other.distanceTo(position) > PERSON_SPACE.headway)) { placed = true; break; }
         distance = (distance + 3) % route.length;
       }
       if (!placed) throw new Error('Unable to place park visitors with safe spacing.');
@@ -67,8 +69,8 @@ export class ActorSimulation {
       sampleParkRoute(route, distance + 0.2, this.lookAhead);
       actor.heading = Math.atan2(this.lookAhead.x - position.x, this.lookAhead.z - position.z);
       return {
-        actor, route, next: position.clone(), desiredSpeed: running ? 2.4 + random() * 0.25 : 0.85 + random() * 0.2,
-        advance: 0, rest: 0, restDuration: !running && index % 3 === 0 ? 2 : 0,
+        actor, route, next: position.clone(), desiredSpeed: person.pace,
+        advance: 0, rest: 0, restDuration: person.purpose === 'tour' ? 2.5 : 0,
         untilRest: (route.segments[0].length - distance + route.length) % route.length,
       };
     });
@@ -98,7 +100,7 @@ export class ActorSimulation {
       for (const other of this.walkers) {
         if (other === walker || other.route !== walker.route) continue;
         const gap = (other.actor.distance - walker.actor.distance + walker.route.length) % walker.route.length;
-        available = Math.min(available, Math.max(0, gap - 1.4));
+        available = Math.min(available, Math.max(0, gap - PERSON_SPACE.headway));
       }
       walker.advance = Math.min(walker.desiredSpeed * dt, available);
       sampleParkRoute(walker.route, walker.actor.distance + walker.advance, walker.next);
@@ -107,7 +109,7 @@ export class ActorSimulation {
         const current = (walker.actor.position.x - other.actor.position.x) ** 2 +
           (walker.actor.position.z - other.actor.position.z) ** 2;
         const next = (walker.next.x - other.actor.position.x) ** 2 + (walker.next.z - other.actor.position.z) ** 2;
-        if (next < 0.9 ** 2 && next < current) {
+        if (next < PERSON_SPACE.clearance ** 2 && next < current) {
           walker.advance = 0;
           break;
         }

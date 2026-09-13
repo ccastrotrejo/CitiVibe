@@ -3,6 +3,7 @@ import { InstancedMesh, NeutralToneMapping, OrthographicCamera, Scene, Vector3 }
 import { CAMERA_PROJECTION, CITY, LANDMARKS } from '../content/city';
 import { CITY_EXTENT } from '../content/streets';
 import { COURT_PLAYERS } from '../content/courts';
+import { PLAY_AREA, PLAY_PEOPLE } from '../content/play';
 import { MAX_SNOW_SWE_MM } from './weatherPhysics';
 import { createWorld } from './createWorld';
 import { WorldModel } from './model';
@@ -97,6 +98,52 @@ describe('runtime ownership and suspension', () => {
     canvas.dispatchEvent(new Event('webglcontextrestored'));
     expect(snapshot()).toEqual(before);
     expect(frames.size).toBe(0);
+  });
+
+  it('wires meadow movement, pause, hidden time, snow, reduced motion and restored poses to the retained clock', () => {
+    const model = new WorldModel(false);
+    const { canvas, world } = mount(model);
+    onTestFinished(() => world.dispose());
+    const renderedScene = () => {
+      const scene: unknown = gpu.render.mock.lastCall?.[0];
+      if (!(scene instanceof Scene)) throw new Error('Missing rendered scene');
+      return scene;
+    };
+    const snapshot = () => PLAY_PEOPLE.map(({ id }) => {
+      const group = renderedScene().getObjectByName(id)!;
+      const parts: number[][] = [];
+      group.traverse((part) => parts.push([...part.position.toArray(), ...part.quaternion.toArray()]));
+      return parts;
+    });
+    const initial = snapshot();
+    tick(0); tick(34); tick(68);
+    expect(snapshot()).not.toEqual(initial);
+    world.command({ type: 'set-paused', paused: true });
+    const paused = snapshot();
+    tick(5000);
+    hidden = true;
+    document.dispatchEvent(new Event('visibilitychange'));
+    tick(300000);
+    hidden = false;
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(snapshot()).toEqual(paused);
+    model.environment.physics.surface.snowSweMm = MAX_SNOW_SWE_MM;
+    model.environment.physics.revision++;
+    world.command({ type: 'navigate', zoom: 0.1 }); tick(300034);
+    for (const { id } of PLAY_PEOPLE) {
+      expect(renderedScene().getObjectByName(id)!.position.y).toBeCloseTo(PLAY_AREA.surfaceY + model.environment.physics.snowDepth);
+    }
+    const snowy = snapshot();
+    canvas.dispatchEvent(new Event('webglcontextlost', { cancelable: true }));
+    canvas.dispatchEvent(new Event('webglcontextrestored'));
+    expect(snapshot()).toEqual(snowy);
+    world.command({ type: 'set-reduced-motion', reduced: true });
+    const still = snapshot();
+    world.command({ type: 'set-paused', paused: false });
+    tick(300100); tick(300134);
+    // Resumed weather may melt snow; only the ground support may change in the still pose.
+    for (const parts of still) parts[0][1] = PLAY_AREA.surfaceY + model.environment.physics.snowDepth;
+    expect(snapshot()).toEqual(still);
   });
 
   it('refreshes weather shadows on simulation and motion changes but not camera-only redraws', () => {

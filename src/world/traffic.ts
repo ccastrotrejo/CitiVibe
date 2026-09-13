@@ -3,6 +3,7 @@ import {
   STREET_X, STREET_Z, TRAFFIC_ACTORS, VEHICLE_OFFSET, type TrafficSignalState, type TrafficVehicleType,
 } from '../content/streets';
 import type { ActorState } from './actors';
+import { createPersonProfile, PERSON_SPACE } from '../content/people';
 
 export type { TrafficSignalState } from '../content/streets';
 
@@ -323,6 +324,7 @@ export class CityTraffic {
   private readonly junctions: Junction[];
   private readonly motions: Motion[];
   private readonly walkers: Motion[];
+  private readonly sidewalkGroups: Motion[][];
 
   constructor(seed = 2401) {
     if (!Number.isInteger(seed) || seed < 0 || seed > 0xffffffff) throw new RangeError('Traffic seed must be an unsigned 32-bit integer.');
@@ -367,10 +369,11 @@ export class CityTraffic {
       const distance = Math.floor(index / SIDEWALK_ROUTES.length) * route.length / walkersPerRoute + random();
       return {
         actor: createActor(definition.id, definition.kind, route, distance),
-        route, segment: 0, length: 0.7, bicycle: false, desiredSpeed: 0.85 + random() * 0.25,
+        route, segment: 0, length: PERSON_SPACE.length, bicycle: false, desiredSpeed: createPersonProfile(definition.id, 'street').pace,
         advance: 0, permit: -1, releaseRemaining: 0, requestSince: -1,
       };
     });
+    this.sidewalkGroups = SIDEWALK_ROUTES.map((route) => this.walkers.filter((walker) => walker.route === route));
     this.actors = Object.freeze([...this.motions.map(({ actor }) => actor), ...this.walkers.map(({ actor }) => actor)]);
     this.motions.forEach((motion) => this.updateIndicator(motion));
   }
@@ -541,11 +544,11 @@ export class CityTraffic {
   }
 
   private advanceWalkers(dt: number): void {
-    for (const walker of this.walkers) {
+    for (const group of this.sidewalkGroups) for (const walker of group) {
       let available = walker.route.length;
-      for (const other of this.walkers) {
-        if (other === walker || other.route !== walker.route) continue;
-        available = Math.min(available, Math.max(0, ahead(walker.actor.distance, other.actor.distance, walker.route.length) - 1.2));
+      for (const other of group) {
+        if (other === walker) continue;
+        available = Math.min(available, Math.max(0, ahead(walker.actor.distance, other.actor.distance, walker.route.length) - PERSON_SPACE.headway));
       }
       walker.advance = Math.min(available, walker.desiredSpeed * dt);
       walker.actor.speed = walker.advance / dt;
