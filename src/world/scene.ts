@@ -2,6 +2,10 @@ import * as THREE from 'three';
 import { CITY, CONTENT, LANDMARKS, ROUTE_LENGTH, sampleRoute, validateLandmarks } from '../content/city';
 import { VEHICLE, WALKER, poseNeutral } from './locomotion';
 import type { LegRig, VehicleRig, WalkerRig, WheelRig } from './locomotion';
+import { captureWeatherSurface } from './weatherArt';
+import type { FoliageBatch } from './weatherArt';
+import type { WeatherSurface } from './weatherSurface';
+import { GROUND_LEVEL, GROUND_PUDDLES } from './groundWater';
 
 export interface CityScene {
   scene: THREE.Scene;
@@ -9,6 +13,9 @@ export interface CityScene {
   actors: Map<string, THREE.Group>;
   hitTargets: THREE.Object3D[];
   marker: THREE.Object3D;
+  weatherSurface: WeatherSurface;
+  snowMeshes: THREE.Mesh[];
+  foliage: FoliageBatch[];
   setSignal?(phase: 'vehicles' | 'clearance' | 'pedestrians'): void;
   dispose(): void;
 }
@@ -17,6 +24,7 @@ interface Batch {
   geometry: THREE.BufferGeometry;
   material: THREE.Material;
   transforms: THREE.Matrix4[];
+  flexible: boolean;
 }
 
 interface BuildingInput {
@@ -111,6 +119,7 @@ export function buildCityScene(): CityScene {
   const geometries = new Set<THREE.BufferGeometry>();
   const materials = new Set<THREE.Material>();
   const instances = new Set<THREE.InstancedMesh>();
+  const foliage: FoliageBatch[] = [];
   const geometry = <T extends THREE.BufferGeometry>(value: T): T => {
     geometries.add(value);
     return value;
@@ -145,6 +154,12 @@ export function buildCityScene(): CityScene {
   };
   // Tag glazing so the environment layer can light windows warmly after dark.
   palette.glass.userData.window = true;
+  for (const surface of [palette.stone, palette.paving, palette.road, palette.line, palette.cream, palette.clay,
+    palette.teal, palette.roof, palette.copper, palette.copperEdge, palette.wood, palette.leaf, palette.leafLight]) {
+    surface.userData.weatherSurface = true;
+  }
+  palette.road.userData.snowRetention = 0.45;
+  palette.line.userData.snowRetention = 0.45;
   const box = geometry(new THREE.BoxGeometry());
   const cylinder = geometry(new THREE.CylinderGeometry(1, 1, 1, 10));
   const crown = geometry(new THREE.DodecahedronGeometry(1));
@@ -158,11 +173,12 @@ export function buildCityScene(): CityScene {
         shape: THREE.BufferGeometry, surface: THREE.Material,
         position: readonly [number, number, number], scale: readonly [number, number, number],
         rotation: readonly [number, number, number] = [0, 0, 0],
+        flexible = false,
       ) {
-        const key = `${shape.uuid}:${surface.uuid}`;
+        const key = `${shape.uuid}:${surface.uuid}:${flexible}`;
         let batch = batches.get(key);
         if (!batch) {
-          batch = { geometry: shape, material: surface, transforms: [] };
+          batch = { geometry: shape, material: surface, transforms: [], flexible };
           batches.set(key, batch);
         }
         dummy.position.set(...position);
@@ -179,6 +195,11 @@ export function buildCityScene(): CityScene {
           mesh.castShadow = true;
           mesh.receiveShadow = true;
           mesh.computeBoundingSphere();
+          if (batch.flexible) {
+            mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+            if (mesh.boundingSphere) mesh.boundingSphere.radius += 1;
+            foliage.push({ mesh, transforms: batch.transforms });
+          }
           instances.add(mesh);
           parent.add(mesh);
         }
@@ -210,6 +231,32 @@ export function buildCityScene(): CityScene {
   groundOutline.quadraticCurveTo(-46, 42, -46, 38);
   groundOutline.lineTo(-46, -38);
   groundOutline.quadraticCurveTo(-46, -42, -42, -42);
+  for (const basin of GROUND_PUDDLES) {
+    const hole = new THREE.Path();
+    hole.absellipse(basin.x, -basin.z, basin.radiusX, basin.radiusZ, 0, Math.PI * 2, true);
+    groundOutline.holes.push(hole);
+    const positions = [basin.x, GROUND_LEVEL - basin.maxDepth, basin.z];
+    const indices: number[] = [];
+    const segments = 32;
+    for (let ring = 1; ring <= 4; ring++) {
+      const radius = ring / 4;
+      for (let index = 0; index < segments; index++) {
+        const angle = index / segments * Math.PI * 2;
+        positions.push(basin.x + Math.cos(angle) * basin.radiusX * radius,
+          GROUND_LEVEL - basin.maxDepth + basin.maxDepth * radius ** 2,
+          basin.z + Math.sin(angle) * basin.radiusZ * radius);
+        const current = 1 + (ring - 1) * segments + index;
+        const next = 1 + (ring - 1) * segments + (index + 1) % segments;
+        if (ring === 1) indices.push(0, next, current);
+        else indices.push(current - segments, next, current, current - segments, next - segments, next);
+      }
+    }
+    const shape = geometry(new THREE.BufferGeometry());
+    shape.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    shape.setIndex(indices);
+    shape.computeVertexNormals();
+    mesh(shape, palette.stone, `${basin.id} rain depression`);
+  }
   const ground = mesh(geometry(new THREE.ExtrudeGeometry(groundOutline, {
     depth: 0.8, bevelEnabled: false, steps: 1, curveSegments: 8,
   })), palette.stone, 'Miniature ground');
@@ -346,8 +393,8 @@ export function buildCityScene(): CityScene {
   for (let index = 0; index < 12; index++) {
     const x = gardenX - 2 + index % 6 * 0.72;
     const z = gardenZ + (index < 6 ? -1.15 : 1.15);
-    district.add(cylinder, palette.leaf, [x, 0.85, z], [0.045, 0.9 + index % 3 * 0.15, 0.045]);
-    district.add(crown, palette.leafLight, [x, 1.23, z], [0.17, 0.32, 0.16]);
+    district.add(cylinder, palette.leaf, [x, 0.85, z], [0.045, 0.9 + index % 3 * 0.15, 0.045], [0, 0, 0], true);
+    district.add(crown, palette.leafLight, [x, 1.23, z], [0.17, 0.32, 0.16], [0, 0, 0], true);
   }
 
   const treePositions = [
@@ -361,7 +408,7 @@ export function buildCityScene(): CityScene {
     seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
     district.add(cylinder, palette.wood, [x, 1.3 * size, z], [0.13, 2.6 * size, 0.13]);
     district.add(crown, index % 3 ? palette.leaf : palette.leafLight, [x, 3.25 * size, z],
-      [1.25 * size, 1.65 * size, 1.2 * size], [0, seed / 0x100000000 * Math.PI * 2, 0.1]);
+      [1.25 * size, 1.65 * size, 1.2 * size], [0, seed / 0x100000000 * Math.PI * 2, 0.1], true);
     district.add(cylinder, palette.paving, [x, 0.03, z], [0.8, 0.12, 0.8]);
   });
   for (const [x, z] of [[-11, 3.7], [-5.4, 10.5], [4.7, -2.8]] as const) {
@@ -457,7 +504,7 @@ export function buildCityScene(): CityScene {
     district.add(cylinder, palette.wood, [x, 1.3 * size, z], [0.13, 2.6 * size, 0.13]);
     district.add(crown, outerRandom() > 0.5 ? palette.leaf : palette.leafLight,
       [x, 3.2 * size, z], [1.2 * size, 1.6 * size, 1.15 * size],
-      [0, outerRandom() * Math.PI * 2, 0.08]);
+      [0, outerRandom() * Math.PI * 2, 0.08], true);
   };
   for (let index = 0; index < 18; index++) {
     const angle = index / 18 * Math.PI * 2;
@@ -465,6 +512,13 @@ export function buildCityScene(): CityScene {
     outerTree(Math.cos(angle) * radius, Math.sin(angle) * radius);
   }
   district.finish();
+  const weatherSurface = captureWeatherSurface(scene);
+  const snowMeshes: THREE.Mesh[] = [];
+  scene.traverse((object) => {
+    if (object instanceof THREE.Mesh && !Array.isArray(object.material) && object.material.userData.weatherSurface === true) {
+      snowMeshes.push(object);
+    }
+  });
 
   const actors = new Map<string, THREE.Group>();
   function actorGroup(id: string, name: string) {
@@ -646,7 +700,7 @@ export function buildCityScene(): CityScene {
   }
   setSignal('vehicles');
   return {
-    scene, bus, actors, hitTargets, marker, setSignal,
+    scene, bus, actors, hitTargets, marker, setSignal, weatherSurface, foliage, snowMeshes,
     dispose() {
       if (disposed) return;
       disposed = true;
@@ -655,6 +709,7 @@ export function buildCityScene(): CityScene {
       materials.forEach((surface) => surface.dispose());
       sun.shadow.dispose();
       instances.clear();
+      foliage.length = 0;
       geometries.clear();
       materials.clear();
       hitTargets.length = 0;

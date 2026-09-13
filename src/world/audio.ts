@@ -1,4 +1,5 @@
-import type { Weather } from './environment';
+import { DEFAULT_PREFERENCES, WEATHER_MODES } from '../content/preferences';
+import type { Weather } from '../content/preferences';
 
 export type AudioState = 'off' | 'enabling' | 'on' | 'muted' | 'blocked' | 'error';
 export interface AudioStatus {
@@ -9,6 +10,9 @@ export type AudioContextFactory = () => AudioContext;
 
 const FADE_SECONDS = 0.15;
 const RESUME_TIMEOUT_MS = 2000;
+const AIR_LEVELS: Record<Weather, number> = {
+  sunny: 0.18, cloudy: 0.18, rain: 0.18, mist: 0.18, snow: 0.1, windy: 0.24,
+};
 
 function browserContext(): AudioContext {
   if (typeof AudioContext === 'undefined') throw new Error('Web Audio is unavailable in this browser.');
@@ -41,6 +45,7 @@ export class CityAudio {
   private disposed = false;
   private level = 0.6;
   private weather: Weather = 'sunny';
+  private rainIntensityMmH = DEFAULT_PREFERENCES.rainIntensityMmH;
 
   constructor(
     private readonly onStatus: (status: AudioStatus) => void,
@@ -99,10 +104,21 @@ export class CityAudio {
   }
 
   setWeather(weather: Weather): void {
-    if (!['sunny', 'cloudy', 'rain', 'mist'].includes(weather)) throw new RangeError('Unknown sound weather preset.');
+    if (!WEATHER_MODES.includes(weather)) throw new RangeError('Unknown sound weather preset.');
     if (this.disposed || this.weather === weather) return;
     this.weather = weather;
-    if (this.rain) this.fade(this.rain.gain, weather === 'rain' ? 0.2 : 0);
+    if (this.air) this.fade(this.air.gain, AIR_LEVELS[weather]);
+    if (this.rain) this.fade(this.rain.gain, this.rainLevel);
+  }
+
+  /** Changes only the rain layer; never grants consent or resumes an audio context. */
+  setRainIntensity(millimetersPerHour: number): void {
+    if (!Number.isFinite(millimetersPerHour) || millimetersPerHour < 0 || millimetersPerHour > 30) {
+      throw new RangeError('Sound rain intensity must be between 0 and 30 millimeters per hour.');
+    }
+    if (this.disposed || this.rainIntensityMmH === millimetersPerHour) return;
+    this.rainIntensityMmH = millimetersPerHour;
+    if (this.rain) this.fade(this.rain.gain, this.rainLevel);
   }
 
   dispose(): void {
@@ -122,6 +138,13 @@ export class CityAudio {
   }
 
   private get masterLevel(): number { return this.level * this.level * 0.12; }
+
+  private get rainLevel(): number {
+    if (this.weather !== 'rain') return 0;
+    // Preserve the original 8 mm/h mix, with a restrained heavy-rain ceiling.
+    return this.rainIntensityMmH <= 8 ? this.rainIntensityMmH / 8 * 0.2 :
+      0.2 + (this.rainIntensityMmH - 8) / 22 * 0.1;
+  }
 
   private publish(state: AudioState, message: string): void {
     if (this.disposed || (state === this.currentStatus.state && message === this.currentStatus.message)) return;
@@ -221,9 +244,9 @@ export class CityAudio {
     this.highpass.type = 'highpass';
     this.highpass.frequency.value = 1500;
     this.air = context.createGain();
-    this.air.gain.value = 0.18;
+    this.air.gain.value = AIR_LEVELS[this.weather];
     this.rain = context.createGain();
-    this.rain.gain.value = this.weather === 'rain' ? 0.2 : 0;
+    this.rain.gain.value = this.rainLevel;
     this.lowpass.connect(this.air);
     this.highpass.connect(this.rain);
     this.air.connect(this.master!);

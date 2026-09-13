@@ -136,6 +136,7 @@ export class ActorSimulation {
   elapsed = 0;
   private phase: Signal = 'vehicles';
   private phaseElapsed = 0;
+  private traction = 1;
   private readonly vehicles: Vehicle[];
   private readonly walkers: Walker[];
 
@@ -189,9 +190,11 @@ export class ActorSimulation {
   }
 
   /** Rejects invalid deltas; discards time beyond one fixed tick rather than catching up. */
-  step(dt: number): void {
+  step(dt: number, traction = 1): void {
     if (!Number.isFinite(dt) || dt < 0) throw new RangeError('Actor delta must be finite and nonnegative.');
+    if (!Number.isFinite(traction) || traction < 0.3 || traction > 1) throw new RangeError('Road traction must be between 0.3 and 1.');
     if (dt === 0) return;
+    this.traction = traction;
     const seconds = Math.min(dt, ACTIVITY.maxStep);
     this.elapsed += seconds;
     this.advanceSignal(seconds);
@@ -208,7 +211,7 @@ export class ActorSimulation {
         const { actor: state } = vehicle;
         const stop = ACTIVITY.crossingStart - vehicle.length / 2 - ACTIVITY.crossingBuffer;
         const exit = ACTIVITY.crossingEnd + vehicle.length / 2 + ACTIVITY.crossingBuffer;
-        const stoppingDistance = state.speed ** 2 / (2 * ACTIVITY.braking) + state.speed * dt;
+        const stoppingDistance = state.speed ** 2 / (2 * ACTIVITY.braking * this.traction) + state.speed * dt;
         // A vehicle too close to brake gets a single clearance permit, never an abrupt red-light stop.
         if ((state.distance > stop && state.distance < exit) ||
           (state.speed > EPSILON && ahead(state.distance, stop, ROUTE_LENGTH) <= stoppingDistance)) {
@@ -247,10 +250,12 @@ export class ActorSimulation {
         available = Math.min(available, ahead(state.distance, stop, ROUTE_LENGTH));
       }
       // Reserve a full braking distance against the leader's old pose; updates cannot depend on array order.
-      const brakeTick = ACTIVITY.braking * dt;
-      const safeSpeed = Math.sqrt(brakeTick ** 2 + 2 * ACTIVITY.braking * available) - brakeTick;
-      const desired = Math.min(vehicle.desiredSpeed, safeSpeed);
-      state.speed = Math.max(0, Math.min(state.speed + ACTIVITY.acceleration * dt, Math.max(state.speed - brakeTick, desired)));
+      const braking = ACTIVITY.braking * this.traction;
+      const brakeTick = braking * dt;
+      const safeSpeed = Math.sqrt(brakeTick ** 2 + 2 * braking * available) - brakeTick;
+      // v²/a stays bounded as grip falls; preserve the same right-of-way and stop gates.
+      const desired = Math.min(vehicle.desiredSpeed * Math.sqrt(this.traction), safeSpeed);
+      state.speed = Math.max(0, Math.min(state.speed + ACTIVITY.acceleration * this.traction * dt, Math.max(state.speed - brakeTick, desired)));
       vehicle.advance = Math.min(available, state.speed * dt);
       if (available < EPSILON) vehicle.advance = available;
       state.state = vehicle.advance > EPSILON ? 'moving' : 'waiting';

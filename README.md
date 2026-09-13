@@ -2,7 +2,7 @@
 
 An original, interactive miniature city for exploring or leaving on a second screen: traffic, pedestrians, aerial activity, distinctive architecture, changing light and weather, optional ambient sound, and controls that put the viewer in charge.
 
-**Current status: implementation paused for reflection on 2026-09-12.** Rainlight Square is an original interactive garden district, built with React, strict TypeScript, Vite, and direct Three.js. The M1-M3 foundation and M4 control work include camera orbit/pan/zoom, landmark focus, tours/guided views, pause, settings, fullscreen/expanded view, a static fallback, and deterministic street activity. Camera-follow features and the drone were removed at the user's request. Environment/audio and occasional-airplane modules are not yet connected to the live experience. The NYC-inspired visual pass remains unimplemented. See the [roadmap](docs/ROADMAP.md) and [verification record](docs/ACCEPTANCE_CRITERIA.md). The supplied research captured on **2026-09-12** remains inert reference; the original website's model and source code are not included.
+**Current status: M1-M5 live; weather-physics work resumed by request on 2026-09-12.** Rainlight Square is an original interactive garden district, built with React, strict TypeScript, Vite, and direct Three.js. It includes camera exploration, landmark focus, tours/guided views, pause, settings, fullscreen/expanded view, a failure fallback, deterministic street activity, simulated weather/time, optional sound, and occasional airplanes. The weather extension adds Snow and Windy alongside existing presets, wind-driven precipitation and foliage, rooftop impacts, growing snow depth on roofs/streets/canopies, rain-fed ground pools, a 0-30 mm/h rain-intensity control, wet surfaces, garden ripples, and cautious wet/snowy traffic. See the [physics research and limitations](docs/WEATHER_PHYSICS_RESEARCH.md), [roadmap](docs/ROADMAP.md), and [verification record](docs/ACCEPTANCE_CRITERIA.md). Camera-follow and drones remain excluded; the NYC visual pass is still unfinished. The supplied reference captures remain inert; their artwork and source code are not included.
 
 ## GitHub destination
 
@@ -40,6 +40,8 @@ npm run dev
 
 Open the local URL printed by Vite. Drag to pan; Command/Control-drag or right-drag to rotate and tilt; scroll to zoom. All map edges are reachable, with safe outer bounds. The visible camera buttons offer the same controls. Focus the navigation region for shortcuts, including Q/E for rotation, W/S for tilt, and R for reset. The Field guide explains the controls. Reduced motion starts paused. Ambient sound stays off until you enable it from Settings (a deliberate user gesture); mute and volume then persist locally.
 
+Settings has its own lower-left button inside the city. Its compact dock opens above it without dimming or blocking the world; landmark navigation now lives in the bottom toolbar. Choose **Weather → Snow** and keep the city running to accumulate depth. Snow melts in warmer weather; rainfall and runoff fill the shallow ground pools, which drain and dry gradually. Rain intensity is available for Rain and natural weather. Sound still requires explicit permission each visit.
+
 The supported priority is **desktop and laptop computers**. Browser layout checks target 1024, 1440, and 1920 px widths. Basic responsive styles remain, but mobile edge cases and physical-phone testing are outside the current request.
 
 ```sh
@@ -50,7 +52,7 @@ npm run build
 npm run test:e2e
 ```
 
-If Playwright reports a missing browser, run `npx playwright install chromium` and retry. The browser suite builds and serves the production bundle on port 4178, so development hot reloads cannot reset an interaction midway through a test. `npm run preview` serves a production build.
+If Playwright reports a missing browser, run `npx playwright install chromium` and retry. The browser suite builds and serves the production bundle on port 4178, so development hot reloads cannot reset an interaction midway through a test. If another worktree owns that port, choose an unused one with `PLAYWRIGHT_PORT=4186 npm run test:e2e`; never stop another session's server. `npm run preview` serves a production build.
 
 ## Deploy to Vercel
 
@@ -84,6 +86,6 @@ All **11 supplied artifacts** are preserved: three JSON files and eight screensh
 
 ## Implementation boundary
 
-M1-M3 cover the original district and core activity. M4 tours, guided views, motion/hint preferences, and fullscreen/expanded controls are implemented; broader M4 browser-policy coverage is still needed. Weather/time, audio and airplane integration, quality selection/adaptation, the NYC visual pass, and complete desktop/long-session hardening remain unfinished. First-visit appearance is fixed Sunny/Afternoon, with DPR capped at 1.5. Do not resume new feature work until the user ends the reflection pause. No claim of physical-device FPS or production readiness is made.
+M1-M5 cover the original district, activity, controls, weather/time and optional audio. Weather physics is a local, deterministic approximation: surface accumulation/melting runs at 60 times physical time so changes are visible during a visit; particle travel uses ordinary simulation seconds. Snow/water persist through preset changes and graphics recovery, not page reloads. Weather is fictional, never fetched from a live service. First-visit appearance remains Sunny/Afternoon and sound off. Quality selection is implemented, but Automatic adaptation, the NYC pass, and complete desktop/long-session hardening remain unfinished. No claim of physical-device FPS, meteorological accuracy, or production readiness is made.
 
 Screenshots are attributed research references from Opportunity.city, associated with creator Leonardo Gomes Cardoso / @leocardz. No license to reuse the source artwork, branding, fonts, model, or code is established. Never ship research captures as runtime assets or trace the original city. See [provenance and limitations](docs/SOURCES.md).

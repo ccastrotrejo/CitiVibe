@@ -74,11 +74,15 @@ Dependencies favor working vertical slices. Accessibility, cleanup, failure hand
 
 ### M5 - Weather, light, and optional sound
 
-- [x] Add Sunny/Cloudy/Rain/Mist with explicit presets and optional seeded natural changes.
+- [x] Add Sunny/Cloudy/Rain/Mist/Snow/Windy with explicit presets and optional seeded natural changes.
 - [x] Add Afternoon/Night/Local clock/Day-night cycle with clear fictional-weather labeling.
 - [x] Implement pause-safe environment clocks and local-time lighting resynchronization.
 - [x] Add a small original audio design, master volume/mute, explicit enable, and visible failure/retry state.
 - [x] Tie effects to quality and reduced-motion settings without removing essential control.
+- [x] Extend weather with source-backed terminal rain, slower advected snow, coherent wind/foliage, roof interception, retained water/SWE and melt, wet/snow materials, garden ripples, and cautious traffic. See the [17-source research and implementation report](WEATHER_PHYSICS_RESEARCH.md). Surface time compression, empirical coefficients, and omitted spatial hydrology/CFD are explicit.
+- [x] Add bounded snow-shell depth on roofs, streets and canopies, matching shadow displacement and ground-contact height, three rain-fed ground depressions, and a physical rainfall-intensity contract. Local CPU/render-adapter coverage is complete; the expanded browser verification gate below remains open.
+- [x] Replace the lower-left landmark card with one standalone Settings trigger and a compact non-modal dock above it; move landmark navigation into the bottom toolbar. Preserve Help modality, focus return, city input and pause access.
+- [ ] Complete the final integrated Chromium run and visual review of accumulated depth/pools and the latest intensity UI. Current local browser launch failures occur before any page loads; do not count older screenshots as validation of the new geometry.
 
 **Done when:** every weather/time combination remains legible, no environment effect catches up through hidden time, sound is silent until explicitly enabled each load, and audio suspends/disposes correctly. Applicable AC-06 through AC-11, AC-15, AC-17, AC-18. _Integrated and unit-verified; final cross-combination legibility sign-off rides with M6/M7 after the M8 artwork._
 

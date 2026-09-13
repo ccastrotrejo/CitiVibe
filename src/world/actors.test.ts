@@ -156,7 +156,7 @@ describe('ActorSimulation', () => {
     }
   });
 
-  it.each([2401, 0, 0xffffffff])('keeps seed %s safe, continuous, bounded, and progressing for 600 seconds', (seed) => {
+  it.each([[2401, 1], [0, 1], [0xffffffff, 1], [2401, 0.75], [2401, 0.3]])('keeps seed %s with traction %s safe and progressing for 600 seconds', (seed, traction) => {
     const simulation = new ActorSimulation(seed);
     const actors = simulation.actors;
     const vehicles = actors.filter(({ kind }) => kind === 'bus' || kind === 'car');
@@ -176,7 +176,7 @@ describe('ActorSimulation', () => {
     let priorSignal = simulation.signal;
     let longestPhase = 0;
     for (let tick = 0; tick < 18_000; tick += 1) {
-      simulation.step(DT);
+      simulation.step(DT, traction);
       signals.add(simulation.signal);
       if (simulation.signal !== priorSignal) {
         longestPhase = Math.max(longestPhase, simulation.elapsed - phaseStarted);
@@ -245,8 +245,8 @@ describe('ActorSimulation', () => {
     expect(crossingTicks).toBeGreaterThan(1000);
     expect(clearanceWithTraffic).toBeGreaterThan(0);
     expect(closestGap).toBeGreaterThanOrEqual(2 - 1e-6);
-    expect(maxAcceleration).toBeLessThanOrEqual(1.4 + 1e-6);
-    expect(maxBraking).toBeLessThanOrEqual(2.4 + 1e-4);
+    expect(maxAcceleration).toBeLessThanOrEqual(1.4 * traction + 1e-6);
+    expect(maxBraking).toBeLessThanOrEqual(2.4 * traction + 1e-4);
     expect(longestPhase).toBeLessThan(30);
     expect(simulation.elapsed).toBeCloseTo(600, 6);
     for (let index = 0; index < actors.length; index += 1) {
@@ -254,5 +254,18 @@ describe('ActorSimulation', () => {
       expect(maxIdle[index], `${actors[index].id} must not starve`).toBeLessThan(40);
       expect(simulation.getActor(actors[index].id)).toBe(actors[index]);
     }
+  });
+
+  it('reduces vehicle speed in low grip without slowing the pedestrian clock', () => {
+    const dry = new ActorSimulation();
+    const snowy = new ActorSimulation();
+    for (let tick = 0; tick < 90; tick++) {
+      dry.step(DT);
+      snowy.step(DT, 0.3);
+    }
+    expect(snowy.getActor('car-1')!.speed).toBeLessThan(dry.getActor('car-1')!.speed);
+    expect(snowy.getActor('walker-3')).toEqual(dry.getActor('walker-3'));
+    expect(snowy.elapsed).toBe(dry.elapsed);
+    for (const traction of [NaN, Infinity, 0.2, 1.1]) expect(() => snowy.step(DT, traction)).toThrow(RangeError);
   });
 });

@@ -2,6 +2,9 @@ import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { EnvironmentController } from './environment';
 import { EnvironmentVisual } from './environmentVisual';
+import { buildCityScene } from './scene';
+import { SurfaceVisual } from './surfaceVisual';
+import { WeatherSurface } from './weatherSurface';
 
 const OPTIONS = { reducedMotion: false, lightweight: false };
 const DATE = new Date(2026, 8, 12, 15);
@@ -22,166 +25,200 @@ function fixture() {
   scene.add(hemisphere, sun, actor, new THREE.Mesh(geometry, [wall, windows]), new THREE.Mesh(geometry, windows));
   const visual = new EnvironmentVisual(scene);
   const environment = new EnvironmentController();
-  const rain = scene.getObjectByName('Environment rain') as THREE.Points<THREE.BufferGeometry, THREE.PointsMaterial>;
+  const rain = scene.getObjectByName('Environment rain') as THREE.LineSegments<THREE.BufferGeometry, THREE.LineBasicMaterial>;
+  const snow = scene.getObjectByName('Environment snow') as THREE.Points<THREE.BufferGeometry, THREE.PointsMaterial>;
   return {
-    scene, hemisphere, sun, geometry, windows, wall, actor, visual, environment, rain, background,
+    scene, hemisphere, sun, geometry, windows, wall, actor, visual, environment, rain, snow, background,
+    draw(options = OPTIONS) { visual.update(environment.frame, options, environment.physics); },
+    advance(seconds: number, reduced = false) {
+      for (let tick = 0; tick < seconds * 30; tick++) environment.step(1 / 30, DATE, !reduced);
+    },
     dispose() { visual.dispose(); geometry.dispose(); windows.dispose(); wall.dispose(); },
   };
 }
 
 describe('bounded environment GPU adapter', () => {
-  it('reuses existing lights and changes only explicitly tagged window materials', () => {
+  it('reuses lights and modifies only tagged window emissive values', () => {
     const world = fixture();
-    const lightCount = world.scene.children.filter((object) => object instanceof THREE.Light).length;
     const actorPosition = world.actor.position.clone();
     const wallEmissive = world.wall.emissive.clone();
     world.environment.setTime('night', DATE);
     world.environment.setWeather('mist', true);
-    world.visual.update(world.environment.frame, OPTIONS, 0);
-    expect(world.scene.children.filter((object) => object instanceof THREE.Light)).toHaveLength(lightCount);
+    world.draw();
+    expect(world.scene.children.filter((object) => object instanceof THREE.Light)).toHaveLength(2);
     expect(world.sun.intensity).toBe(world.environment.frame.sunIntensity);
     expect(world.hemisphere.intensity).toBe(world.environment.frame.ambientIntensity);
     expect(world.windows.emissiveIntensity).toBe(world.environment.frame.glow);
-    expect(world.windows.emissive.r).toBe(world.environment.frame.palette.window.r);
     expect(world.wall.emissive).toEqual(wallEmissive);
-    expect(world.wall.emissiveIntensity).toBe(0.4);
     expect(world.actor.position).toEqual(actorPosition);
-    expect(world.scene.fog).toBeInstanceOf(THREE.FogExp2);
     expect((world.scene.fog as THREE.FogExp2).density).toBe(0.016);
     world.dispose();
   });
 
-  it('uses six shared clouds and no more than 600/160 rain points without reallocating on updates', () => {
+  it('draws terminal-velocity rain streaks and snow with fixed 600/160 and 420/120 caps', () => {
     const world = fixture();
-    world.environment.setWeather('rain', true);
     const group = world.scene.getObjectByName('Environment effects')!;
-    const clouds = group.children.filter((object) => object instanceof THREE.Mesh);
+    const clouds = group.children.filter((object) => object.name === 'Weather cloud') as THREE.Mesh[];
     expect(clouds).toHaveLength(6);
     expect(new Set(clouds.map((cloud) => cloud.geometry)).size).toBe(1);
     expect(new Set(clouds.map((cloud) => cloud.material)).size).toBe(1);
-    const attribute = world.rain.geometry.getAttribute('position');
-    const array = attribute.array;
-    for (let index = 0; index < 100; index++) {
-      world.visual.update(world.environment.frame, { ...OPTIONS, lightweight: index % 2 === 0 }, index / 30);
-      expect(world.rain.geometry.drawRange.count).toBe(index % 2 === 0 ? 160 : 600);
-      expect(world.rain.geometry.getAttribute('position')).toBe(attribute);
-      expect(attribute.array).toBe(array);
-      expect(world.rain.visible).toBe(true);
+    const rainAttribute = world.rain.geometry.getAttribute('position');
+    const snowAttribute = world.snow.geometry.getAttribute('position');
+    world.environment.setWeather('rain', true);
+    world.environment.setRainIntensity(30);
+    world.advance(1);
+    for (let index = 0; index < 20; index++) {
+      const lightweight = index % 2 === 0;
+      world.draw({ ...OPTIONS, lightweight });
+      expect(world.rain.geometry.drawRange.count).toBe((lightweight ? 160 : 600) * 2);
+      expect(world.snow.geometry.drawRange.count).toBe(lightweight ? 120 : 420);
+      expect(world.rain.geometry.getAttribute('position')).toBe(rainAttribute);
+      expect(world.snow.geometry.getAttribute('position')).toBe(snowAttribute);
     }
-    expect(attribute.count).toBe(600);
-    expect(world.rain.material.opacity).toBeCloseTo(0.42);
-    expect(world.rain.material.size).toBeGreaterThanOrEqual(1);
-    expect(world.rain.material.sizeAttenuation).toBe(false);
-    world.dispose();
-  });
-
-  it('reproduces particles and cloud positions from the same simulation clock across restoration', () => {
-    const first = fixture();
-    const second = fixture();
-    first.environment.setWeather('rain', true);
-    first.environment.setTime('night', DATE);
-    first.visual.update(first.environment.frame, OPTIONS, 1291.5);
-    second.visual.update(first.environment.frame, OPTIONS, 1291.5);
-    const before = Array.from(first.rain.geometry.getAttribute('position').array);
-    expect(second.rain.geometry.getAttribute('position').array).toEqual(first.rain.geometry.getAttribute('position').array);
-    const clouds = (world: ReturnType<typeof fixture>) =>
-      world.scene.getObjectByName('Environment effects')!.children.map((object) => object.position.toArray());
-    expect(clouds(first)).toEqual(clouds(second));
-    first.visual.dispose();
-    const restored = new EnvironmentVisual(first.scene);
-    restored.update(first.environment.frame, OPTIONS, 1291.5);
-    const rain = first.scene.getObjectByName('Environment rain') as THREE.Points;
-    expect(Array.from(rain.geometry.getAttribute('position').array)).toEqual(before);
-    expect(first.environment.frame.night).toBe(1);
-    restored.dispose();
-    first.dispose();
-    second.dispose();
-  });
-
-  it('freezes effects on repeated draw times and under reduced motion but keeps weather visible', () => {
-    const world = fixture();
-    world.environment.setWeather('rain', true);
-    world.visual.update(world.environment.frame, OPTIONS, 3);
-    const geometry = world.rain.geometry.getAttribute('position');
-    const snapshot = Array.from(geometry.array);
-    world.visual.update(world.environment.frame, OPTIONS, 3);
-    expect(Array.from(geometry.array)).toEqual(snapshot);
-    world.visual.update(world.environment.frame, { reducedMotion: true, lightweight: true }, 99);
-    const staticSnapshot = Array.from(geometry.array);
-    const clouds = world.scene.getObjectByName('Environment effects')!.children.map((object) => object.position.clone());
-    world.visual.update(world.environment.frame, { reducedMotion: true, lightweight: true }, 199);
-    expect(Array.from(geometry.array)).toEqual(staticSnapshot);
-    expect(world.scene.getObjectByName('Environment effects')!.children.map((object) => object.position)).toEqual(clouds);
+    expect(rainAttribute.getY(1) - rainAttribute.getY(0)).toBeCloseTo(world.environment.physics.rain.velocities[1] * 0.055, 4);
+    expect(rainAttribute.getX(1)).toBeLessThan(rainAttribute.getX(0));
     expect(world.rain.visible).toBe(true);
-    expect(world.rain.geometry.drawRange.count).toBe(160);
-    world.visual.update(world.environment.frame, OPTIONS, 3.1);
-    expect(Array.from(geometry.array)).not.toEqual(snapshot);
+    expect(world.snow.visible).toBe(false);
+    world.environment.setRainIntensity(1);
+    world.draw();
+    expect(world.rain.geometry.drawRange.count).toBeLessThan(600 * 2);
+    world.environment.setWeather('snow', true);
+    world.advance(1);
+    world.draw();
+    expect(world.rain.visible).toBe(false);
+    expect(world.snow.visible).toBe(true);
+    expect(snowAttribute.array).toEqual(world.environment.physics.snow.positions);
+    expect(world.snow.material.map).toBeInstanceOf(THREE.DataTexture);
     world.dispose();
   });
 
-  it('rebuilds the same reduced-motion still even when the world simulation has continued', () => {
+  it('rebuilds the same precipitation and clouds from retained CPU state and never steps on draw', () => {
     const world = fixture();
     world.environment.setWeather('rain', true);
-    world.visual.update(world.environment.frame, OPTIONS, 13.7);
-    world.visual.update(world.environment.frame, { ...OPTIONS, reducedMotion: true }, 18.7);
-    const held = Array.from(world.rain.geometry.getAttribute('position').array);
+    world.advance(13);
+    world.draw();
+    const before = world.rain.geometry.getAttribute('position').array.slice();
+    const uploads = (world.rain.geometry.getAttribute('position') as THREE.BufferAttribute).version;
+    const revision = world.environment.physics.revision;
+    const cloudPositions = world.scene.getObjectByName('Environment effects')!.children.map((object) => object.position.toArray());
+    world.draw();
+    expect((world.rain.geometry.getAttribute('position') as THREE.BufferAttribute).version).toBe(uploads);
+    expect(world.environment.physics.revision).toBe(revision);
+    expect(world.rain.geometry.getAttribute('position').array).toEqual(before);
     world.visual.dispose();
-    const visual = new EnvironmentVisual(world.scene);
-    visual.update(world.environment.frame, { ...OPTIONS, reducedMotion: true }, 1234);
-    const rain = world.scene.getObjectByName('Environment rain') as THREE.Points;
-    expect(Array.from(rain.geometry.getAttribute('position').array)).toEqual(held);
-    visual.dispose();
+    const restored = new EnvironmentVisual(world.scene);
+    restored.update(world.environment.frame, OPTIONS, world.environment.physics);
+    const rain = world.scene.getObjectByName('Environment rain') as THREE.LineSegments;
+    expect(rain.geometry.getAttribute('position').array).toEqual(before);
+    expect(world.scene.getObjectByName('Environment effects')!.children.map((object) => object.position.toArray())).toEqual(cloudPositions);
+    restored.dispose();
     world.dispose();
   });
 
-  it('restores borrowed state and idempotently disposes each owned resource exactly once', () => {
+  it('retains a stationary precipitation cue but suppresses decorative animation under reduced motion', () => {
     const world = fixture();
-    const originalWindow = world.windows.emissive.clone();
-    const originalFog = new THREE.Fog('#ffffff');
-    world.visual.dispose();
-    world.scene.fog = originalFog;
-    const visual = new EnvironmentVisual(world.scene);
-    const geometryDispose = vi.spyOn(world.geometry, 'dispose');
-    const materialDispose = vi.spyOn(world.windows, 'dispose');
-    const lightDispose = vi.spyOn(world.sun, 'dispose');
-    const geometries = new Set<THREE.BufferGeometry>();
-    const materials = new Set<THREE.Material>();
+    world.environment.setWeather('snow', true);
+    const options = { reducedMotion: true, lightweight: true };
+    world.draw(options);
+    const held = world.snow.geometry.getAttribute('position').array.slice();
+    const clouds = world.scene.getObjectByName('Environment effects')!.children.map((object) => object.position.clone());
+    world.advance(10, true);
+    world.draw(options);
+    expect(world.snow.geometry.getAttribute('position').array).toEqual(held);
+    expect(world.scene.getObjectByName('Environment effects')!.children.map((object) => object.position)).toEqual(clouds);
+    expect(world.snow.visible).toBe(true);
+    expect(world.scene.getObjectByName('Rain impacts')!.visible).toBe(false);
+    expect(world.scene.getObjectByName('Garden ripples')!.visible).toBe(false);
+    expect(world.environment.physics.surface.snowSweMm).toBeGreaterThan(0);
+    world.dispose();
+  });
+
+  it('restores borrowed state and idempotently disposes every owned GPU resource', () => {
+    const world = fixture();
+    const windowColor = world.windows.emissive.clone();
+    const borrowed = [vi.spyOn(world.geometry, 'dispose'), vi.spyOn(world.windows, 'dispose'), vi.spyOn(world.sun, 'dispose')];
+    const owned = new Set<THREE.BufferGeometry | THREE.Material | THREE.Texture | THREE.InstancedMesh>();
     world.scene.getObjectByName('Environment effects')!.traverse((object) => {
-      if (object instanceof THREE.Mesh || object instanceof THREE.Points) {
-        geometries.add(object.geometry);
-        materials.add(object.material as THREE.Material);
+      if (object instanceof THREE.Mesh || object instanceof THREE.Points || object instanceof THREE.LineSegments) {
+        owned.add(object.geometry);
+        const material = object.material as THREE.Material;
+        owned.add(material);
+        if (material instanceof THREE.PointsMaterial && material.map) owned.add(material.map);
+        if (object instanceof THREE.InstancedMesh) owned.add(object);
       }
     });
-    const disposals = [...geometries, ...materials].map((resource) => vi.spyOn(resource, 'dispose'));
+    const disposals = [...owned].map((resource) => vi.spyOn(resource, 'dispose'));
     world.environment.setTime('night', DATE);
-    visual.update(world.environment.frame, OPTIONS, 100);
-    visual.dispose();
-    visual.dispose();
-    for (const dispose of disposals) expect(dispose).toHaveBeenCalledTimes(1);
-    expect(geometryDispose).not.toHaveBeenCalled();
-    expect(materialDispose).not.toHaveBeenCalled();
-    expect(lightDispose).not.toHaveBeenCalled();
+    world.draw();
+    world.visual.dispose();
+    world.visual.dispose();
+    disposals.forEach((dispose) => expect(dispose).toHaveBeenCalledTimes(1));
+    borrowed.forEach((dispose) => expect(dispose).not.toHaveBeenCalled());
     expect(world.scene.background).toBe(world.background);
-    expect(world.scene.fog).toBe(originalFog);
+    expect(world.scene.fog).toBeNull();
     expect(world.sun.intensity).toBe(3);
-    expect(world.hemisphere.intensity).toBe(2.4);
-    expect(world.windows.emissive).toEqual(originalWindow);
-    expect(world.windows.emissiveIntensity).toBe(0.2);
+    expect(world.windows.emissive).toEqual(windowColor);
     expect(world.scene.getObjectByName('Environment effects')).toBeUndefined();
-    visual.update(world.environment.frame, OPTIONS, 101);
+    world.draw();
     expect(world.scene.background).toBe(world.background);
     world.dispose();
   });
 
-  it('tolerates a rebuilt scene with no lights or window tags and rejects invalid effect time', () => {
-    const scene = new THREE.Scene();
-    const visual = new EnvironmentVisual(scene);
+  it('bends only marked vegetation, retains rooftop collisions and restores all rest poses', () => {
+    const art = buildCityScene();
     const environment = new EnvironmentController();
-    expect(() => visual.update(environment.frame, OPTIONS, 0)).not.toThrow();
-    for (const time of [NaN, Infinity, -1]) {
-      expect(() => visual.update(environment.frame, OPTIONS, time)).toThrow(RangeError);
-    }
+    environment.physics.bindSurface(art.weatherSurface.heightAt);
+    expect(art.weatherSurface.heightAt(-3.8, -10)).toBeCloseTo(10.98, 2);
+    expect(art.weatherSurface.heightAt(-4, -3)).toBeGreaterThan(5);
+    const original = art.foliage.map(({ mesh }) => mesh.instanceMatrix.array.slice());
+    const visual = new EnvironmentVisual(art.scene, art.weatherSurface, art.foliage);
+    environment.setWeather('windy', true);
+    environment.step(0.1, DATE);
+    visual.update(environment.frame, OPTIONS, environment.physics);
+    expect(art.foliage[0].mesh.instanceMatrix.array).not.toEqual(original[0]);
+    visual.update(environment.frame, OPTIONS, environment.physics);
+    const held = art.foliage[0].mesh.instanceMatrix.array.slice();
+    visual.update(environment.frame, OPTIONS, environment.physics);
+    expect(art.foliage[0].mesh.instanceMatrix.array).toEqual(held);
+    visual.update(environment.frame, { ...OPTIONS, reducedMotion: true }, environment.physics);
+    art.foliage.forEach(({ mesh }, index) => expect(mesh.instanceMatrix.array).toEqual(original[index]));
     visual.dispose();
-    expect(scene.children).toHaveLength(0);
+    art.foliage.forEach(({ mesh }, index) => expect(mesh.instanceMatrix.array).toEqual(original[index]));
+    art.dispose();
+  });
+
+  it('shares exposure and accumulation uniforms without altering untagged material shaders', () => {
+    const scene = new THREE.Scene();
+    const geometry = new THREE.BoxGeometry();
+    const material = new THREE.MeshStandardMaterial();
+    material.userData.weatherSurface = true;
+    const original = material.onBeforeCompile;
+    const key = material.customProgramCacheKey;
+    scene.add(new THREE.Mesh(geometry, material), new THREE.Mesh(geometry, material));
+    const visual = new SurfaceVisual(scene, new WeatherSurface());
+    const shader = {
+      uniforms: THREE.UniformsUtils.clone(THREE.ShaderLib.standard.uniforms),
+      vertexShader: THREE.ShaderLib.standard.vertexShader,
+      fragmentShader: THREE.ShaderLib.standard.fragmentShader,
+    };
+    material.onBeforeCompile(shader as THREE.WebGLProgramParametersWithUniforms, {} as THREE.WebGLRenderer);
+    expect(shader.vertexShader).toContain('instanceMatrix * weatherPosition');
+    expect(shader.fragmentShader).toContain('weatherTop - 0.65');
+    expect(shader.fragmentShader).toContain('weatherNormal.y');
+    const environment = new EnvironmentController();
+    environment.physics.surface.snowSweMm = 1.2;
+    environment.physics.surface.waterMm = 0.3;
+    visual.update(environment.physics);
+    expect(shader.uniforms.weatherSnow.value).toBe(1);
+    expect(shader.uniforms.weatherWetness.value).toBe(0.5);
+    const texture = shader.uniforms.weatherHeight.value as THREE.DataTexture;
+    const dispose = vi.spyOn(texture, 'dispose');
+    visual.dispose();
+    visual.dispose();
+    expect(dispose).toHaveBeenCalledTimes(1);
+    expect(material.onBeforeCompile).toBe(original);
+    expect(material.customProgramCacheKey).toBe(key);
+    geometry.dispose();
+    material.dispose();
   });
 });

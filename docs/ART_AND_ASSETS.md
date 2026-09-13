@@ -83,6 +83,16 @@ Use shared actor geometry/materials with instanced transforms when appropriate. 
 
 Night cues can use restrained emissive/material variation rather than hundreds of dynamic lights. Rain can be a bounded shared particle representation with no per-drop objects. Use original procedural micro-animation sparingly.
 
+### Original weather effects
+
+The weather extension adds no downloaded assets. Rain streaks, radial snow sprites, impact rings and ripples are generated from code and standard primitives. Exposed surfaces receive wetness/coverage shaders plus 33 source-geometry-sharing snow-shell batches: vertices and matching shadow geometry rise with retained snow depth, including roof edges, streets and canopies. The layer is bounded and intentionally exaggerated at miniature scale; it is not individual-grain or snowbank simulation.
+
+Three original elliptical openings in the ground have shallow paraboloid beds, with rain-fed water surfaces that rise and expand rather than floating over uncut terrain. Their positions avoid buildings and travel corridors. These small details are not new landmarks and do not change semantic IDs, route geometry, or the original fallback illustration's overview role.
+
+Trees and reeds retain their authored rest geometry and palette. Snow copies their changed instance transforms so it remains attached during sway. A 0.5 m top-envelope/retention grid comes from actual static triangles; precipitation also checks displayed snow and pool water height. It approximates canopy/roof boundaries, not gutters, vertical walls or sub-cell geometry. See [research and limitations](WEATHER_PHYSICS_RESEARCH.md).
+
+CPU scene traversal after this extension counts **24,294 base-scene triangles, 174 potential mesh submissions and 23 materials**, within the existing art-only test limits. With visible snow shells/clouds/garden rings, traversal counts **40,926 triangles, 214 potential mesh submissions and 27 materials**. Both counts include actor artwork and semantic meshes, not exclusively immobile district geometry. These are upper-bound scene counts before view culling, exclude point/line primitives and extra shadow passes, and are not measured GPU draw calls or FPS. The 33 snow shell batches add rendering work but reuse original geometry buffers. Final device profiling remains required.
+
 ## Proposed budgets
 
 These are initial **profile-driven targets**, not recovered source costs, contractual art limits, or measured application results.

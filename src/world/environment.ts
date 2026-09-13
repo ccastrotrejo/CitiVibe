@@ -1,4 +1,9 @@
-export type Weather = 'sunny' | 'cloudy' | 'rain' | 'mist';
+import { WEATHER_MODES } from '../content/preferences';
+import type { Weather } from '../content/preferences';
+import { WeatherPhysics } from './weatherPhysics';
+import type { WeatherForcing } from './weatherPhysics';
+
+export type { Weather } from '../content/preferences';
 export type TimeMode = 'afternoon' | 'night' | 'local' | 'cycle';
 
 /** Linear RGB channels, suitable for Three's Color.setRGB(). */
@@ -8,7 +13,7 @@ export interface EnvironmentColor {
   b: number;
 }
 
-export interface EnvironmentFrame {
+export interface EnvironmentFrame extends WeatherForcing {
   phase: number;
   brightness: number;
   fog: number;
@@ -32,7 +37,7 @@ export interface EnvironmentFrame {
 }
 
 export const MAX_ENVIRONMENT_STEP = 0.1;
-const WEATHERS: readonly Weather[] = ['sunny', 'cloudy', 'rain', 'mist'];
+const WEATHERS = WEATHER_MODES;
 const TIMES: readonly TimeMode[] = ['afternoon', 'night', 'local', 'cycle'];
 const AFTERNOON = 15 / 24;
 const NIGHT = 22 / 24;
@@ -45,7 +50,14 @@ function color(hex: number): EnvironmentColor {
   return { r: linear(hex >> 16), g: linear((hex >> 8) & 255), b: linear(hex & 255) };
 }
 
-const SKY = [color(0xe9e2d3), color(0xb8c2c5), color(0x889fa9), color(0xc5cecc)];
+const PRESETS = {
+  sunny: { sky: color(0xe9e2d3), clouds: 0.12, fog: 0.0015, sun: 1, temperature: 22, humidity: 0.45, wind: 1.2 },
+  cloudy: { sky: color(0xb8c2c5), clouds: 0.75, fog: 0.003, sun: 0.5, temperature: 16, humidity: 0.65, wind: 2.8 },
+  rain: { sky: color(0x889fa9), clouds: 1, fog: 0.007, sun: 0.3, temperature: 10, humidity: 0.94, wind: 3.5 },
+  mist: { sky: color(0xc5cecc), clouds: 0.6, fog: 0.016, sun: 0.4, temperature: 8, humidity: 0.98, wind: 0.4 },
+  snow: { sky: color(0xcbd5dc), clouds: 0.9, fog: 0.009, sun: 0.35, temperature: -4, humidity: 0.85, wind: 2.2 },
+  windy: { sky: color(0xb6c8ce), clouds: 0.4, fog: 0.0025, sun: 0.75, temperature: 18, humidity: 0.5, wind: 7 },
+} satisfies Record<Weather, { sky: EnvironmentColor; clouds: number; fog: number; sun: number; temperature: number; humidity: number; wind: number }>;
 const NIGHT_SKY = color(0x26374d);
 const DAY_AMBIENT = color(0xfff1d8);
 const NIGHT_AMBIENT = color(0xabc0de);
@@ -79,9 +91,11 @@ function localPhase(now: Date): number {
 
 /** Retain this CPU controller across renderer recovery; only step while simulation runs. */
 export class EnvironmentController {
+  readonly physics = new WeatherPhysics();
   readonly frame: EnvironmentFrame = {
-    phase: AFTERNOON, brightness: 1, fog: 0, rain: 0, wetness: 0, night: 0, glow: 0,
+    phase: AFTERNOON, brightness: 1, fog: 0, rain: 0, rainIntensityMmH: 8, wetness: 0, night: 0, glow: 0,
     clouds: 0, ambientIntensity: 2.4, sunIntensity: 3,
+    snow: 0, temperatureC: 22, humidity: 0.45, windSpeed: 1.2,
     palette: {
       sky: color(0), fog: color(0), ambient: color(0), ground: color(0),
       sun: color(0), cloud: color(0), rain: color(0xc5d7e2), window: color(0xffc879),
@@ -92,8 +106,8 @@ export class EnvironmentController {
   private automatic = false;
   private seed: number;
   private untilWeather = 0;
-  private weights = new Float64Array([1, 0, 0, 0]);
-  private weatherStart = new Float64Array(4);
+  private weights = new Float64Array(WEATHERS.length);
+  private weatherStart = new Float64Array(WEATHERS.length);
   private weatherElapsed = 0;
   private weatherDuration = 0;
   private localStart = AFTERNOON;
@@ -105,10 +119,12 @@ export class EnvironmentController {
     }
     localPhase(now);
     this.seed = seed;
+    this.weights[WEATHERS.indexOf('sunny')] = 1;
     this.renderFrame();
   }
 
   get weather(): Weather { return this.preset; }
+  get rainIntensityMmH(): number { return this.frame.rainIntensityMmH; }
   get timeMode(): TimeMode { return this.mode; }
   get natural(): boolean { return this.automatic; }
 
@@ -118,6 +134,14 @@ export class EnvironmentController {
     this.automatic = false;
     this.transitionWeather(preset, immediate ? 0 : 2);
     this.renderFrame();
+  }
+
+  /** Physical input rate, independent of preset transitions and visual particle counts. */
+  setRainIntensity(millimetersPerHour: number): void {
+    if (!Number.isFinite(millimetersPerHour) || millimetersPerHour < 0 || millimetersPerHour > 30) {
+      throw new RangeError('Rain intensity must be between 0 and 30 millimeters per hour.');
+    }
+    this.frame.rainIntensityMmH = millimetersPerHour;
   }
 
   /** Time selection applies immediately, including a fresh device-clock initialization. */
@@ -137,7 +161,7 @@ export class EnvironmentController {
   }
 
   /** Reject invalid elapsed time; discard excess work rather than catching up hidden time. */
-  step(dt: number, now: Date): void {
+  step(dt: number, now: Date, animate = true): void {
     if (!Number.isFinite(dt) || dt < 0) throw new RangeError('Environment delta must be finite and nonnegative.');
     const local = localPhase(now);
     dt = Math.min(dt, MAX_ENVIRONMENT_STEP);
@@ -146,7 +170,7 @@ export class EnvironmentController {
       this.untilWeather -= dt;
       if (this.untilWeather <= 0) {
         const current = WEATHERS.indexOf(this.preset);
-        const next = (current + 1 + Math.floor(this.random() * 3)) % WEATHERS.length;
+        const next = (current + 1 + Math.floor(this.random() * (WEATHERS.length - 1))) % WEATHERS.length;
         this.transitionWeather(WEATHERS[next], 20);
         this.untilWeather += 180 + this.random() * 180;
       }
@@ -155,7 +179,7 @@ export class EnvironmentController {
       this.weatherElapsed = Math.min(this.weatherElapsed + dt, this.weatherDuration);
       const blend = smooth(this.weatherElapsed / this.weatherDuration);
       const target = WEATHERS.indexOf(this.preset);
-      for (let index = 0; index < 4; index++) {
+      for (let index = 0; index < WEATHERS.length; index++) {
         this.weights[index] = this.weatherStart[index] + ((index === target ? 1 : 0) - this.weatherStart[index]) * blend;
       }
       if (this.weatherElapsed >= this.weatherDuration) this.weatherDuration = 0;
@@ -169,6 +193,8 @@ export class EnvironmentController {
         ? wrap(this.localStart + difference * smooth(this.localElapsed / 10)) : local;
     }
     this.renderFrame();
+    this.physics.step(dt, this.frame, animate);
+    this.frame.wetness = this.physics.wetness;
   }
 
   /** Call once on resume, not on each draw. No wall time advances other simulation systems. */
@@ -201,22 +227,38 @@ export class EnvironmentController {
     const elevation = Math.cos((frame.phase - 0.5) * Math.PI * 2);
     frame.night = 1 - smooth((elevation + 0.15) / 0.4);
     frame.brightness = 1 - frame.night * 0.72;
-    frame.rain = weights[2];
-    frame.wetness = weights[2] * 0.85 + weights[3] * 0.12;
-    frame.clouds = weights[0] * 0.12 + weights[1] * 0.75 + weights[2] + weights[3] * 0.6;
-    frame.fog = weights[0] * 0.0015 + weights[1] * 0.003 + weights[2] * 0.007 + weights[3] * 0.016;
+    frame.rain = weights[WEATHERS.indexOf('rain')];
+    frame.snow = weights[WEATHERS.indexOf('snow')];
+    frame.wetness = this.physics.wetness;
+    frame.clouds = 0;
+    frame.fog = 0;
+    frame.temperatureC = 0;
+    frame.humidity = 0;
+    frame.windSpeed = 0;
+    let sunlight = 0;
+    for (let index = 0; index < WEATHERS.length; index++) {
+      const preset = PRESETS[WEATHERS[index]];
+      const weight = weights[index];
+      frame.clouds += preset.clouds * weight;
+      frame.fog += preset.fog * weight;
+      frame.temperatureC += preset.temperature * weight;
+      frame.humidity += preset.humidity * weight;
+      frame.windSpeed += preset.wind * weight;
+      sunlight += preset.sun * weight;
+    }
+    frame.temperatureC -= frame.night * 4;
     frame.glow = frame.night * 0.85;
     frame.ambientIntensity = (2.4 - frame.night * 1.35) * (1 - frame.clouds * 0.12);
-    frame.sunIntensity = (3 - frame.night * 2.5) *
-      (weights[0] + weights[1] * 0.5 + weights[2] * 0.3 + weights[3] * 0.4);
+    frame.sunIntensity = (3 - frame.night * 2.5) * sunlight;
     const palette = frame.palette;
     palette.sky.r = 0;
     palette.sky.g = 0;
     palette.sky.b = 0;
-    for (let index = 0; index < 4; index++) {
-      palette.sky.r += SKY[index].r * weights[index];
-      palette.sky.g += SKY[index].g * weights[index];
-      palette.sky.b += SKY[index].b * weights[index];
+    for (let index = 0; index < WEATHERS.length; index++) {
+      const sky = PRESETS[WEATHERS[index]].sky;
+      palette.sky.r += sky.r * weights[index];
+      palette.sky.g += sky.g * weights[index];
+      palette.sky.b += sky.b * weights[index];
     }
     mix(palette.sky, palette.sky, NIGHT_SKY, frame.night);
     mix(palette.fog, palette.sky, palette.sky, 0);

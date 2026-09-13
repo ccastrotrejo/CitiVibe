@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { EnvironmentController, MAX_ENVIRONMENT_STEP } from './environment';
 import type { TimeMode, Weather } from './environment';
+import { WEATHER_MODES } from '../content/preferences';
 
 const DATE = new Date(2026, 8, 12, 15);
 
@@ -139,11 +140,13 @@ describe('retained environment state', () => {
 
   it('keeps all time/weather combinations finite, bounded, and night-readable', () => {
     const environment = new EnvironmentController();
-    for (const weather of ['sunny', 'cloudy', 'rain', 'mist'] as const) {
+    for (const weather of WEATHER_MODES) {
       for (const mode of ['afternoon', 'night', 'local', 'cycle'] as const) {
         environment.setWeather(weather, true);
         environment.setTime(mode, DATE);
-        const { palette, ...scalars } = environment.frame;
+        const { palette, temperatureC, ...scalars } = environment.frame;
+        expect(temperatureC).toBeGreaterThanOrEqual(-8);
+        expect(temperatureC).toBeLessThanOrEqual(22);
         for (const value of Object.values(scalars)) {
           expect(Number.isFinite(value)).toBe(true);
           expect(value).toBeGreaterThanOrEqual(0);
@@ -167,7 +170,7 @@ describe('retained environment state', () => {
     for (const dt of [NaN, Infinity, -Infinity, -1]) expect(() => environment.step(dt, DATE)).toThrow(RangeError);
     for (const seed of [NaN, -1, 0x100000000, 1.5]) expect(() => new EnvironmentController(seed)).toThrow(RangeError);
     expect(() => environment.setTime('future' as TimeMode, DATE)).toThrow(RangeError);
-    expect(() => environment.setWeather('snow' as Weather)).toThrow(RangeError);
+    expect(() => environment.setWeather('hail' as Weather)).toThrow(RangeError);
     expect(() => environment.setTime('local', new Date(NaN))).toThrow(RangeError);
     expect(() => environment.resyncLocal(new Date(NaN))).toThrow(RangeError);
     environment.setTime('cycle', DATE);

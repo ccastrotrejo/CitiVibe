@@ -10,6 +10,7 @@ import type { WorldCommand, WorldStatus } from './types';
 
 export interface WorldOptions {
   weather?: Weather;
+  rainIntensityMmH?: number;
   timeMode?: TimeMode;
   natural?: boolean;
   quality?: QualityMode;
@@ -29,6 +30,7 @@ export class WorldModel {
   readonly simulation = new ActorSimulation();
   readonly environment = new EnvironmentController();
   readonly airplane = new AirplaneSimulation();
+  private readonly snowLifts = new Float64Array(this.simulation.actors.length);
   paused: boolean;
   reducedMotion: boolean;
   quality: QualityMode;
@@ -43,6 +45,7 @@ export class WorldModel {
     this.quality = options.quality ?? 'automatic';
     const now = new Date();
     if (options.weather) this.environment.setWeather(options.weather, true);
+    if (options.rainIntensityMmH !== undefined) this.environment.setRainIntensity(options.rainIntensityMmH);
     if (options.timeMode) this.environment.setTime(options.timeMode, now);
     if (options.natural) this.environment.setNatural(true);
     if (reducedMotion) {
@@ -63,6 +66,7 @@ export class WorldModel {
       } : this.camera.tourStatus,
       message: this.message,
       weather: this.environment.weather,
+      rainIntensityMmH: this.environment.rainIntensityMmH,
       timeMode: this.environment.timeMode,
       natural: this.environment.natural,
       quality: this.quality,
@@ -112,6 +116,7 @@ export class WorldModel {
         this.message = 'Selection cleared.';
         break;
       case 'set-paused':
+        if (this.paused && !command.paused) this.environment.resyncLocal(new Date());
         this.paused = command.paused;
         this.message = this.paused ? 'City paused. You can still explore.' : 'City resumed.';
         break;
@@ -127,6 +132,10 @@ export class WorldModel {
       case 'set-weather':
         this.environment.setWeather(command.weather, this.paused || this.reducedMotion);
         this.message = `Weather set to ${command.weather}.`;
+        break;
+      case 'set-rain-intensity':
+        this.environment.setRainIntensity(command.millimetersPerHour);
+        this.message = `Rain intensity set to ${command.millimetersPerHour} millimeters per hour.`;
         break;
       case 'set-time':
         this.environment.setTime(command.time, new Date());
@@ -196,8 +205,16 @@ export class WorldModel {
 
   step(dt: number): void {
     if (this.paused) return;
-    this.simulation.step(dt);
-    this.environment.step(dt, new Date());
+    this.environment.step(dt, new Date(), !this.reducedMotion);
+    const snowCover = this.environment.physics.snowCover;
+    const traction = Math.max(0.3, 1 - this.environment.frame.wetness * 0.25 - snowCover * 0.5);
+    this.simulation.step(dt, traction);
+    for (let index = 0; index < this.simulation.actors.length; index++) {
+      const position = this.simulation.actors[index].position;
+      const support = this.environment.physics.snowSupportAt(position.x, position.z, 0);
+      this.snowLifts[index] += (support - this.snowLifts[index]) * -Math.expm1(-Math.min(dt, 0.1) / 0.15);
+      position.y = this.snowLifts[index];
+    }
     this.airplane.step(dt);
     if (!this.modalOpen) {
       const revision = this.camera.revision;

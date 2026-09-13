@@ -33,6 +33,25 @@ describe('bounded simulation clock', () => {
 });
 
 describe('single camera owner', () => {
+  it('keeps all walkers and vehicles on accumulated snow without accumulating their vertical offset', () => {
+    const model = new WorldModel(false, { weather: 'snow', rainIntensityMmH: 20 });
+    model.environment.physics.bindSurface(() => 0, () => 1);
+    model.environment.physics.surface.snowSweMm = 6;
+    for (let tick = 0; tick < 600; tick++) model.step(STEP);
+    for (const actor of model.simulation.actors) {
+      expect(actor.position.y).toBeGreaterThan(0.15);
+      expect(actor.position.y).toBeLessThan(0.2);
+    }
+    model.command({ type: 'set-rain-intensity', millimetersPerHour: 0 });
+    expect(model.snapshot().rainIntensityMmH).toBe(0);
+    model.command({ type: 'set-paused', paused: true });
+    const positions = model.simulation.actors.map(({ position }) => ({ ...position }));
+    const water = structuredClone(model.environment.physics.groundWater.states);
+    for (let tick = 0; tick < 900; tick++) model.step(STEP);
+    expect(model.simulation.actors.map(({ position }) => position)).toEqual(positions);
+    expect(model.environment.physics.groundWater.states).toEqual(water);
+  });
+
   it('orbits through every azimuth with bounded tilt and resets the full pose', () => {
     const model = new WorldModel(true);
     model.command({ type: 'focus-landmark', id: CITY.landmark.id });
