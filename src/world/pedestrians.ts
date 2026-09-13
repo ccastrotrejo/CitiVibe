@@ -148,7 +148,7 @@ export class StreetPedestrians {
   }
 
   private canReserve(walker: Walker, crossing: WalkingCrossing, signals: readonly TrafficSignalState[]): boolean {
-    if (signals[crossing.intersection].phase !== 'pedestrians' || this.reservations[crossing.intersection]) return false;
+    if (!signals[crossing.intersection].walk || this.reservations[crossing.intersection]) return false;
     const arriving = this.reservations.filter((reservation) => reservation?.crossing?.to === crossing.to).length;
     if (this.groups[crossing.to].length + arriving >= PEDESTRIAN_BEHAVIOR.maxBlockPopulation) return false;
     return this.walkers.every((other) => other === walker ||

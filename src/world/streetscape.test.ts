@@ -2,14 +2,20 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { BASKETBALL_COURT, COURT_PLAYERS, PICKLEBALL_COURT, RECREATION_AREA, netHeightAt } from '../content/courts';
 import { CAMERA_ANCHORS, CAMERA_PROJECTION } from '../content/city';
+import { buildMurals } from './murals';
+import {
+  FACADE_FAMILY_WEIGHTS, FACADE_TONES, WINDOW_UNIT, WINDOW_UNIT_GRILLE, WINDOW_UNIT_TONES, tonesOf,
+} from '../content/facades';
 import { METRO_ENTRANCES, METRO_GEOMETRY, METRO_OPENINGS, type MetroEntrance } from '../content/metro';
 import {
   BIKE_OFFSET, CITY_EXTENT, INTERSECTIONS, ROAD_HALF_WIDTH, SIDEWALK_HALF_WIDTH, SIDEWALK_OFFSET,
-  STOP_LINE_OFFSET, STREET_X, STREET_Z, TWO_WAY_BIKE_STREETS, TWO_WAY_BIKE_TRACK,
+  SIGNAL_POLE_OFFSET, SIGNALED_INTERSECTIONS, STOP_LINE_OFFSET, STOP_SIGN_INTERSECTIONS,
+  STREET_X, STREET_Z, TWO_WAY_BIKE_STREETS, TWO_WAY_BIKE_TRACK,
   VEHICLE_OFFSET, bikeLaneOffset,
 } from '../content/streets';
 import {
-  buildStreetscape, BUILDING_SIDEWALK_INSET, createStreetBuildings, SIDEWALK_SHEDS, STREET_BLOCKS, STREET_BUILDINGS, SUBWAY_ENTRANCES, validateStreetscape,
+  buildStreetscape, BUILDING_SIDEWALK_INSET, createStreetBuildings, MURAL_WALLS, SIDEWALK_SHEDS,
+  STREET_BLOCKS, STREET_BUILDINGS, SUBWAY_ENTRANCES, validateStreetscape,
   type StreetBuilding, type Streetscape, type StreetscapeBuilder, type StreetscapeSignalState,
 } from './streetscape';
 import { sampleTrafficRoute, SIDEWALK_WALKING_CLEARANCE, SIDEWALK_WALKING_OFFSETS, SIDEWALK_WALKING_ROUTES } from './traffic';
@@ -21,6 +27,7 @@ interface Part {
   position: readonly [number, number, number];
   scale: readonly [number, number, number];
   rotation: readonly [number, number, number];
+  tint?: string;
   matrix: THREE.Matrix4;
   bounds: THREE.Box3;
 }
@@ -32,7 +39,11 @@ const westX = (STREET_X[centerColumn - 1] + STREET_X[centerColumn]) / 2;
 const parkHalfX = STREET_X[centerColumn + 1] - SIDEWALK_HALF_WIDTH;
 const parkHalfZ = STREET_Z[centerRow + 1] - SIDEWALK_HALF_WIDTH;
 const sideScale = parkHalfZ / 98;
-const approachCount = INTERSECTIONS.length * 4 - 2 * (STREET_X.length + STREET_Z.length);
+// Signalized corners only: posted all-way stops carry painted bars but no mast arms or heads.
+const approachCount = SIGNALED_INTERSECTIONS.reduce((total, { x, z }) => total +
+  [true, false].reduce((axes, vertical) => axes + [-1, 1].filter((side) =>
+    Math.abs(x + (vertical ? side * SIGNAL_POLE_OFFSET : side * (STOP_LINE_OFFSET + 0.5))) <= CITY_EXTENT.x - 0.5 &&
+    Math.abs(z + (vertical ? side * (STOP_LINE_OFFSET + 0.5) : -side * SIGNAL_POLE_OFFSET)) <= CITY_EXTENT.z - 0.5).length, 0), 0);
 
 function metroPoint({ x, z, yaw }: MetroEntrance, lx: number, y: number, lz: number) {
   return new THREE.Vector3(x + lx * Math.cos(yaw) + lz * Math.sin(yaw), METRO_GEOMETRY.surfaceY + y,
@@ -50,7 +61,7 @@ function createArt(build = buildStreetscape) {
   const crown = new THREE.DodecahedronGeometry(1);
   const names = [
     'sand', 'stone', 'paving', 'road', 'line', 'cream', 'clay', 'teal', 'roof', 'copper',
-    'copperEdge', 'glass', 'wood', 'leaf', 'leafLight', 'water', 'bus', 'rubber', 'taxi',
+    'copperEdge', 'glass', 'wood', 'leaf', 'leafLight', 'water', 'bus', 'rubber', 'taxi', 'facade',
   ] as const;
   const palette = Object.fromEntries(names.map((name) => {
     const material = new THREE.MeshStandardMaterial();
@@ -59,21 +70,21 @@ function createArt(build = buildStreetscape) {
   })) as Record<(typeof names)[number], THREE.MeshStandardMaterial>;
   const parts: Part[] = [];
   const transform = new THREE.Object3D();
-  const add: StreetscapeBuilder['add'] = (shape, surface, position, scale, rotation = [0, 0, 0]) => {
+  const add: StreetscapeBuilder['add'] = (shape, surface, position, scale, rotation = [0, 0, 0], tint) => {
     transform.position.set(...position);
     transform.scale.set(...scale);
     transform.rotation.set(...rotation);
     transform.updateMatrix();
     if (!shape.boundingBox) shape.computeBoundingBox();
     parts.push({
-      shape, surface, position, scale, rotation, matrix: transform.matrix.clone(),
+      shape, surface, position, scale, rotation, tint, matrix: transform.matrix.clone(),
       bounds: shape.boundingBox!.clone().applyMatrix4(transform.matrix),
     });
   };
   const builder: StreetscapeBuilder = {
     box, cylinder, crown, palette, add,
-    block: (surface, x, y, z, width, height, depth, yaw = 0) =>
-      add(box, surface, [x, y, z], [width, height, depth], [0, yaw, 0]),
+    block: (surface, x, y, z, width, height, depth, yaw = 0, tint) =>
+      add(box, surface, [x, y, z], [width, height, depth], [0, yaw, 0], tint),
   };
   const art = build(builder);
   cleanups.push(() => {
@@ -154,7 +165,7 @@ describe('original connected-city streetscape', () => {
     expect(STOP_LINE_OFFSET).toBe(8.5);
     expect(STREET_BLOCKS).toHaveLength((STREET_X.length - 1) * (STREET_Z.length - 1) - 1);
     expect(STREET_BUILDINGS).toHaveLength(94);
-    expect(new Set(STREET_BUILDINGS.map(({ skin }) => skin)).size).toBe(4);
+    expect(new Set(STREET_BUILDINGS.map(({ tone }) => tone)).size).toBeGreaterThan(16);
     expect(new Set(STREET_BUILDINGS.map(({ floors }) => floors)).size).toBe(5);
     expect(new Set(STREET_BUILDINGS.map(({ roof }) => roof)).size).toBe(4);
     expect(STREET_BUILDINGS.filter(({ setbackFloors }) => setbackFloors > 0)).toHaveLength(6);
@@ -215,7 +226,8 @@ describe('original connected-city streetscape', () => {
       expect(building.depth).toBeGreaterThanOrEqual((7.6 + column % 3 * 0.6) * 0.9);
       expect(building.floors).toBeGreaterThanOrEqual(3);
       expect(building.floors).toBeLessThanOrEqual(brownstone ? 5 : 7);
-      if (brownstone) expect(building.skin).toBe('clay');
+      if (brownstone) expect(building.facadeFamily).toBe('brownstone');
+      expect(tonesOf(building.facadeFamily).map(({ hex }) => hex)).toContain(building.tone);
       expect(building.brownstone).toBe(brownstone);
       expect(building.stoop).toBe(column % 2 === 0);
       expect(building.fireEscape).toBe((10 + column) % 3 === 0);
@@ -270,7 +282,7 @@ describe('original connected-city streetscape', () => {
     for (const family of ['masonry', 'loft', 'terrace']) {
       const members = STREET_BUILDINGS.filter(({ architecture }) => architecture.family === family);
       expect(members.length).toBeGreaterThan(15);
-      expect(new Set(members.map(({ skin }) => skin)).size).toBe(4);
+      expect(new Set(members.map(({ tone }) => tone)).size).toBeGreaterThan(4);
       expect(new Set(members.map(({ roof }) => roof)).size).toBe(4);
     }
     for (const seed of [0, 1, 42, 173, 2401, 8128]) {
@@ -290,12 +302,16 @@ describe('original connected-city streetscape', () => {
         const y = 0.3 + floor * building.architecture.floorHeight +
           (principal ? 1.6 : building.architecture.floorHeight * 0.52);
         for (const side of [-1, 1]) {
+          // A lot-line wall is blank masonry, so only setbacks above it are glazed.
+          const party = inset ? null : building.partyWall;
+          const front = party?.axis === 'z' && party.side === side ? 'blank' : 'glazed';
+          const flank = party?.axis === 'x' && party.side === side ? 'blank' : 'glazed';
           expect(windows.some(({ position: [x, wy, z] }) =>
             Math.abs(wy - y) < 0.001 && Math.abs(x - building.x) < width / 2 &&
-            Math.abs(z - building.z - side * (depth / 2 + 0.025)) < 0.001)).toBe(true);
+            Math.abs(z - building.z - side * (depth / 2 + 0.025)) < 0.001)).toBe(front === 'glazed');
           expect(windows.some(({ position: [x, wy, z] }) =>
             Math.abs(wy - y) < 0.001 && Math.abs(z - building.z) < depth / 2 &&
-            Math.abs(x - building.x - side * (width / 2 + 0.025)) < 0.001)).toBe(true);
+            Math.abs(x - building.x - side * (width / 2 + 0.025)) < 0.001)).toBe(flank === 'glazed');
         }
       }
     }
@@ -334,7 +350,8 @@ describe('original connected-city streetscape', () => {
         expect(window.bounds.min[front ? 'x' : 'z']).toBeGreaterThan(center - span / 2);
         expect(window.bounds.max[front ? 'x' : 'z']).toBeLessThan(center + span / 2);
       });
-      renderedWidths.add(windows[0].scale[0]);
+      // A blank lot line can leave a flank window first, so read the width off its own axis.
+      renderedWidths.add(windows[0].scale[2] === 0.045 ? windows[0].scale[0] : windows[0].scale[2]);
       expect(art.some(({ surface, position, scale }) => surface === builder.palette.paving &&
         scale[1] === parapetHeight && position[1] >
         (building.floors + building.setbackFloors) * floorHeight)).toBe(true);
@@ -1176,6 +1193,25 @@ describe('original connected-city streetscape', () => {
     }
   });
 
+  it('leaves posted all-way stops without signal masts while their painted bars remain', () => {
+    const { parts, builder } = createArt();
+    const masts = parts.filter(({ shape, surface, scale }) => shape === builder.cylinder &&
+      surface === builder.palette.copperEdge && scale[0] === 0.075 && scale[1] === 5);
+    expect(masts).toHaveLength(approachCount);
+    expect(STOP_SIGN_INTERSECTIONS.length).toBeGreaterThan(0);
+    for (const { x, z } of STOP_SIGN_INTERSECTIONS) {
+      expect(masts.some(({ position }) => Math.hypot(position[0] - x, position[2] - z) < 12)).toBe(false);
+      for (const side of [-1, 1]) {
+        const stopZ = z - side * STOP_LINE_OFFSET;
+        if (Math.abs(stopZ) >= CITY_EXTENT.z) continue;
+        expect(parts.some(({ surface, position, scale }) => surface === builder.palette.line &&
+          position[2] === stopZ && position[0] === x - side * VEHICLE_OFFSET &&
+          scale[0] === 2.65 && scale[2] === 0.18),
+        `painted stop bar at ${x},${stopZ}`).toBe(true);
+      }
+    }
+  });
+
   it('keeps the full 5.8–7.6 m bidirectional pedestrian sweep clear beneath every sidewalk shed', () => {
     const { parts } = createArt();
     const corridors = SIDEWALK_SHEDS.map((shed) => {
@@ -1339,5 +1375,119 @@ describe('original connected-city streetscape', () => {
     });
     second.art.setSignals(allSignals('pedestrians'));
     expect(lamps(second.art, 'green').count).toBeGreaterThan(0);
+  });
+  it('paints every facade through one tinted material drawn from the masonry families', () => {
+    const { parts, builder } = createArt();
+    const masonry = parts.filter(({ surface }) => surface === builder.palette.facade);
+    expect(masonry.length).toBeGreaterThan(0);
+    const palette = new Set(FACADE_TONES.map(({ hex }) => hex));
+    for (const part of masonry) {
+      expect(part.tint).toBeDefined();
+      expect(palette.has(part.tint!) || WINDOW_UNIT_TONES.includes(part.tint!) ||
+        part.tint === WINDOW_UNIT_GRILLE).toBe(true);
+    }
+    // Blockfronts share a family, so a run reads as one development rather than a colour riot.
+    const runs = new Map<string, Set<string>>();
+    for (const { blockId, facadeFamily } of STREET_BUILDINGS) {
+      if (!runs.has(blockId)) runs.set(blockId, new Set());
+      runs.get(blockId)!.add(facadeFamily);
+    }
+    expect(Math.max(...[...runs.values()].map((families) => families.size)))
+      .toBeLessThan(Object.keys(FACADE_FAMILY_WEIGHTS).length);
+    expect(new Set(STREET_BUILDINGS.map(({ facadeFamily }) => facadeFamily)).size).toBeGreaterThan(4);
+  });
+
+  it('exposes blank lot-line walls away from entrances, fire escapes and sheds', () => {
+    const sheds = new Set(SIDEWALK_SHEDS.map(({ buildingId }) => buildingId));
+    const walls = STREET_BUILDINGS.filter(({ partyWall }) => partyWall);
+    expect(walls.length).toBeGreaterThan(MURAL_WALLS.length);
+    for (const building of walls) {
+      const { axis, side } = building.partyWall!;
+      // The stoop and door always face +Z, and fire escapes hang off the +X flank.
+      expect(axis === 'z' && side === 1).toBe(false);
+      expect(axis === 'x' && side === 1 && building.fireEscape).toBe(false);
+      const neighbours = STREET_BUILDINGS.filter((other) => other !== building &&
+        Math.abs((axis === 'x' ? other.z : other.x) - (axis === 'x' ? building.z : building.x)) <
+          Math.min(axis === 'x' ? other.depth : other.width, axis === 'x' ? building.depth : building.width) / 2);
+      expect(neighbours.length).toBeGreaterThan(0);
+    }
+    expect(MURAL_WALLS.length).toBeGreaterThanOrEqual(8);
+    for (const wall of MURAL_WALLS) {
+      expect(sheds.has(wall.buildingId)).toBe(false);
+      const building = STREET_BUILDINGS.find(({ id }) => id === wall.buildingId)!;
+      expect(wall.height).toBeGreaterThanOrEqual(4);
+      expect(wall.baseY).toBeGreaterThan(0);
+      expect(wall.baseY + wall.height)
+        .toBeCloseTo(0.3 + building.floors * building.architecture.floorHeight);
+      expect(wall.width).toBeCloseTo(wall.axis === 'x' ? building.depth : building.width);
+    }
+  });
+
+  it('keeps mural paint inside the wall it is donated', () => {
+    const murals = buildMurals(MURAL_WALLS);
+    cleanups.push(() => {
+      murals.traverse((object) => {
+        if (object instanceof THREE.Mesh) {
+          object.geometry.dispose();
+          (object.material as THREE.Material).dispose();
+        }
+      });
+    });
+    const meshes: THREE.Mesh[] = [];
+    murals.traverse((object) => { if (object instanceof THREE.Mesh) meshes.push(object); });
+    expect(meshes.length).toBeGreaterThan(0);
+    const painted = new THREE.Box3();
+    for (const mesh of meshes) {
+      expect((mesh.material as THREE.MeshStandardMaterial).vertexColors).toBe(true);
+      mesh.geometry.computeBoundingBox();
+      painted.union(mesh.geometry.boundingBox!);
+      expect(mesh.geometry.getAttribute('color')).toBeDefined();
+    }
+    const lowest = Math.min(...MURAL_WALLS.map(({ baseY }) => baseY));
+    const highest = Math.max(...MURAL_WALLS.map(({ baseY, height }) => baseY + height));
+    expect(painted.min.y).toBeGreaterThanOrEqual(lowest - 0.001);
+    expect(painted.max.y).toBeLessThanOrEqual(highest + 0.001);
+    // Every vertex must land on the outside of the wall it was donated, inside its extent.
+    const vertex = new THREE.Vector3();
+    let checked = 0;
+    for (const mesh of meshes) {
+      const positions = mesh.geometry.getAttribute('position');
+      for (let index = 0; index < positions.count; index++) {
+        vertex.fromBufferAttribute(positions, index);
+        const wall = MURAL_WALLS.find(({ axis, side, plane, center, width, baseY, height }) => {
+          const facing = axis === 'x' ? vertex.x : vertex.z;
+          const run = axis === 'x' ? vertex.z : vertex.x;
+          // Paint hugs the brick: a full stack of layers stays under 0.1 m of relief.
+          return side * (facing - plane) > 0 && side * (facing - plane) < 0.1 &&
+            Math.abs(run - center) <= width / 2 + 0.001 &&
+            vertex.y >= baseY - 0.001 && vertex.y <= baseY + height + 0.001;
+        });
+        expect(wall).toBeDefined();
+        checked++;
+      }
+    }
+    expect(checked).toBeGreaterThan(200);
+  });
+
+  it('hangs window air conditioners above the public-way projection limit', () => {
+    const { parts, builder } = createArt();
+    const units = parts.filter(({ surface, tint }) =>
+      surface === builder.palette.facade && tint && WINDOW_UNIT_TONES.includes(tint));
+    expect(units.length).toBeGreaterThan(40);
+    const hosts = new Set<string>();
+    for (const unit of units) {
+      // NYC caps projections over the public way below 3.05 m, so nothing hangs over a sidewalk.
+      expect(unit.bounds.min.y).toBeGreaterThan(3.05);
+      expect(unit.scale[1]).toBeCloseTo(WINDOW_UNIT.height);
+      expect(Math.max(unit.scale[0], unit.scale[2])).toBeCloseTo(WINDOW_UNIT.width);
+      const tilted = unit.rotation[0] !== 0 || unit.rotation[2] !== 0;
+      expect(tilted).toBe(true);
+      const building = STREET_BUILDINGS.find(({ x, z, width, depth }) =>
+        Math.abs(unit.position[0] - x) < width / 2 + WINDOW_UNIT.depth &&
+        Math.abs(unit.position[2] - z) < depth / 2 + WINDOW_UNIT.depth);
+      if (building) hosts.add(building.id);
+    }
+    expect(hosts.size).toBeGreaterThan(10);
+    expect(STREET_BUILDINGS.some(({ windowUnits }) => !windowUnits)).toBe(true);
   });
 });

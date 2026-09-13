@@ -6,7 +6,7 @@ interface HelpProps {
   onClose: () => void;
 }
 
-const SHORTCUTS = [
+export const SHORTCUTS = [
   ['Arrow keys', 'Pan around the square'],
   ['+ / -', 'Zoom in / out'],
   ['Q / E', 'Rotate left / right'],
@@ -31,7 +31,7 @@ export function Help({ reduced, onReducedChange, onClose }: HelpProps) {
     <p>Drag to pan. Command-drag on Mac, Control-drag, or right-drag rotates and tilts around the city. Scroll or pinch to get closer. Shift-scroll and two-finger sideways gestures rotate horizontally. Camera buttons offer the same controls.</p>
     <p>You can explore the entire modeled district. Panning stops at its outer edge, and tilt stays between a street-facing angle and an overhead view so the camera cannot disappear underground. Reset returns to the original overview.</p>
     <p>Explore freely with the camera or take a tour of the district. Any manual camera movement stops the tour. Buses, yellow cabs, delivery vans, trucks, cyclists, and walkers go about their day on their own.</p>
-    <p>Look for two-way green cycle tracks, traffic waiting at intersections, rooftop water tanks, fire escapes, subway entrances, and the neighborhood court. The park is car-free: walkers use gates connected to the sidewalks, and runners circle the reservoir. Street signals and every moving actor freeze when you pause.</p>
+    <p>Look for two-way green cycle tracks, traffic waiting at intersections, rooftop water tanks, fire escapes, subway entrances, and the neighborhood court. Quiet corners are posted all-way stops instead of signals: drivers halt fully at the line and take turns with each other and with people crossing. The park is car-free: walkers use gates connected to the sidewalks, and runners circle the reservoir. Street signals and every moving actor freeze when you pause.</p>
     <p>At Juniper Court, neighbors play basketball and pickleball. These are ambient scenes, not interactive games; reduced motion holds the players and balls still.</p>
     <h3>Keyboard shortcuts</h3>
     <KeyboardShortcuts />

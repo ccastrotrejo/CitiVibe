@@ -16,6 +16,7 @@ function createFixture(blueMaterial?: THREE.Material) {
   const names = [
     'sand', 'stone', 'paving', 'road', 'line', 'cream', 'clay', 'teal', 'roof', 'copper',
     'copperEdge', 'glass', 'wood', 'leaf', 'leafLight', 'water', 'bus', 'rubber', 'taxi',
+    'facade',
   ] as const;
   const palette = Object.fromEntries(names.map((name) => [name, material])) as
     Record<typeof names[number], THREE.MeshStandardMaterial>;
