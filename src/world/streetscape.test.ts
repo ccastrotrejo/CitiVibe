@@ -48,7 +48,7 @@ function createArt(build = buildStreetscape) {
   const crown = new THREE.DodecahedronGeometry(1);
   const names = [
     'sand', 'stone', 'paving', 'road', 'line', 'cream', 'clay', 'teal', 'roof', 'copper',
-    'copperEdge', 'glass', 'wood', 'leaf', 'leafLight', 'water', 'bus', 'rubber', 'skin', 'skinLight', 'taxi',
+    'copperEdge', 'glass', 'wood', 'leaf', 'leafLight', 'water', 'bus', 'rubber', 'taxi',
   ] as const;
   const palette = Object.fromEntries(names.map((name) => {
     const material = new THREE.MeshStandardMaterial();

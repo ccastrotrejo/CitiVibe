@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { CITY, CONTENT, LANDMARKS, validateLandmarks } from '../content/city';
-import { PARK_ACTORS } from '../content/park';
+import { PARK_ACTORS, PARK_PICNICS } from '../content/park';
+import { createPersonProfile } from '../content/people';
+import { PLAY_PEOPLE } from '../content/play';
 import { METRO_OPENINGS } from '../content/metro';
 import { LAMP_GEOMETRY, PARK_LAMPS, STREET_LAMPS, validateLighting } from '../content/lighting';
 import { BASKETBALL_COURT, COURT_PLAYERS, PICKLEBALL_COURT } from '../content/courts';
@@ -10,8 +12,10 @@ import { CourtActivity, type CourtPlayerRig } from './courtActivity';
 import { buildCentralPark } from './park';
 import { buildPavementMarkings } from './pavement';
 import { buildStreetscape } from './streetscape';
-import { WALKER, poseNeutral } from './locomotion';
-import type { LegRig, VehicleRig, WalkerRig, WheelRig } from './locomotion';
+import { poseNeutral } from './locomotion';
+import type { VehicleRig, WheelRig } from './locomotion';
+import { buildPersonRig, personPart, type PersonArt } from './person';
+import { PlayActivity } from './playActivity';
 import { captureWeatherSurface, type FoliageBatch } from './weatherArt';
 import type { WeatherSurface } from './weatherSurface';
 import { GROUND_LEVEL, GROUND_PUDDLES } from './groundWater';
@@ -139,8 +143,6 @@ export function buildCityScene(): CityScene {
     water: paint('#739d98', 0.6),
     bus: paint('#db8b57'),
     rubber: paint('#3b4643'),
-    skin: paint('#bd8e68'),
-    skinLight: paint('#d9b694'),
     taxi: paint('#e7b94d'),
   };
   // Tag glazing so the environment layer can light windows warmly after dark.
@@ -370,54 +372,14 @@ export function buildCityScene(): CityScene {
     spin.add(limb(cylinder, palette.stone, [Math.sign(x) * 0.1, 0, 0], [0.16 * radiusFactor, 0.05, 0.16 * radiusFactor], [0, 0, Math.PI / 2]));
     return { steer, spin, front };
   }
-  function buildWalkerRig(group: THREE.Group, shirt: THREE.Material, headMat: THREE.Material, running = false): WalkerRig {
-    const buildLeg = (): LegRig => {
-      const hip = new THREE.Object3D();
-      hip.add(limb(box, palette.rubber, [0, -WALKER.thigh / 2, 0], WALKER.thighSize));
-      const knee = new THREE.Object3D();
-      knee.position.y = -WALKER.thigh;
-      knee.add(limb(box, running ? headMat : palette.rubber, [0, -WALKER.shank / 2, 0], WALKER.shankSize));
-      const ankle = new THREE.Object3D();
-      ankle.position.y = -WALKER.shank;
-      ankle.add(limb(box, running ? palette.line : palette.rubber, [0, WALKER.footSize[1] / 2, WALKER.footFwd], WALKER.footSize));
-      knee.add(ankle);
-      hip.add(knee);
-      return { hip, knee, ankle };
-    };
-    const pelvis = new THREE.Object3D();
-    pelvis.position.y = WALKER.hipY;
-    group.add(pelvis);
-    const torso = new THREE.Object3D();
-    pelvis.add(torso);
-    torso.add(limb(box, shirt, [0, WALKER.torsoOffset, 0], WALKER.torsoSize));
-    torso.add(limb(crown, headMat, [0, WALKER.headOffset, 0], WALKER.headScale));
-    const arms: [THREE.Object3D, THREE.Object3D] = [new THREE.Object3D(), new THREE.Object3D()];
-    const legs: [LegRig, LegRig] = [buildLeg(), buildLeg()];
-    [-1, 1].forEach((side, index) => {
-      const shoulder = arms[index];
-      shoulder.position.set(side * WALKER.shoulderHalf, WALKER.shoulderY, 0);
-      if (running) {
-        shoulder.add(limb(box, shirt, [0, -0.13, 0], [0.12, 0.27, 0.15]));
-        shoulder.add(limb(box, headMat, [0, -0.27, 0.12], [0.11, 0.12, 0.3]));
-      } else {
-        shoulder.add(limb(box, shirt, [0, -WALKER.armLen / 2, 0], WALKER.armSize));
-      }
-      torso.add(shoulder);
-      const leg = legs[index];
-      leg.hip.position.set(side * WALKER.hipHalf, 0, 0);
-      pelvis.add(leg.hip);
-    });
-    return { kind: 'walker', pelvis, torso, legs, arms };
-  }
-
-  const shirts = [palette.teal, palette.clay, palette.cream, palette.leaf];
+  const personArt: PersonArt = { box, head: geometry(new THREE.IcosahedronGeometry(1)), material: paint('#ffffff') };
+  personArt.material.name = 'Shared person colors';
   const neighborhoodActors: THREE.Group[] = [];
-  for (const [index, definition] of PARK_ACTORS.entries()) {
+  for (const definition of PARK_ACTORS) {
     const running = definition.gait === 'run';
     const walker = actorGroup(definition.id, running ? 'Park runner' : 'Park walker');
     neighborhoodActors.push(walker);
-    const rig = buildWalkerRig(walker, running ? [palette.bus, palette.teal, palette.line][index % 3] : shirts[index % shirts.length],
-      index % 2 ? palette.skin : palette.skinLight, running);
+    const rig = buildPersonRig(walker, createPersonProfile(definition.id, running ? 'runner' : 'park'), personArt);
     walker.userData.rig = rig;
     poseNeutral(rig);
   }
@@ -427,7 +389,7 @@ export function buildCityScene(): CityScene {
     const group = actorGroup(definition.id, `Neighborhood ${definition.vehicleType ?? definition.kind}`);
     neighborhoodActors.push(group);
     if (definition.kind === 'pedestrian') {
-      const rig = buildWalkerRig(group, shirts[index % shirts.length], index % 2 ? palette.skin : palette.skinLight);
+      const rig = buildPersonRig(group, createPersonProfile(definition.id, 'street'), personArt);
       group.userData.rig = rig;
       poseNeutral(rig);
       continue;
@@ -441,16 +403,23 @@ export function buildCityScene(): CityScene {
     };
     const wheels: WheelRig[] = [];
     if (definition.kind === 'cyclist') {
+      const person = createPersonProfile(definition.id, 'cyclist');
+      group.userData.person = person;
+      const riderPart = (name: string, color: string, p: readonly [number, number, number],
+        size: readonly [number, number, number], rounded = false) =>
+        personPart(personArt, body, name, color, p, size, rounded);
       part(palette.teal, 0, 0.58, 0, 0.08, 0.1, 1.25);
       part(palette.teal, 0, 0.7, -0.15, 0.08, 0.6, 0.08);
       part(palette.rubber, 0, 1.03, -0.25, 0.28, 0.08, 0.35);
       part(palette.copperEdge, 0, 0.85, 0.62, 0.06, 0.75, 0.06);
       part(palette.rubber, 0, 1.2, 0.62, 0.58, 0.06, 0.08);
-      part(shirts[index % shirts.length], 0, 1.42, -0.05, 0.35, 0.52, 0.24);
-      body.add(limb(crown, palette.skinLight, [0, 1.82, 0.05], [0.18, 0.2, 0.18]));
-      body.add(limb(crown, palette.cream, [0, 1.95, 0.05], [0.21, 0.12, 0.22]));
+      riderPart('Cycling jacket', person.top, [0, 1.42, -0.05], [0.35 * person.build, 0.52, 0.24]);
+      riderPart('Cyclist face', person.skin, [0, 1.82, 0.05], [0.18, 0.2, 0.18], true);
+      riderPart('Cycle helmet', person.accent, [0, 1.95, 0.05], [0.21, 0.12, 0.22], true);
+      riderPart('Helmet stripe', '#e9e7d9', [0, 2.05, 0.05], [0.065, 0.035, 0.3]);
+      if (person.bag !== 'none') riderPart('Cyclist backpack', person.accent, [0, 1.45, -0.26], [0.28, 0.36, 0.19]);
       for (const side of [-1, 1]) {
-        body.add(limb(box, shirts[index % shirts.length], [side * 0.23, 1.35, 0.29], [0.11, 0.12, 0.6], [-0.25, 0, 0]));
+        riderPart('Cyclist sleeve', person.top, [side * 0.23, 1.35, 0.29], [0.11, 0.12, 0.6]).rotation.x = -0.25;
       }
       for (const z of [-0.58, 0.58]) {
         const steer = new THREE.Object3D();
@@ -466,7 +435,7 @@ export function buildCityScene(): CityScene {
       const pedals = [-1, 1].map((side) => {
         const crank = new THREE.Object3D();
         crank.position.set(side * 0.16, 0.78, -0.12);
-        crank.add(limb(box, palette.rubber, [0, -0.15, 0], [0.12, 0.36, 0.13]));
+        personPart(personArt, crank, 'Cyclist trouser leg', person.bottom, [0, -0.15, 0], [0.12, 0.36, 0.13]);
         body.add(crank);
         return crank;
       });
@@ -537,13 +506,12 @@ export function buildCityScene(): CityScene {
     group.userData.rig = rig;
     poseNeutral(rig);
   }
-  const courtPlayers: CourtPlayerRig[] = COURT_PLAYERS.map((definition, index) => {
+  const courtPlayers: CourtPlayerRig[] = COURT_PLAYERS.map((definition) => {
     const group = new THREE.Group();
     group.name = definition.id;
     scene.add(group);
     neighborhoodActors.push(group);
-    const rig = buildWalkerRig(group, [palette.bus, palette.teal, palette.clay, palette.cream][index % 4],
-      index % 2 ? palette.skin : palette.skinLight);
+    const rig = buildPersonRig(group, createPersonProfile(definition.id, definition.sport), personArt);
     if (definition.sport === 'pickleball') {
       rig.arms[0].add(limb(box, palette.wood, [0, -0.49, 0], [0.032, 0.18, 0.032]));
       const paddle = limb(cylinder, palette.teal, [0, -0.65, 0], [0.1, 0.016, 0.13]);
@@ -564,6 +532,31 @@ export function buildCityScene(): CityScene {
   const courtActivity = new CourtActivity(courtPlayers,
     courtBall('Basketball in play', BASKETBALL_COURT.ballRadius, palette.bus),
     courtBall('Pickleball in play', PICKLEBALL_COURT.ballRadius, palette.taxi));
+  const playActivity = new PlayActivity(PLAY_PEOPLE.map((definition) => {
+    const group = new THREE.Group();
+    group.name = definition.id;
+    const rig = buildPersonRig(group, createPersonProfile(definition.id, definition.context), personArt);
+    scene.add(group);
+    neighborhoodActors.push(group);
+    return { definition, group, rig };
+  }));
+  const restingPeople: THREE.Group[] = [];
+  for (const [index, [x, z]] of PARK_PICNICS.entries()) for (const side of [-1, 1]) {
+    const group = new THREE.Group();
+    group.name = `picnic-neighbor-${index}-${side}`;
+    const rig = buildPersonRig(group, createPersonProfile(group.name, 'resting'), personArt);
+    poseNeutral(rig);
+    rig.pelvis.position.y = 0.44;
+    for (const leg of rig.legs) {
+      leg.hip.rotation.x = -Math.PI / 2;
+      leg.knee.rotation.x = Math.PI / 2;
+      leg.ankle.rotation.x = 0;
+    }
+    group.position.set(x + side * 0.7, 0.025, z);
+    scene.add(group);
+    neighborhoodActors.push(group);
+    restingPeople.push(group);
+  }
   const actorInstances = new ActorInstances(neighborhoodActors);
   scene.add(actorInstances.group);
   const bus = actors.get(CITY.busId)!;
@@ -619,7 +612,11 @@ export function buildCityScene(): CityScene {
     setTrafficSignals: (signals) => streetscape.setSignals(signals),
     updateActors: () => actorInstances.update(),
     updateCourtActivity: (elapsedSeconds, reducedMotion, groundLift = 0) => {
-      if (!disposed) courtActivity.update(elapsedSeconds, reducedMotion, groundLift);
+      if (!disposed) {
+        courtActivity.update(elapsedSeconds, reducedMotion, groundLift);
+        playActivity.update(elapsedSeconds, reducedMotion, groundLift);
+        for (const person of restingPeople) person.position.y = 0.025 + groundLift;
+      }
     },
     dispose() {
       if (disposed) return;

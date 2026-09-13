@@ -10,7 +10,7 @@ import {
 type Triple = readonly [number, number, number];
 type SurfaceName = 'sand' | 'stone' | 'paving' | 'road' | 'line' | 'cream' | 'clay' |
   'teal' | 'roof' | 'copper' | 'copperEdge' | 'glass' | 'wood' | 'leaf' | 'leafLight' |
-  'water' | 'bus' | 'rubber' | 'skin' | 'skinLight' | 'taxi';
+  'water' | 'bus' | 'rubber' | 'taxi';
 
 /** Borrowed primitives and static batches; the scene, not this module, owns them. */
 export interface StreetscapeBuilder {
