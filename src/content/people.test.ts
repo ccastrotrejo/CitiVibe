@@ -9,11 +9,11 @@ const park = PARK_ACTORS.map(({ id, gait }) => createPersonProfile(id, gait === 
 const people = [...street, ...park];
 
 describe('original diverse population', () => {
-  it('increases street and park walking/running counts by fifty percent', () => {
-    expect(street).toHaveLength(144);
-    expect(park.filter(({ context }) => context === 'park')).toHaveLength(36);
-    expect(park.filter(({ context }) => context === 'runner')).toHaveLength(18);
-    expect(new Set(people.map(({ id }) => id)).size).toBe(198);
+  it('retains the bounded street and park walking/running population', () => {
+    expect(street).toHaveLength(168);
+    expect(park.filter(({ context }) => context === 'park')).toHaveLength(48);
+    expect(park.filter(({ context }) => context === 'runner')).toHaveLength(24);
+    expect(new Set(people.map(({ id }) => id)).size).toBe(240);
   });
 
   it('actually casts all thirteen work roles in recognizable on-duty outfits', () => {
@@ -89,7 +89,7 @@ describe('original diverse population', () => {
       return group.reduce((sum, person) => sum + person.pace, 0) / group.length;
     };
     expect(average('commute') - average('tour')).toBeGreaterThan(0.3);
-    expect(new Set(street.map(({ pace }) => pace)).size).toBe(144);
+    expect(new Set(street.map(({ pace }) => pace)).size).toBe(168);
     for (const person of street) expect(person.pace).toBeGreaterThanOrEqual(0.86);
     for (const person of street) expect(person.pace).toBeLessThanOrEqual(1.56);
   });

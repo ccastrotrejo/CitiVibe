@@ -98,6 +98,7 @@ export interface VehicleRig {
   wheels: WheelRig[];
   wheelRadius: number;
   pedals?: Object3D[];
+  cyclingLegs?: { joints: LegRig; crank: Object3D; pedal: Object3D }[];
 }
 
 export type ActorRig = WalkerRig | VehicleRig;
@@ -226,6 +227,17 @@ export function poseVehicleRig(rig: VehicleRig, pose: VehiclePose): void {
   rig.pedals?.forEach((pedal, index) => {
     pedal.rotation.x = pose.distance / 0.65 + index * Math.PI;
   });
+  for (const { joints, crank, pedal } of rig.cyclingLegs ?? []) {
+    const phase = crank.rotation.x;
+    pedal.rotation.x = -phase;
+    // Cranks and hips use the same bicycle-body coordinates; the platform stays level.
+    const y = crank.position.y + pedal.position.y * Math.cos(phase) - pedal.position.z * Math.sin(phase) + 0.0225;
+    const z = crank.position.z + pedal.position.y * Math.sin(phase) + pedal.position.z * Math.cos(phase);
+    const angles = solveLeg(z - joints.hip.position.z, joints.hip.position.y - y);
+    joints.hip.rotation.x = -angles.hip;
+    joints.knee.rotation.x = angles.knee;
+    joints.ankle.rotation.x = angles.hip - angles.knee;
+  }
 }
 
 /** Put a freshly built rig into a resting stance so nothing pokes the ground. */

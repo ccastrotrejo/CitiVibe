@@ -233,13 +233,16 @@ export const TRAFFIC_ROUTES: readonly TrafficRoute[] = [
   ...CIRCUITS.map((nodes, index) => makeRoute(nodes, BIKE_OFFSET, `cycle-${index}`, true)),
 ];
 
-function makeFootpath(block: typeof STREET_BLOCKS[number]): TrafficRoute {
-  const left = block.minX + SIDEWALK_OFFSET;
-  const right = block.maxX - SIDEWALK_OFFSET;
-  const top = block.minZ + SIDEWALK_OFFSET;
-  const bottom = block.maxZ - SIDEWALK_OFFSET;
-  const radius = 1;
+function makeFootpath(
+  block: typeof STREET_BLOCKS[number], offset = SIDEWALK_OFFSET, reverse = false, cornerInset = SIDEWALK_OFFSET + 1,
+): TrafficRoute {
+  const left = block.minX + offset;
+  const right = block.maxX - offset;
+  const top = block.minZ + offset;
+  const bottom = block.maxZ - offset;
+  const radius = cornerInset - offset;
   const vertices = [{ x: left, z: top }, { x: right, z: top }, { x: right, z: bottom }, { x: left, z: bottom }];
+  if (reverse) vertices.reverse();
   const segments: TrafficSegment[] = [];
   let length = 0;
   for (let index = 0; index < 4; index += 1) {
@@ -252,7 +255,7 @@ function makeFootpath(block: typeof STREET_BLOCKS[number]): TrafficRoute {
     const arcLength = QUARTER_TURN * radius;
     segments.push({
       kind: 'junction', start: length, length: arcLength, x, z,
-      dx: incoming.x, dz: incoming.z, radius, turn: 1,
+      dx: incoming.x, dz: incoming.z, radius, turn: reverse ? -1 : 1,
       centerX: x + outgoing.x * radius, centerZ: z + outgoing.z * radius,
       lane: block.id, intersection: -1, axis: 'east-west',
     });
@@ -269,7 +272,15 @@ function makeFootpath(block: typeof STREET_BLOCKS[number]): TrafficRoute {
   return { id: block.id, length, segments };
 }
 
-export const SIDEWALK_ROUTES: readonly TrafficRoute[] = STREET_BLOCKS.map(makeFootpath);
+export const SIDEWALK_ROUTES: readonly TrafficRoute[] = STREET_BLOCKS.map((block) => makeFootpath(block));
+export const SIDEWALK_WALKING_OFFSETS = [SIDEWALK_OFFSET, SIDEWALK_OFFSET + 1] as const;
+export const SIDEWALK_WALKING_CORNER_INSET = SIDEWALK_OFFSET + 1.7;
+export const SIDEWALK_WALKING_CLEARANCE = 7.7;
+/** Concentric opposite flows retain a one-metre lateral gap, including rounded corners. */
+export const SIDEWALK_WALKING_ROUTES: readonly (readonly [TrafficRoute, TrafficRoute])[] = STREET_BLOCKS.map((block) => [
+  makeFootpath(block, SIDEWALK_WALKING_OFFSETS[0], false, SIDEWALK_WALKING_CORNER_INSET),
+  makeFootpath(block, SIDEWALK_WALKING_OFFSETS[1], true, SIDEWALK_WALKING_CORNER_INSET),
+]);
 
 /** Samples into a retained actor; distance and heading are continuous at every join. */
 export function sampleTrafficRoute(route: TrafficRoute, distance: number, target: Pick<ActorState, 'position' | 'heading'>): void {
@@ -344,35 +355,53 @@ export class CityTraffic {
       };
     });
     this.signals = Object.freeze(this.junctions);
-    const occupiedLanes = new Set<string>();
     let motorIndex = 0;
     let bicycleIndex = 0;
-    this.motions = TRAFFIC_ACTORS.filter(({ kind }) => kind !== 'pedestrian').map((definition) => {
+    const placements = TRAFFIC_ACTORS.filter(({ kind }) => kind !== 'pedestrian').map((definition) => {
       const bicycle = definition.kind === 'cyclist';
       const route = TRAFFIC_ROUTES[bicycle ? CIRCUITS.length + bicycleIndex++ % CIRCUITS.length : motorIndex++ % CIRCUITS.length];
       const length = TRAFFIC_LENGTHS[definition.vehicleType!];
-      const linkCount = route.segments.length / 2;
-      const startLink = Math.floor(random() * linkCount);
-      let segment = -1;
-      for (let attempt = 0; attempt < linkCount; attempt += 1) {
-        const candidate = ((startLink + attempt) % linkCount) * 2 + 1;
-        if (!occupiedLanes.has(route.segments[candidate].lane)) {
-          segment = candidate;
-          break;
+      return {
+        definition, bicycle, route, length, segment: -1,
+        startLink: Math.floor(random() * route.segments.length / 2),
+        offset: 1.5 + random(),
+        desiredSpeed: bicycle ? 2.8 + random() * 0.6 : 3.8 + random(),
+      };
+    });
+    const occupiedLanes = new Map<string, number>();
+    // Augment the greedy allocation only when a shared route runs out of free lanes.
+    const place = (index: number, visited: Set<string>): boolean => {
+      const placement = placements[index];
+      const linkCount = placement.route.segments.length / 2;
+      for (const relocate of [false, true]) {
+        for (let attempt = 0; attempt < linkCount; attempt++) {
+          const candidate = ((placement.startLink + attempt) % linkCount) * 2 + 1;
+          const lane = placement.route.segments[candidate].lane;
+          const owner = occupiedLanes.get(lane);
+          if (visited.has(lane) || (owner !== undefined) !== relocate) continue;
+          visited.add(lane);
+          if (owner !== undefined && !place(owner, visited)) continue;
+          placement.segment = candidate;
+          occupiedLanes.set(lane, index);
+          return true;
         }
       }
-      if (segment < 0) throw new Error(`No safe initial lane for ${definition.id}.`);
+      return false;
+    };
+    placements.forEach(({ definition }, index) => {
+      if (!place(index, new Set())) throw new Error(`No safe initial lane for ${definition.id}.`);
+    });
+    this.motions = placements.map(({ definition, bicycle, route, length, segment, offset, desiredSpeed }) => {
       const link = route.segments[segment];
-      occupiedLanes.add(link.lane);
-      const distance = link.start + Math.min(link.length / 2, length / 2 + 1.5 + random());
+      const distance = link.start + Math.min(link.length / 2, length / 2 + offset);
       return {
         actor: createActor(definition.id, definition.kind, route, distance),
         route, segment, length, bicycle,
-        desiredSpeed: bicycle ? 2.8 + random() * 0.6 : 3.8 + random(),
+        desiredSpeed,
         advance: 0, permit: -1, releaseRemaining: 0, requestSince: -1, stopHold: 0,
       };
     });
-    this.pedestrians = new StreetPedestrians(SIDEWALK_ROUTES, seed);
+    this.pedestrians = new StreetPedestrians(SIDEWALK_WALKING_ROUTES, seed);
     this.actors = Object.freeze([...this.motions.map(({ actor }) => actor), ...this.pedestrians.actors]);
     this.motions.forEach((motion) => this.updateIndicator(motion));
   }

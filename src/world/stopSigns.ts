@@ -57,7 +57,7 @@ export function buildStopSigns(): THREE.Group {
   }
 
   try {
-    // Author one blade in local space (+Z faces the driver), then place a copy per approach.
+    // Author one blade in local space (+Z faces the driver), then instance it per approach.
     const center = bottom + width / 2;
     const plaqueY = bottom - plaqueGap - plaqueHeight / 2;
     add(post, STOP_SIGN_STYLE.metal, [0, center / 2, 0], [postRadius, center, postRadius]);
@@ -71,19 +71,19 @@ export function buildStopSigns(): THREE.Group {
     add(plaque, STOP_SIGN_STYLE.legend, [0, plaqueY, 0.024], [1, 1, 1]);
     unit = mergeGeometries(parts);
     if (!unit) throw new Error('Could not assemble a neighborhood stop sign.');
-    const placed = STOP_SIGN_POSTS.map(({ x, z, yaw }) => {
+    unit.computeBoundingBox();
+    unit.computeBoundingSphere();
+    const mesh = new THREE.InstancedMesh(unit, paint, STOP_SIGN_POSTS.length);
+    STOP_SIGN_POSTS.forEach(({ x, z, yaw }, index) => {
       transform.position.set(x, 0, z);
       transform.scale.set(1, 1, 1);
       transform.rotation.set(0, yaw, 0);
       transform.updateMatrix();
-      return unit!.clone().applyMatrix4(transform.matrix);
+      mesh.setMatrixAt(index, transform.matrix);
     });
-    const geometry = mergeGeometries(placed);
-    placed.forEach((part) => part.dispose());
-    if (!geometry) throw new Error('Could not assemble the neighborhood stop signs.');
-    geometry.computeBoundingBox();
-    geometry.computeBoundingSphere();
-    const mesh = new THREE.Mesh(geometry, paint);
+    mesh.instanceMatrix.needsUpdate = true;
+    mesh.computeBoundingBox();
+    mesh.computeBoundingSphere();
     mesh.name = 'Stop sign blades';
     mesh.castShadow = true;
     mesh.receiveShadow = true;
@@ -91,9 +91,9 @@ export function buildStopSigns(): THREE.Group {
     return group;
   } catch (error) {
     paint.dispose();
+    unit?.dispose();
     throw error;
   } finally {
-    unit?.dispose();
     parts.forEach((part) => part.dispose());
     [box, post, blade, legend, plaque].forEach((shape) => shape.dispose());
   }

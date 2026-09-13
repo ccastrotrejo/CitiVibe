@@ -1,7 +1,7 @@
 import { createPersonProfile, PERSON_SPACE, type PersonProfile } from '../content/people';
-import { INTERSECTIONS, SIDEWALK_OFFSET, TRAFFIC_ACTORS, type TrafficSignalState } from '../content/streets';
+import { INTERSECTIONS, TRAFFIC_ACTORS, type TrafficSignalState } from '../content/streets';
 import type { ActorState } from './actors';
-import { sampleTrafficRoute, type TrafficRoute } from './traffic';
+import { sampleTrafficRoute, SIDEWALK_WALKING_CORNER_INSET, type TrafficRoute } from './traffic';
 
 export const PEDESTRIAN_BEHAVIOR = { maxCrossingWait: 12, maxBlockPopulation: 8, landingClearance: 2, minRest: 1.5, maxRest: 6 } as const;
 const EPSILON = 1e-7;
@@ -10,6 +10,7 @@ const wrap = (distance: number, length: number) => ((distance % length) + length
 export interface WalkingCrossing {
   from: number;
   to: number;
+  lane: number;
   corner: number;
   intersection: number;
   departure: number;
@@ -25,6 +26,7 @@ interface Walker {
   actor: ActorState;
   profile: PersonProfile;
   block: number;
+  lane: number;
   destination: number;
   randomState: number;
   pace: number;
@@ -38,31 +40,31 @@ interface Walker {
   advance: number;
 }
 
-/** Straight crosswalks join a clockwise corner's entry to the neighboring corner's exit. */
-export function makeWalkingCrossings(routes: readonly TrafficRoute[]): readonly WalkingCrossing[] {
+/** Each flow joins its corner entry to the neighboring same-direction lane's exit. */
+export function makeWalkingCrossings(routes: readonly (readonly TrafficRoute[])[]): readonly WalkingCrossing[] {
   const crossings: WalkingCrossing[] = [];
-  routes.forEach((route, from) => {
+  routes.forEach((lanes, from) => lanes.forEach((route, lane) => {
     route.segments.forEach((segment, corner) => {
       if (segment.kind !== 'junction') return;
-      routes.forEach((neighbor, to) => {
+      routes.forEach((neighbors, to) => {
         if (to === from) return;
-        for (const landing of neighbor.segments) {
+        for (const landing of neighbors[lane].segments) {
           if (landing.kind !== 'link' || landing.dx !== segment.dx || landing.dz !== segment.dz) continue;
           const x = landing.x - segment.x;
           const z = landing.z - segment.z;
           const length = x * segment.dx + z * segment.dz;
           if (Math.abs(x * segment.dz - z * segment.dx) > EPSILON ||
-            Math.abs(length - 2 * (SIDEWALK_OFFSET + segment.radius)) > EPSILON) continue;
+            Math.abs(length - 2 * SIDEWALK_WALKING_CORNER_INSET) > EPSILON) continue;
           const intersection = INTERSECTIONS.findIndex((point) =>
-            Math.abs(point.x - (segment.x + landing.x) / 2) <= SIDEWALK_OFFSET + EPSILON &&
-            Math.abs(point.z - (segment.z + landing.z) / 2) <= SIDEWALK_OFFSET + EPSILON);
-          if (intersection < 0) throw new Error(`Crosswalk ${route.id}/${neighbor.id} has no signal.`);
-          crossings.push({ from, to, corner, intersection, departure: segment.start, arrival: landing.start,
+            Math.abs(point.x - (segment.x + landing.x) / 2) <= SIDEWALK_WALKING_CORNER_INSET &&
+            Math.abs(point.z - (segment.z + landing.z) / 2) <= SIDEWALK_WALKING_CORNER_INSET);
+          if (intersection < 0) throw new Error(`Crosswalk ${route.id}/${neighbors[lane].id} has no signal.`);
+          crossings.push({ from, to, lane, corner, intersection, departure: segment.start, arrival: landing.start,
             x: segment.x, z: segment.z, dx: segment.dx, dz: segment.dz, length });
         }
       });
     });
-  });
+  }));
   return crossings;
 }
 
@@ -87,12 +89,12 @@ export class StreetPedestrians {
   private readonly groups: Walker[][];
   private readonly reservations: (Walker | null)[] = INTERSECTIONS.map(() => null);
   private readonly hops: number[][];
-  private readonly exits: (WalkingCrossing | undefined)[][];
+  private readonly exits: (WalkingCrossing | undefined)[][][];
 
-  constructor(private readonly routes: readonly TrafficRoute[], seed: number) {
+  constructor(private readonly routes: readonly (readonly TrafficRoute[])[], seed: number) {
     this.crossings = makeWalkingCrossings(routes);
-    this.exits = routes.map((_, block) => routes[block].segments.map((__, corner) =>
-      this.crossings.find((crossing) => crossing.from === block && crossing.corner === corner)));
+    this.exits = routes.map((lanes, block) => lanes.map((route, lane) => route.segments.map((_, corner) =>
+      this.crossings.find((crossing) => crossing.from === block && crossing.lane === lane && crossing.corner === corner))));
     this.hops = routes.map((_, origin) => {
       const distances = routes.map(() => Infinity);
       distances[origin] = 0;
@@ -111,7 +113,8 @@ export class StreetPedestrians {
     const perBlock = Math.ceil(definitions.length / routes.length);
     this.walkers = definitions.map(({ id }, index) => {
       const block = index % routes.length;
-      const route = routes[block];
+      const lane = (Math.floor(index / routes.length) + (seed & 1)) % 2;
+      const route = routes[block][lane];
       const profile = createPersonProfile(id, 'street');
       const actor: ActorState = {
         id, kind: 'pedestrian', position: { x: 0, y: 0, z: 0 }, heading: 0,
@@ -120,7 +123,7 @@ export class StreetPedestrians {
         activity: 'walking', activityTime: 0,
       };
       const walker: Walker = {
-        actor, profile, block, destination: block, randomState: (seed ^ Math.imul(index + 1, 2654435761)) >>> 0,
+        actor, profile, block, lane, destination: block, randomState: (seed ^ Math.imul(index + 1, 2654435761)) >>> 0,
         pace: profile.pace, wait: 0, rest: 0, stopAt: -1, corner: -1, crossing: null,
         crossingDistance: 0, next: { position: { x: 0, y: 0, z: 0 }, heading: 0 }, advance: 0,
       };
@@ -168,7 +171,7 @@ export class StreetPedestrians {
       actor.activityTime = 0;
       let available = walker.pace * dt;
       if (!walker.crossing) {
-        const route = this.routes[walker.block];
+        const route = this.routes[walker.block][walker.lane];
         let corner = 0;
         let toCorner = Infinity;
         for (let index = 0; index < route.segments.length; index += 2) {
@@ -176,7 +179,7 @@ export class StreetPedestrians {
           const distance = wrap(route.segments[index].start - actor.distance, route.length);
           if (distance < toCorner) { toCorner = distance; corner = index; }
         }
-        const crossing = this.exits[walker.block][corner];
+        const crossing = this.exits[walker.block][walker.lane][corner];
         const wantsCrossing = crossing && this.hops[crossing.to][walker.destination] < this.hops[walker.block][walker.destination];
         if (wantsCrossing && toCorner < EPSILON) {
           if (this.canReserve(walker, crossing, signals)) {
@@ -198,7 +201,7 @@ export class StreetPedestrians {
           }
         } else if (wantsCrossing) available = Math.min(available, toCorner);
         for (const other of this.groups[walker.block]) {
-          if (other === walker || other.crossing) continue;
+          if (other === walker || other.crossing || other.lane !== walker.lane) continue;
           available = Math.min(available, Math.max(0,
             wrap(other.actor.distance - actor.distance, route.length) - PERSON_SPACE.headway));
         }
@@ -238,7 +241,7 @@ export class StreetPedestrians {
       const distance = walker.crossingDistance + advance;
       Object.assign(walker.next.position, { x: crossing.x + crossing.dx * distance, y: 0, z: crossing.z + crossing.dz * distance });
       walker.next.heading = Math.atan2(crossing.dx, crossing.dz);
-    } else sampleTrafficRoute(this.routes[walker.block], walker.actor.distance + advance, walker.next);
+    } else sampleTrafficRoute(this.routes[walker.block][walker.lane], walker.actor.distance + advance, walker.next);
   }
 
   private move(walker: Walker, dt: number): void {
@@ -256,13 +259,13 @@ export class StreetPedestrians {
       oldGroup.splice(oldGroup.indexOf(walker), 1);
       walker.block = crossing.to;
       this.groups[walker.block].push(walker);
-      actor.routeLength = this.routes[walker.block].length;
+      actor.routeLength = this.routes[walker.block][walker.lane].length;
       actor.distance = wrap(crossing.arrival + walker.crossingDistance - crossing.length, actor.routeLength);
       walker.crossing = null;
       walker.corner = -1;
       this.reservations[crossing.intersection] = null;
       if (walker.block === walker.destination) {
-        const route = this.routes[walker.block];
+        const route = this.routes[walker.block][walker.lane];
         const link = route.segments.find((segment) => segment.start === crossing.arrival);
         if (!link) throw new Error('Missing pedestrian landing link.');
         walker.stopAt = wrap(link.start + link.length * (0.4 + random(walker) * 0.2), route.length);
@@ -270,7 +273,7 @@ export class StreetPedestrians {
     } else {
       actor.distance = wrap(actor.distance + walker.advance, actor.routeLength);
       if (walker.advance > EPSILON && walker.corner >= 0 &&
-        wrap(actor.distance - this.routes[walker.block].segments[walker.corner].start, actor.routeLength) > 2) {
+        wrap(actor.distance - this.routes[walker.block][walker.lane].segments[walker.corner].start, actor.routeLength) > 2) {
         walker.corner = -1;
       }
     }

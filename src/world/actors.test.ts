@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { PARK_ACTORS, PARK_BOUNDS, PARK_PATHS, PARK_ROUTES, PARK_RUNNING_ROUTE, sampleParkRoute } from '../content/park';
 import { STREET_X, STREET_Z, TRAFFIC_ACTORS } from '../content/streets';
 import { PERSON_SPACE } from '../content/people';
+import { LAMP_GEOMETRY, STREET_LAMPS } from '../content/lighting';
 import { ActorSimulation, type ActorState } from './actors';
 
 const DT = 1 / 30;
@@ -26,6 +27,30 @@ function pedestriansOverlap(first: ActorState, second: ActorState): boolean {
 }
 
 describe('connected car-free park', () => {
+  it('keeps full park walking and running bodies clear of relocated street poles', () => {
+    const position = new Vector3();
+    const next = new Vector3();
+    const blocked = new Set<string>();
+    for (const route of [...PARK_ROUTES, PARK_RUNNING_ROUTE]) {
+      for (let distance = 0; distance < route.length; distance += 0.1) {
+        sampleParkRoute(route, distance, position);
+        sampleParkRoute(route, distance + 0.2, next);
+        const heading = Math.atan2(next.x - position.x, next.z - position.z);
+        const fx = Math.sin(heading);
+        const fz = Math.cos(heading);
+        for (const pole of STREET_LAMPS) {
+          const dx = pole.x - position.x;
+          const dz = pole.z - position.z;
+          if (Math.abs(dx) > 2 || Math.abs(dz) > 2) continue;
+          const forward = Math.max(0, Math.abs(dx * fx + dz * fz) - PERSON_SPACE.length / 2);
+          const side = Math.max(0, Math.abs(dx * fz - dz * fx) - PERSON_SPACE.width / 2);
+          if (Math.hypot(forward, side) <= LAMP_GEOMETRY.poleRadius) blocked.add(pole.id);
+        }
+      }
+    }
+    expect([...blocked]).toEqual([]);
+  });
+
   it('connects continuous walking routes through real gates and outside sidewalks', () => {
     const before = new Vector3();
     const after = new Vector3();
@@ -58,16 +83,16 @@ describe('connected car-free park', () => {
     expect(simulation.getActor('square-bus')).toBeUndefined();
     expect(simulation.getActor('car-1')).toBeUndefined();
     expect(Object.isFrozen(simulation.actors)).toBe(true);
-    expect(actors).toHaveLength(246);
-    expect(actors.filter(({ kind }) => kind === 'car' || kind === 'bus')).toHaveLength(36);
+    expect(actors).toHaveLength(300);
+    expect(actors.filter(({ kind }) => kind === 'car' || kind === 'bus')).toHaveLength(48);
     expect(actors.filter(({ kind }) => kind === 'cyclist')).toHaveLength(12);
-    expect(actors.filter(({ kind }) => kind === 'pedestrian')).toHaveLength(198);
-    expect(actors.filter(({ gait }) => gait === 'walk')).toHaveLength(36);
-    expect(actors.filter(({ gait }) => gait === 'run')).toHaveLength(18);
-    expect(new Set(actors.map(({ id }) => id)).size).toBe(246);
+    expect(actors.filter(({ kind }) => kind === 'pedestrian')).toHaveLength(240);
+    expect(actors.filter(({ gait }) => gait === 'walk')).toHaveLength(48);
+    expect(actors.filter(({ gait }) => gait === 'run')).toHaveLength(24);
+    expect(new Set(actors.map(({ id }) => id)).size).toBe(300);
     expect(PARK_ACTORS.map(({ id }) => id)).toEqual([
-      ...Array.from({ length: 36 }, (_, index) => `walker-${index + 1}`),
-      ...Array.from({ length: 18 }, (_, index) => `runner-${index + 1}`),
+      ...Array.from({ length: 48 }, (_, index) => `walker-${index + 1}`),
+      ...Array.from({ length: 24 }, (_, index) => `runner-${index + 1}`),
     ]);
     simulation.step(DT);
     actors.forEach((actor, index) => {
@@ -131,8 +156,8 @@ describe('connected car-free park', () => {
     const walkers = simulation.actors.filter(({ gait }) => gait === 'walk');
     const runners = simulation.actors.filter(({ gait }) => gait === 'run');
     const parkActors = [...walkers, ...runners];
-    expect(walkers).toHaveLength(36);
-    expect(runners).toHaveLength(18);
+    expect(walkers).toHaveLength(48);
+    expect(runners).toHaveLength(24);
     const transitions = new Uint16Array(walkers.length);
     const gates = Array.from({ length: walkers.length }, () => new Map<string, number>());
     const wasOutside = walkers.map(({ position }) => outsidePark(position));

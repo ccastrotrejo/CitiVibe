@@ -21,8 +21,22 @@ function createSigns() {
 
 function blades(group: THREE.Group) {
   const mesh = group.children[0];
-  if (!(mesh instanceof THREE.Mesh)) throw new Error('Missing stop-sign batch.');
+  if (!(mesh instanceof THREE.InstancedMesh)) throw new Error('Missing stop-sign batch.');
   return mesh;
+}
+
+/** Every authored vertex in world space, per placed post. */
+function worldPoints(mesh: THREE.InstancedMesh) {
+  const positions = mesh.geometry.getAttribute('position');
+  const matrix = new THREE.Matrix4();
+  return STOP_SIGN_POSTS.map((post, index) => {
+    mesh.getMatrixAt(index, matrix);
+    const points: THREE.Vector3[] = [];
+    for (let vertex = 0; vertex < positions.count; vertex += 1) {
+      points.push(new THREE.Vector3().fromBufferAttribute(positions, vertex).applyMatrix4(matrix));
+    }
+    return { post, points };
+  });
 }
 
 afterEach(() => {
@@ -84,30 +98,26 @@ describe('posted all-way stop blades', () => {
     expect(bounds.max.y).toBeCloseTo(bottom + width, 3);
     // Head clearance under the lowest plaque edge for a standing adult.
     expect(bottom - plaqueGap - plaqueHeight).toBeGreaterThan(1.8);
-    const positions = mesh.geometry.getAttribute('position');
-    const point = new THREE.Vector3();
-    for (let index = 0; index < positions.count; index += 1) {
-      point.fromBufferAttribute(positions, index);
-      expect(Number.isFinite(point.x + point.y + point.z)).toBe(true);
-      const overRoad = STREET_X.some((road) => Math.abs(point.x - road) <= ROAD_HALF_WIDTH) ||
-        STREET_Z.some((road) => Math.abs(point.z - road) <= ROAD_HALF_WIDTH);
-      expect(overRoad, `stop sign over a travel lane at ${point.x},${point.z}`).toBe(false);
-      expect(Math.abs(point.x) > PARK_BOUNDS.x || Math.abs(point.z) > PARK_BOUNDS.z).toBe(true);
-      expect(STREET_BUILDINGS.every((building) => Math.abs(point.x - building.x) > building.width / 2 + 0.2 ||
-        Math.abs(point.z - building.z) > building.depth / 2 + 0.2)).toBe(true);
+    for (const { points } of worldPoints(mesh)) {
+      for (const point of points) {
+        expect(Number.isFinite(point.x + point.y + point.z)).toBe(true);
+        const overRoad = STREET_X.some((road) => Math.abs(point.x - road) <= ROAD_HALF_WIDTH) ||
+          STREET_Z.some((road) => Math.abs(point.z - road) <= ROAD_HALF_WIDTH);
+        expect(overRoad, `stop sign over a travel lane at ${point.x},${point.z}`).toBe(false);
+        expect(Math.abs(point.x) > PARK_BOUNDS.x || Math.abs(point.z) > PARK_BOUNDS.z).toBe(true);
+        expect(STREET_BUILDINGS.every((building) => Math.abs(point.x - building.x) > building.width / 2 + 0.2 ||
+          Math.abs(point.z - building.z) > building.depth / 2 + 0.2)).toBe(true);
+      }
     }
   });
 
   it('measures a full octagon across the flats on every blade', () => {
     const mesh = blades(createSigns());
-    const positions = mesh.geometry.getAttribute('position');
-    const point = new THREE.Vector3();
     const center = STOP_SIGN_GEOMETRY.bottom + STOP_SIGN_GEOMETRY.width / 2;
-    for (const post of STOP_SIGN_POSTS) {
+    for (const { post, points } of worldPoints(mesh)) {
       let across = 0;
       let tall = 0;
-      for (let index = 0; index < positions.count; index += 1) {
-        point.fromBufferAttribute(positions, index);
+      for (const point of points) {
         // Blade band only: the post rings and the ALL WAY plaque sit outside it.
         if (Math.hypot(point.x - post.x, point.z - post.z) > 1 || Math.abs(point.y - center) > 0.42) continue;
         const lateral = (point.x - post.x) * Math.cos(post.yaw) - (point.z - post.z) * Math.sin(post.yaw);
@@ -123,16 +133,19 @@ describe('posted all-way stop blades', () => {
     const group = createSigns();
     const mesh = blades(group);
     expect(group.children).toHaveLength(1);
+    expect(mesh.count).toBe(STOP_SIGN_POSTS.length);
     expect(mesh.material).toMatchObject({ vertexColors: true, map: null });
     expect(mesh.geometry.getAttribute('color').count).toBe(mesh.geometry.getAttribute('position').count);
-    expect(mesh.geometry.index!.count / 3).toBeLessThan(STOP_SIGN_POSTS.length * 250);
+    expect(mesh.geometry.index!.count / 3).toBeLessThan(250);
     group.traverse((object) => expect(object.userData.semanticId).toBeUndefined());
   });
 
   it('repeats identically and never keeps borrowed lettering alive', () => {
-    const first = blades(createSigns()).geometry.getAttribute('position').array;
-    const second = blades(createSigns()).geometry.getAttribute('position').array;
-    expect(Array.from(first)).toEqual(Array.from(second));
+    const first = blades(createSigns());
+    const second = blades(createSigns());
+    expect(Array.from(second.geometry.getAttribute('position').array))
+      .toEqual(Array.from(first.geometry.getAttribute('position').array));
+    expect(Array.from(second.instanceMatrix.array)).toEqual(Array.from(first.instanceMatrix.array));
     for (const label of ['STOP', 'ALL WAY']) {
       const shape = buildSignLettering(label, 1, 0.2);
       try {
