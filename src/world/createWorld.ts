@@ -111,7 +111,8 @@ export function createWorld({ canvas, model, onChange, onLifecycle }: WorldOptio
       mesh.rotation.y = actor.heading;
     }
     art.setTrafficSignals?.(model.simulation.traffic.signals);
-    art.updateCourtActivity?.(model.simulation.elapsed, model.reducedMotion, model.environment.physics.snowDepth);
+    art.updateCourtActivity?.(model.simulation.elapsed, model.reducedMotion,
+      model.environment.physics.snowDepth, model.simulation.actors);
     art.updateActors?.();
     const radius = CAMERA_PROJECTION.distance * Math.cos(pose.pitch);
     camera.position.set(pose.x + Math.sin(pose.yaw) * radius, CAMERA_PROJECTION.distance * Math.sin(pose.pitch), pose.z + Math.cos(pose.yaw) * radius);

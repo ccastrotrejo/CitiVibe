@@ -7,6 +7,8 @@ import { METRO_OPENINGS } from '../content/metro';
 import { COURT_LAMPS, LAMP_GEOMETRY, PARK_LAMPS, STREET_LAMPS, validateLighting } from '../content/lighting';
 import { BASKETBALL_COURT, COURT_PLAYERS, PICKLEBALL_COURT } from '../content/courts';
 import { CITY_EXTENT, TRAFFIC_ACTORS, type TrafficSignalState } from '../content/streets';
+import { BIKE_SHARE_STATIONS } from '../content/bikeShare';
+import type { ActorState } from './actors';
 import { ActorInstances } from './actorInstances';
 import { CourtActivity, type CourtPlayerRig } from './courtActivity';
 import { buildCentralPark } from './park';
@@ -38,7 +40,7 @@ export interface CityScene {
   vehicleLights: VehicleLightingRig[];
   setTrafficSignals?(signals: readonly TrafficSignalState[]): void;
   updateActors?(): void;
-  updateCourtActivity?(elapsedSeconds: number, reducedMotion: boolean, groundLift?: number): void;
+  updateCourtActivity?(elapsedSeconds: number, reducedMotion: boolean, groundLift?: number, actors?: readonly ActorState[]): void;
   dispose(): void;
 }
 
@@ -453,8 +455,9 @@ export function buildCityScene(): CityScene {
     };
     const wheels: WheelRig[] = [];
     if (definition.kind === 'cyclist') {
+      const stationRider = BIKE_SHARE_STATIONS.some((station) => station.riderId === definition.id);
       const person = createPersonProfile(definition.id, 'cyclist');
-      group.userData.person = person;
+      if (!stationRider) group.userData.person = person;
       const riderPart = (name: string, color: string, p: readonly [number, number, number],
         size: readonly [number, number, number], rounded = false) =>
         personPart(personArt, body, name, color, p, size, rounded);
@@ -496,6 +499,7 @@ export function buildCityScene(): CityScene {
       vehicleLights.push({ id: definition.id, body, length: 2, lamps, bicycle: true });
       group.userData.rig = rig;
       poseNeutral(rig);
+      if (stationRider) group.scale.setScalar(0);
       continue;
     }
     const type = definition.vehicleType;
@@ -643,11 +647,15 @@ export function buildCityScene(): CityScene {
     scene, bus, actors, weatherSurface, snowMeshes, foliage, vehicleLights,
     setTrafficSignals: (signals) => streetscape.setSignals(signals),
     updateActors: () => actorInstances.update(),
-    updateCourtActivity: (elapsedSeconds, reducedMotion, groundLift = 0) => {
+    updateCourtActivity: (elapsedSeconds, reducedMotion, groundLift = 0, actorStates = []) => {
       if (!disposed) {
         courtActivity.update(elapsedSeconds, reducedMotion, groundLift);
         playActivity.update(elapsedSeconds, reducedMotion, groundLift);
-        bikeShare.update(elapsedSeconds, reducedMotion, groundLift);
+        bikeShare.update(elapsedSeconds, reducedMotion, groundLift, actorStates);
+        for (const station of BIKE_SHARE_STATIONS) {
+          const state = actorStates.find((actor) => actor.id === station.riderId)?.sharedBike;
+          actors.get(station.riderId)?.scale.setScalar(!reducedMotion && state?.phase === 'riding' ? 1 : 0);
+        }
         for (const person of restingPeople) person.position.y = 0.025 + groundLift;
       }
     },

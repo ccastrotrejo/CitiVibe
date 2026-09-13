@@ -2,6 +2,7 @@ import { Vector3 } from 'three';
 import { PARK_ACTORS, PARK_ROUTES, PARK_RUNNING_ROUTE, sampleParkRoute } from '../content/park';
 import type { Position } from '../content/city';
 import { createPersonProfile, PERSON_SPACE } from '../content/people';
+import type { BikeShareTripState } from '../content/bikeShare';
 import { CityTraffic } from './traffic';
 
 export interface ActorState {
@@ -15,6 +16,7 @@ export interface ActorState {
   travelDistance?: number;
   activity?: 'walking' | 'crossing' | 'waiting-to-cross' | 'looking-around' | 'resting';
   activityTime?: number;
+  sharedBike?: BikeShareTripState;
   speed: number;
   routeLength: number;
   lighting?: { turn: 'left' | 'right' | null; braking: boolean };

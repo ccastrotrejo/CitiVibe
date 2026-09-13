@@ -4,6 +4,7 @@ import {
   bikeSharePoint, sampleBikeShare, validateBikeShareStations, type BikeShareStation,
 } from '../content/bikeShare';
 import { createPersonProfile } from '../content/people';
+import type { ActorState } from './actors';
 import { poseWalkerRig, type WalkerRig, type WheelRig } from './locomotion';
 import { buildPersonRig, personPart, type PersonArt } from './person';
 import type { StreetscapeBuilder } from './streetscape';
@@ -117,7 +118,7 @@ interface BayRig {
 export interface BikeShareActivity {
   /** Include these sources in the parent's one ActorInstances; do not draw them separately. */
   readonly rigs: readonly THREE.Group[];
-  update(elapsedSeconds: number, reducedMotion: boolean, groundLift?: number): void;
+  update(elapsedSeconds: number, reducedMotion: boolean, groundLift?: number, actors?: readonly ActorState[]): void;
   /** Only detaches rig sources; shared art and parent instance buffers are never disposed here. */
   dispose(): void;
 }
@@ -166,7 +167,8 @@ export function buildBikeShare(
     bike.group.name = `${station.id}: checkout bicycle`;
     const parked = new THREE.Group();
     parked.name = `${station.id}: parked bicycle`;
-    for (let slot = 2; slot < L.slots; slot += 1) {
+    for (let slot = 0; slot < L.slots; slot += 1) {
+      if (slot === station.activeSlot || slot === L.emptySlot) continue;
       const dockedBike = buildSharedBike(art, blueMaterial);
       dockedBike.group.name = `${station.id}: parked bicycle ${slot}`;
       dockedBike.group.position.x = slot * L.slotSpacing;
@@ -183,6 +185,8 @@ export function buildBikeShare(
     const profile = createPersonProfile(`${station.id}-neighbor`, 'cyclist');
     const rig = buildPersonRig(person, { ...profile, stature: 1.7, build: 0.94, bag: 'none', outfit: 'casual' }, art);
     for (const group of [bike.group, parked, person]) group.rotation.y = station.yaw;
+    const dock = bikeSharePoint(station, station.activeSlot * L.slotSpacing, 0);
+    bike.group.position.set(dock.x, station.surfaceY, dock.z);
     bays.push({ station, bike, parked, person, rig, lockMarkers });
     rigs.push(bike.group, parked, person);
   }
@@ -191,26 +195,32 @@ export function buildBikeShare(
   let disposed = false;
   const activity: BikeShareActivity = {
     rigs,
-    update(elapsedSeconds, reducedMotion, groundLift = 0) {
+    update(elapsedSeconds, reducedMotion, groundLift = 0, actors: readonly ActorState[] = []) {
       if (disposed) return;
       if (!Number.isFinite(groundLift) || groundLift < 0 || groundLift > 0.45) {
         throw new RangeError('Bike-share ground lift must be between 0 and 0.45 metres.');
       }
       for (const { station, bike, parked, person, rig, lockMarkers } of bays) {
-        const sample = sampleBikeShare(station, elapsedSeconds, reducedMotion);
+        const trip = actors.find((actor) => actor.id === station.riderId)?.sharedBike;
+        const sample = sampleBikeShare(station, elapsedSeconds, reducedMotion, trip);
         const floor = station.surfaceY + groundLift;
+        const showCheckout = sample.phase !== 'riding';
+        const showPerson = sample.phase !== 'riding';
         bike.group.position.set(sample.bikeX, floor, sample.bikeZ);
+        bike.group.rotation.y = sample.heading;
+        bike.group.scale.setScalar(showCheckout ? 1 : 0);
         parked.position.set(station.x, floor, station.z);
         lockMarkers.forEach((marker, index) => {
           // Scene-owned instance colors stay immutable; transform-only markers need no extra draw.
-          const active = (index === 1) === sample.lockConfirmed;
+          const active = sample.phase !== 'riding' && (index === 1) === sample.lockConfirmed;
           marker.scale.set(active ? 0.08 : 0, active ? 0.04 : 0, active ? 0.028 : 0);
           marker.position.y = 0.53 - L.surfaceY - groundLift;
         });
         person.position.set(sample.personX, floor, sample.personZ);
+        person.rotation.y = sample.heading;
+        person.scale.setScalar(showPerson ? 1 : 0);
         for (const wheel of bike.wheels) wheel.rotation.x = sample.displacement / S.wheelRadius;
-        // Signed displacement keeps feet grounded while backing a bike out of its dock.
-        poseWalkerRig(rig, { distance: sample.displacement, speed: 0.6, blend: 1, reducedMotion: false });
+        poseWalkerRig(rig, { distance: sample.displacement, speed: Math.max(0.2, sample.speed), blend: 1, reducedMotion });
         person.updateWorldMatrix(true, true);
         rig.arms.forEach((arm, index) => {
           const touch = index === 0 ? sample.latchTouch : 0;

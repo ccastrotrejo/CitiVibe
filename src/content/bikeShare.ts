@@ -1,4 +1,4 @@
-import { CITY_EXTENT } from './streets';
+import { BIKE_SHARE_RIDER_IDS, CITY_EXTENT } from './streets';
 import { PICKLEBALL_COURT } from './courts';
 
 /** Original civic palette; no operator branding or source artwork. */
@@ -15,12 +15,14 @@ export const BIKE_SHARE_STYLE = {
 
 export interface BikeShareStation {
   readonly id: string;
+  readonly riderId: typeof BIKE_SHARE_RIDER_IDS[number];
   readonly x: number;
   readonly z: number;
   readonly side: -1 | 1;
   readonly phase: number;
   readonly yaw: number;
   readonly surfaceY: number;
+  readonly activeSlot: number;
 }
 
 /** A clear pocket on existing paving, outside the north pickleball runoff and sidewalk. */
@@ -39,10 +41,12 @@ export const BIKE_SHARE_POCKETS = {
 
 /** Parallel bicycles sit side-by-side across each row; handling remains inside the paved bay. */
 export const BIKE_SHARE_STATIONS: readonly BikeShareStation[] = [
-  { id: 'lantern-bike-bay', x: -93.3, z: -21.5, side: -1, phase: 0, yaw: 0, surfaceY: -0.08 },
-  { id: 'willow-bike-bay', x: 84.3, z: 23, side: 1, phase: 19, yaw: 0, surfaceY: -0.08 },
-  { id: 'juniper-bike-bay', x: 10, z: 105.3, side: 1, phase: 9, yaw: 0,
-    surfaceY: COURTSIDE_BIKE_POCKET.surfaceY },
+  { id: 'lantern-bike-bay', riderId: BIKE_SHARE_RIDER_IDS[0], x: -93.3, z: -21.5,
+    side: -1, phase: 0, yaw: 0, surfaceY: -0.08, activeSlot: 0 },
+  { id: 'willow-bike-bay', riderId: BIKE_SHARE_RIDER_IDS[1], x: 84.3, z: 23,
+    side: 1, phase: 19, yaw: 0, surfaceY: -0.08, activeSlot: 0 },
+  { id: 'juniper-bike-bay', riderId: BIKE_SHARE_RIDER_IDS[2], x: 10, z: 105.3,
+    side: 1, phase: 9, yaw: 0, surfaceY: COURTSIDE_BIKE_POCKET.surfaceY, activeSlot: 10 },
 ];
 
 export const BIKE_SHARE_LAYOUT = {
@@ -58,14 +62,36 @@ export const BIKE_SHARE_LAYOUT = {
   padMaxZ: 1.15,
   surfaceY: -0.08,
   period: 48,
+  dockSeconds: 10,
 } as const;
 
-export type BikeSharePhase = 'unlocking' | 'walking-out' | 'checking' | 'returning' | 'locking' | 'resting';
+export const JUNIPER_CYCLE_ACCESS = {
+  x: 26.3,
+  roadZ: 95,
+  separatorBreakHalfLength: 1.25,
+  markingWidth: 1.2,
+  markingLength: 13.8,
+} as const;
+
+export type BikeSharePhase = 'docked' | 'pushing-out' | 'riding' | 'pushing-in' | 'locking';
+
+export interface BikeShareTripState {
+  readonly stationId: string;
+  readonly phase: BikeSharePhase;
+  readonly x: number;
+  readonly z: number;
+  readonly heading: number;
+  readonly speed: number;
+  readonly distanceFromDock: number;
+  readonly docked: boolean;
+  readonly lockConfirmed: boolean;
+}
 
 export interface BikeShareSample {
   readonly phase: BikeSharePhase;
   readonly bikeX: number;
   readonly bikeZ: number;
+  readonly heading: number;
   readonly personX: number;
   readonly personZ: number;
   readonly displacement: number;
@@ -86,46 +112,35 @@ export function bikeSharePoint(station: BikeShareStation, x: number, z: number) 
     : { x: station.x + x, z: station.z + z };
 }
 
-/**
- * A bounded checkout-and-redock, not a simulated journey. The user holds the saddle
- * and walks astride the rear wheel, clear of pedals. Both remain visible throughout.
- */
+/** Station inventory follows the controlled traffic rider; no station creates or destroys bikes. */
 export function sampleBikeShare(
-  station: BikeShareStation, elapsedSeconds: number, reducedMotion = false,
+  station: BikeShareStation, elapsedSeconds: number, reducedMotion = false, trip?: BikeShareTripState,
 ): BikeShareSample {
   if (!Number.isFinite(elapsedSeconds) || elapsedSeconds < 0) {
     throw new RangeError('Bike-share time must be finite and nonnegative.');
   }
-  const time = reducedMotion ? 0 : (elapsedSeconds + station.phase) % BIKE_SHARE_LAYOUT.period;
-  let phase: BikeSharePhase;
-  let displacement = 0;
-  let speed = 0;
-  if (time < 4) phase = 'unlocking';
-  else if (time < 12) {
-    phase = 'walking-out';
-    const u = (time - 4) / 8;
-    displacement = -BIKE_SHARE_LAYOUT.travel * smooth(u);
-    speed = -BIKE_SHARE_LAYOUT.travel * 6 * u * (1 - u) / 8;
-  } else if (time < 20) {
-    phase = 'checking';
-    displacement = -BIKE_SHARE_LAYOUT.travel;
-  } else if (time < 28) {
-    phase = 'returning';
-    const u = (time - 20) / 8;
-    displacement = -BIKE_SHARE_LAYOUT.travel * (1 - smooth(u));
-    speed = BIKE_SHARE_LAYOUT.travel * 6 * u * (1 - u) / 8;
-  } else phase = time < 32 ? 'locking' : 'resting';
-  const docked = time <= 4 || time >= 28;
-  const bike = bikeSharePoint(station, 0, displacement);
-  const person = bikeSharePoint(station, 0, displacement - BIKE_SHARE_LAYOUT.personBehind);
+  const dock = bikeSharePoint(station, station.activeSlot * BIKE_SHARE_LAYOUT.slotSpacing, 0);
+  const still = reducedMotion || !trip || trip.stationId !== station.id;
+  const phase: BikeSharePhase = still ? 'docked' : trip.phase;
+  const docked = still || trip.docked;
+  const lockConfirmed = still || trip.lockConfirmed;
+  const heading = still || docked ? station.yaw : trip.heading;
+  const bike = docked ? dock : { x: trip.x, z: trip.z };
+  const person = docked
+    ? bikeSharePoint(station, station.activeSlot * BIKE_SHARE_LAYOUT.slotSpacing, -BIKE_SHARE_LAYOUT.personBehind)
+    : {
+        x: bike.x - Math.sin(heading) * BIKE_SHARE_LAYOUT.personBehind,
+        z: bike.z - Math.cos(heading) * BIKE_SHARE_LAYOUT.personBehind,
+      };
+  const displacement = still ? 0 : trip.distanceFromDock;
+  const latchTime = docked ? smooth(Math.min(1, Math.max(0, elapsedSeconds % BIKE_SHARE_LAYOUT.dockSeconds / 2))) : 0;
   return {
-    phase, displacement, speed, docked, lockConfirmed: phase === 'resting',
-    latchTouch: time < 4 ? Math.sin(Math.PI * time / 4) ** 2 :
-      time >= 28 && time < 32 ? Math.sin(Math.PI * (time - 28) / 4) ** 2 : 0,
+    phase, displacement, speed: still ? 0 : trip.speed, docked, lockConfirmed, heading,
+    latchTouch: phase === 'locking' || (docked && !lockConfirmed) ? latchTime : 0,
     bikeX: bike.x, bikeZ: bike.z,
     personX: person.x, personZ: person.z,
     occupiedSlots: Array.from({ length: BIKE_SHARE_LAYOUT.slots }, (_, slot) =>
-      slot === 0 ? docked : slot !== BIKE_SHARE_LAYOUT.emptySlot),
+      slot === station.activeSlot ? docked : slot !== BIKE_SHARE_LAYOUT.emptySlot),
     awayBikes: docked ? 0 : 1,
   };
 }
@@ -148,7 +163,10 @@ export function validateBikeShareStations(stations: readonly BikeShareStation[] 
     const pocket = BIKE_SHARE_POCKETS[station.id as keyof typeof BIKE_SHARE_POCKETS];
     const unsafeSite = !pocket || (station.yaw !== 0 && station.yaw !== Math.PI / 2) ||
       bounds.minX < pocket.minX || bounds.maxX > pocket.maxX ||
-      bounds.minZ < pocket.minZ || bounds.maxZ > pocket.maxZ || station.surfaceY !== pocket.surfaceY;
+      bounds.minZ < pocket.minZ || bounds.maxZ > pocket.maxZ || station.surfaceY !== pocket.surfaceY ||
+      !BIKE_SHARE_RIDER_IDS.includes(station.riderId) || !Number.isInteger(station.activeSlot) ||
+      station.activeSlot < 0 || station.activeSlot >= BIKE_SHARE_LAYOUT.slots ||
+      station.activeSlot === BIKE_SHARE_LAYOUT.emptySlot;
     if (!station.id || ids.has(station.id) || !Number.isFinite(station.x) ||
       !Number.isFinite(station.z) || !Number.isFinite(station.phase) || station.phase < 0 ||
       unsafeSite ||
