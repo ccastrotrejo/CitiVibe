@@ -94,6 +94,7 @@ export interface VehicleRig {
   body: Object3D;
   wheels: WheelRig[];
   wheelRadius: number;
+  pedals?: Object3D[];
 }
 
 export type ActorRig = WalkerRig | VehicleRig;
@@ -199,6 +200,9 @@ export function poseVehicleRig(rig: VehicleRig, pose: VehiclePose): void {
     wheel.spin.rotation.x = spin;
     if (wheel.front) wheel.steer.rotation.y = pose.steer;
   }
+  rig.pedals?.forEach((pedal, index) => {
+    pedal.rotation.x = pose.distance / 0.65 + index * Math.PI;
+  });
 }
 
 /** Put a freshly built rig into a resting stance so nothing pokes the ground. */

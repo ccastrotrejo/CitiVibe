@@ -45,13 +45,13 @@ function color(hex: number): EnvironmentColor {
   return { r: linear(hex >> 16), g: linear((hex >> 8) & 255), b: linear(hex & 255) };
 }
 
-const SKY = [color(0xe9e2d3), color(0xb8c2c5), color(0x889fa9), color(0xc5cecc)];
+const SKY = [color(0xdfe5df), color(0xb8c2c5), color(0x889fa9), color(0xc5cecc)];
 const NIGHT_SKY = color(0x26374d);
-const DAY_AMBIENT = color(0xfff1d8);
+const DAY_AMBIENT = color(0xf2f4ea);
 const NIGHT_AMBIENT = color(0xabc0de);
 const DAY_GROUND = color(0xa99f87);
 const NIGHT_GROUND = color(0x626b82);
-const DAY_SUN = color(0xfff1d6);
+const DAY_SUN = color(0xfff5e8);
 const NIGHT_SUN = color(0x9db7df);
 const CLOUD = color(0xf0f0e8);
 const NIGHT_CLOUD = color(0x61748b);

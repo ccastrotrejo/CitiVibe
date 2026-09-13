@@ -1,0 +1,185 @@
+# NYC-inspired city research
+
+**Access date: 2026-09-12.** Research and proposed adaptations for an original fictional neighborhood, not a record of completed features or an engineering/code-compliance certification. Implementation status belongs in the [roadmap](ROADMAP.md) and [verification record](ACCEPTANCE_CRITERIA.md).
+
+The strongest NYC cues are not famous buildings or branded signs: predictable intersections, physically separated cycling, varied vehicle footprints, continuous street walls, stoops, roof infrastructure, transit entrances, and public places with room to sit. Retain Rainlight Square as a quiet center and build this surrounding fabric rather than reproducing the reference's layout.
+
+## Evidence boundaries
+
+- **Observed:** visible details in the separately identified, inspected photo-reference pass below; not proof of unseen systems or construction dimensions.
+- **Operator-declared:** information stated by an agency, transit operator, dataset publisher, or preservation organization. Reading its page verifies the statement, not every underlying outcome.
+- **Inferred:** our interpretation, with limitations.
+- **Proposed:** an original design adaptation, not recovered source behavior or a completed feature.
+
+Public dataset metadata was read to establish categories, not to obtain real journeys or map coordinates. No reference-site code, models, textures, fonts, commercial captures, or other runtime assets were fetched. Screenshots supplied with the request establish broad visual direction only.
+
+## Verified sources
+
+All links were accessed on the date above. Some Street Design Manual expandable sections required reading the same public page's HTML. Sources that could not be read are identified under Limitations rather than cited as evidence.
+
+| ID | Publisher and source | Verified subject |
+| --- | --- | --- |
+| S01 | NYC DOT: [Street Design Manual](https://www.nycstreetdesign.info/) | Manual identifies itself as a DOT publication |
+| S02 | NYC DOT: [Intersection Types](https://www.nycstreetdesign.info/geometry/intersection-types) | Simple four-leg, T-shaped, and complex intersections |
+| S03 | NYC DOT: [Signal Timing Applications](https://www.nycstreetdesign.info/geometry/signal-timing-applications) | Right-of-way, leading pedestrian intervals, coordination, transit priority |
+| S04 | U.S. Access Board: [Public Right-of-Way Accessibility Guidelines](https://www.access-board.gov/prowag/complete.html) | R306.2 clearance/walk timing; R306.3 accessible indications; application qualifications |
+| S05 | NYC DOT: [Hardened Daylighting](https://www.nycstreetdesign.info/geometry/hardened-daylighting) | Keeping parking away from crossings, reinforced with physical treatments |
+| S06 | NYC DOT: [Pedestrian Ramps, Blended Transitions & Cut Throughs](https://www.nycstreetdesign.info/geometry/pedestrian-ramps-blended-transitions-cut-throughs) | Accessible transitions and detectable warning surfaces |
+| S07 | NYC DOT: [Accessibility and Pedestrian Access Routes](https://www.nycstreetdesign.info/geometry/accessibility-pedestrian-mobility-plan-pedestrian-access-routes) | Clear routes, clutter avoidance, surfaces, ramps and drainage |
+| S08 | NYC DOT: [Accessible Pedestrian Signals](https://www.nycstreetdesign.info/lighting/accessible-pedestrian-signal-aps) | Audible, tactile and vibrotactile phase information |
+| S09 | NYC DOT: [Protected Bike Lane](https://www.nycstreetdesign.info/geometry/protected-bike-lane) | Physical separation, intersection visibility, turning/loading conflicts |
+| S10 | NYC DOT: [Curb Management](https://www.nycstreetdesign.info/geometry/curb-management) | Cargo bicycles, microhubs, loading zones and off-hour deliveries |
+| S11 | NYC DOT: [Vehicle Swept Path Analysis & Emergency Access](https://www.nycstreetdesign.info/geometry/roadway-design-vehicle-swept-path-analysis-emergency-access) | Different design vehicles, turning envelopes and receiving-lane alignment |
+| S12 | NYC DOT: [Bus Stop](https://www.nycstreetdesign.info/geometry/bus-stop) | Boarding space, signs, shelters, near/far-side and midblock locations |
+| S13 | NYC DOT: [Bus Boarding Island](https://www.nycstreetdesign.info/geometry/bus-boarding-island) | Boarding/bike-lane interaction, ramp space and elevated-rail context |
+| S14 | MTA: [Guide to Riding the Bus](https://www.mta.info/guides/riding-the-bus) | Service types, accessible boarding and kneeling buses |
+| S15 | MTA: [Accessible Travel by Bus](https://www.mta.info/accessibility/bus) | Bus positioning, ramps/lifts, stopped boarding and alighting |
+| S16 | TLC / NYC Open Data: [2023 Yellow Taxi Trip Data metadata](https://data.cityofnewyork.us/api/views/4b4i-vvec) | Historical yellow-taxi category, not current traffic proportions |
+| S17 | New York Landmarks Conservancy: [428 Greene Avenue Restoration](https://nylandmarks.org/news/428-greene-avenue-restoration/) | Brownstone, stoops, wooden cornices and window surrounds |
+| S18 | New York Landmarks Conservancy: [Stoop Ironwork Installation](https://nylandmarks.org/news/stoop-ironwork-installation-in-brooklyn/) | Balusters and handrails in a specific preservation project |
+| S19 | New York Landmarks Conservancy: [Icy Stoops and Sidewalks](https://nylandmarks.org/news/technical-tips-icy-stoops-and-sidewalks/) | Brownstone/limestone stoops, joints, resurfacing and maintenance |
+| S20 | DOHMH / NYC Open Data: [Water Tank Inspection Results metadata](https://data.cityofnewyork.us/api/views/gjm4-k24g) | Self-reported drinking-water tank inspections and roof/access-ladder fields |
+| S21 | MTA: [Accessible Stations](https://www.mta.info/accessibility/stations) | Street elevators/ramps; station, line and direction-specific accessibility |
+| S22 | NYC DOT: [Pedestrian Plaza](https://www.nycstreetdesign.info/geometry/pedestrian-plaza) | Public space, chairs, tables, umbrellas, greenery and maintenance |
+| S23 | NYC Parks: [Basketball data dictionary](https://www.nycgovparks.org/bigapps/desc/DPR_Basketball_001.txt), [Athletic Facilities metadata](https://data.cityofnewyork.us/api/views/qnem-b8re) | Court counts, accessibility fields, basketball and handball facility types |
+| S24 | NYC DOT: [Street Seats](https://www.nycstreetdesign.info/furniture/street-seats) | Public seating distinct from restaurant outdoor dining |
+| S25 | NYC DOT: [Benches](https://www.nycstreetdesign.info/furniture/benches) | Backed/backless seating supporting walking and transit |
+| S26 | NYC DOT: [Agency Roles](https://www.nycstreetdesign.info/process/agency-roles-citys-streets) | Responsibilities for sheds, street construction, vendors and trees |
+| S27 | NYC DOT: [Street Works Manual requirements](https://streetworksmanual.nyc/chapter-four/general-requirements-executing-work) | Work-zone protection, barricades/railings, restoration and infrastructure |
+| S28 | NYC DOT: [Waste Containerization](https://www.nycstreetdesign.info/furniture/waste-containerization) | DSNY transition toward sealed containers and curb coordination |
+| S29 | NYC DOT: [Litter Basket](https://www.nycstreetdesign.info/furniture/litter-basket) | Changing litter-basket designs; no license to copy product design |
+| S30 | NYC DOT: [Planted Stormwater Management](https://www.nycstreetdesign.info/landscape/planted-stormwater-management-practices) | Green infrastructure, infiltration, planting and agency coordination |
+| S31 | NYC DOT: [Sidewalk Stormwater Management](https://www.nycstreetdesign.info/landscape/sidewalk-stormwater-management-practices) | Planted areas, curb inlets/grates, runoff entry and overflow |
+| S32 | NYC DOT: [Drainage & Stormwater Control](https://www.nycstreetdesign.info/geometry/drainage-stormwater-control) | Catch basins, avoiding ramp ponding, absorb/store/transfer approaches |
+| S33 | NYC DOT: [Microclimate, Heat Mitigation & Waterfronts](https://www.nycstreetdesign.info/landscape/microclimate-heat-mitigation-waterfronts) | Wind, sun, precipitation, coastal conditions and planting adaptation |
+| S34 | NYC DOT: [Greenway](https://www.nycstreetdesign.info/geometry/greenway) | Continuous active-travel/recreation routes linking parks and streets |
+| S35 | NYC DOT: [Furniture](https://www.nycstreetdesign.info/furniture) | Clear circulation and restrained, coherent streetscape placement |
+
+## 1. Streets, intersections and clearance
+
+**Operator-declared:** DOT describes generally perpendicular four-leg intersections as predictable, notes T-intersections at parks/large properties, and favors simplifying complex geometry where possible. Signals allocate right-of-way; leading pedestrian intervals and corridor coordination are among its treatments. This is not evidence that all NYC neighborhoods have identical grids or timings. [S02, S03]
+
+The Access Board's R306.2 specifies pedestrian clearance using **3.5 ft/s (1.1 m/s) or less** and a **minimum seven-second walk interval**, with an exception for passive detection that adjusts clearance. Legal application depends on relevant adopting regulations. These provisions are not proof of every NYC crossing's actual timing. [S04]
+
+**Proposed:** author one shared grid for geometry and movement. Generate lane paths, stop lines, crosswalks, curb ramps and conflict areas from the same definitions. Stop the vehicle's front behind the line, not its center. Reserve the whole crossing/turning footprint until the rear and a safety margin have cleared. Refuse entry when the receiving lane lacks room. A phase change allows a request to move; it never erases existing occupancy.
+
+For future walking crossings, separate admission from clearance and allow the slowest admitted walker to finish before releasing conflicting traffic. Conservative exclusive phases are preferable to cars turning through occupied crosswalks. An all-red indication is not proof that a junction is empty.
+
+**Art and access:** clear zebra stripes, paired ramps, detectable warning patches and daylighted corners. Do not place trees, vans, carts or planters where they hide crossings or block a route. [S05-S08]
+
+## 2. Protected cycling and deliveries
+
+**Operator-declared:** DOT defines protection through physical separation, such as parking or a barrier. Green surfacing alone is insufficient. Turning vehicles, loading, maintenance and intersection visibility need explicit consideration. Cargo bicycles, microhubs and loading zones are included in its freight guidance. [S09, S10]
+
+**Proposed now:** connected green paths plus separators; narrow cyclist envelopes, independent speeds and stop positions; no sidewalk riding. Keep crossing entrances visible and include bikes in conflict arbitration rather than animating them straight through cars.
+
+**Proposed next:** an original cargo bicycle with a box/carrier; designated loading pockets; van-to-cargo-bike delivery handoffs. A box is inexpensive geometry, but loading, curb occupancy and merges are separate behavior work. A bus boarding island also adds a pedestrian crossing of the bike path and cannot be treated as decoration alone. [S13]
+
+## 3. Vehicle variety
+
+**Operator-declared:** DOT's swept-path guidance distinguishes passenger vehicles, delivery trucks, standard/articulated buses, school buses and emergency vehicles. MTA describes accessible stopped boarding and positioning for ramps/lifts or kneeling. TLC metadata establishes a yellow-taxi category, not a suitable taxi percentage for this fictional city. [S11-S16]
+
+| Proposed type | Original visual cue | Behavior consequence |
+| --- | --- | --- |
+| Sedan/hatchback | Muted paint, distinct roof profile | Baseline footprint and acceleration |
+| Yellow cab | Yellow paint, small plain roof marker | Same traffic rules; no company marks or ads |
+| Local bus | Long shell and repeated windows | Longer clearance, slower turns, designated dwell |
+| Van | High roof and rear doors | Later loading-zone dwell |
+| Box truck | Separate cab/cargo volume | Larger receiving-space and turning envelope |
+| Sanitation vehicle | Compact original collection body | Later quiet service route and compatible worker stops |
+| Utility/emergency vehicle | Original service silhouette | Ordinary passage, not pursuits or signal-running |
+| Bicycle/cargo bicycle | Slim rider and optional box | Dedicated paths, speed and width constraints |
+
+Use a fixed seeded mix, not endless spawning. Different colors alone do not satisfy vehicle variety. No sirens, flashing spectacle or crashes are needed for a lively ambient city.
+
+## 4. Architecture
+
+**Operator-declared:** preservation accounts document brownstone facades, stoops, wooden cornices, window surrounds, balusters and handrails in specific projects. DOHMH metadata documents self-reported drinking-water tank inspections, roof access and access-ladder fields. Neither establishes a universal facade or roof-tank design. [S17-S20]
+
+**Proposed:** narrow brownstone fronts, broader brick walk-ups, pale stone buildings and a restrained industrial block. Align the street wall but vary setbacks, cornices, window rhythm, heights and roofs. Give selected roofs tanks on plausible supports, vents, chimneys or planted terraces; do not cover every roof with every detail. Keep stoops and access ramps clear of sidewalk routes.
+
+Fire escapes should read as platforms, rails and diagonal flights, not decorative balconies. Avoid crowds, storage or playful climbing. **Evidence gap:** current DOB/FDNY dimensional/inspection guidance could not be verified; these original simplified forms must not carry code-compliance or instructional claims.
+
+**Rendering:** instance windows, repeated rails and cornices. Do not model every brick or add dense transparent chain-link textures that shimmer at overview scale.
+
+## 5. Transit entrances and public space
+
+**Operator-declared:** MTA identifies street elevators/ramp entrances and station-specific accessibility; stairs alone do not establish accessible access. DOT plazas include public seating, shade, greenery and lighting. Parks metadata describes basketball/handball courts and accessibility fields. [S21-S25]
+
+**Proposed:** an original subway stair opening, railings and a nearby elevator pavilion or explicit accessible entry. Avoid real station names, logos, route bullets, fare systems, maps or live arrivals. Static entrance art is a much smaller feature than an operating subway. If walkers later use it, use authored thresholds and destination behavior rather than arbitrary despawning.
+
+Include a pocket court and quieter planted seating, not identical activity on every block. Leave space beside benches for mobility devices. Static hoops do not mean an animated basketball game has been implemented. Additional next-step life could include a dog walker, handball practice, a chess table or a small gathering, each with its own bounded route and animation requirements.
+
+## 6. Construction, vendors and sanitation
+
+**Operator-declared:** DOT's Street Works Manual requires protection around obstructions and discusses restoration and preserving infrastructure. Agency roles differ for sheds, vendors, street work and trees. Street Seats are public seating, not restaurant dining. Current waste guidance describes a move toward sealed containers. [S24-S29]
+
+**Proposed:** one fenced work area with stacked materials, scaffold/shed and a static crane silhouette. Preserve a clear protected walking bypass. Active crane work is a separate simulation; falling materials, sparks and hazard spectacle are unnecessary.
+
+A small unbranded cart and canopy can add street life without menus, buying, listings or advertising. Keep carts clear of ramps, stops and sightlines. Use original sealed bins and occasional litter baskets rather than stereotyped piles of garbage. Later collection requires compatible vehicle, worker, bin and queue positions; it is not just another truck model.
+
+## 7. Weather, rain gardens and seasons
+
+**Operator-declared:** DOT describes curbside planted areas with inlet cuts/grates and overflow exits, and cautions against ponding that compromises ramps. Cloudburst design combines absorbing, storing and transferring water. Microclimate guidance considers local conditions, not a universal treatment. [S30-S33]
+
+**Proposed now/next:** connect the retained garden visually to planted curb basins, soil/gravel, inlet notches and catch basins. Use restrained wet-road darkening, highlights and capped rain particles. No hydraulic simulation or live weather service is needed.
+
+**Proposed later:** seasonal foliage, modest rooftop snow and cleared walking routes. Do not add slipping people or floodwater across pedestrian access as ambient entertainment. Local fictional weather remains user-controlled.
+
+## 8. Waterfront and rail
+
+**Operator-declared:** greenways connect parks/streets for active travel and recreation; DOT also discusses boarding under elevated rail infrastructure. These establish categories, not a requirement to copy a real waterfront or line. [S13, S34]
+
+**Proposed later:** a small original waterfront edge with guardrail, planted buffer, promenade and connected bike route; or an elevated rail corridor near the scene edge. Train timing, supports, occlusion, shadows, camera bounds and optional sound need separate evaluation. Neither is required for the current street-grid slice.
+
+## Priorities and tradeoffs
+
+These are planning judgments, not delivery estimates. "Now" means appropriate for the requested slice; it does not declare every item implemented.
+
+| Priority | Work | Complexity | Main tradeoff |
+| --- | --- | --- | --- |
+| Now | Shared grid, lane paths and intersection geometry | High | Prevents art/simulation drift |
+| Now | Signals, clearance, reservations and queue spacing | High | Conservative throughput over unsafe overlap |
+| Now | Connected protected cycling and riders | Medium-high | Separation must hold at intersections too |
+| Now | Cars/cabs/buses/vans/trucks | Medium | Each footprint needs turn/clearance coverage |
+| Now | Original street walls, windows, stoops and roof detail | Medium | Shared geometry versus draw-call growth |
+| Now | Trees, benches, clear corners and static public spaces | Low-medium | Preserve uncluttered access |
+| Next | Cargo-bike loading and delivery bays | Medium | Dwell and merge coordination |
+| Next | Subway destinations and accessible boarding cues | Medium-high | Honest access and bike/pedestrian conflicts |
+| Next | Court play, small gathering, vendor queue | Medium | Behavior beyond static scenery |
+| Next | Rain-garden inlets and wet-surface detail | Low-medium | Legibility without excessive transparency |
+| Later | Sanitation schedules, signal coordination, richer turns | High | Interacting systems and deadlock risk |
+| Later | Seasonal snow, waterfront, elevated railway | High | New art, lifecycle, framing and performance work |
+
+## Proposed verification
+
+Geometry and behavior should prove that every lane lies within its travel surface, cyclists clear separators, crossings reach usable sidewalks, the longest vehicle fits its permitted turns, and stop/clearance checks use full footprints. Downstream queues must prevent entry. Simulate multiple seeds for several minutes and check both collision avoidance and forward progress: freezing everyone is not a successful traffic system.
+
+Pause, visibility changes, quality changes and context recovery must preserve identity, phase and route progress without time catch-up. Reuse the existing imperative fixed clock, not per-frame React state. Share static geometry/materials and signal emission; avoid one dynamic light per lamp/window. Bound population, rain, DPR, shadows and memory. Expanded-city draw/triangle counts are not physical-computer FPS evidence.
+
+Keep keyboard navigation, landmarks, tours, pause, help and the original static fallback meaningful. Use signal placement/shape as well as color. Do not make audible pedestrian signals compulsory or announce every traffic light through live regions. Respect reduced motion and initial sound-off. Mobility-device users, if later added, should be ordinary people rather than obstacles or events.
+
+## Limitations
+
+Many direct `nyc.gov` and general Parks pages returned HTTP 403. The official DOT Street Design Manual/Street Works Manual, selected MTA pages, Parks data dictionary/metadata, and the cited preservation sources supplied the verified evidence. Unread pages are not presented as verified.
+
+## Photo-reference pass - 2026-09-13
+
+The research agent retrieved and directly inspected the linked images below, rather than relying on search-result captions. These are **observed** appearance references, not dimensional measurements, compliance evidence or completed-feature claims. The original procedural adaptation is documented in [art and assets](ART_AND_ASSETS.md). No reference photograph is shipped, traced as a texture, or used as the fallback. A public image URL is not a blanket license to redistribute it.
+
+| Detail | Inspected image and source | Observed appearance | Original adaptation and limitation |
+| --- | --- | --- | --- |
+| Traffic lights | NYC DOT [Type M-2A source](https://www.nycstreetdesign.info/lighting/type-m-2a-signal-pole), [image](https://www.nycstreetdesign.info/sites/default/files/2020-03/4.3.1.02%20DOT%20190311%20Signal%20Type%20M-2A%20Type%20M%20Pole%20001_0.jpg) | Compact yellow housing, three stacked circular lenses, dark individual visors, slender mast arm and upper brace; only the active lens glows. | Yellow/black heads with simulation-driven disks. The caption identifies a historic configuration at 114th Street, not a universal NYC pole. No decorative historic pole is copied. |
+| Bike markings | NYC DOT [Conventional Bike Lane](https://www.nycstreetdesign.info/geometry/conventional-bike-lane), [Greenpoint Avenue photo](https://www.nycstreetdesign.info/sites/default/files/2020-01/2.1.1.01%20Honeywell%20St%20Greenpoint%20Ave%20Queens%20001_2.jpg), [diagram](https://www.nycstreetdesign.info/sites/default/files/2020-01/2.1.1a%20Conventional%20Bike%20Lane_reviewed-1_0.jpg) | Pale-green lane, white boundary, centered white bicycle; open wheel circles, angular rider/frame strokes and separate round head in the diagram. | Original white bicycle/rider and arrow geometry, physically protected lanes, no red diagram highlighting reproduced as pavement. |
+| Pedestrian-symbol comparison | RamaGaspar, CC BY-SA 4.0: [source](https://commons.wikimedia.org/wiki/File:Bikeway_road_markings_in_the_Philippines_Bi%C3%B1ang_06.jpg), [image](https://upload.wikimedia.org/wikipedia/commons/5/55/Bikeway_road_markings_in_the_Philippines_Bi%C3%B1ang_06.jpg) | Separate bicycle/person strips; detached circular head, solid torso, separated limbs, directional chevrons. | This is **the Philippines, not NYC**. No NYC runner-stencil photograph was verified. Park running/walking symbols are original functional design, with dark paint on the light path for contrast. |
+| Yellow taxis | S5A-0043, CC BY 4.0, photographed 2024-06-15: [source](https://commons.wikimedia.org/wiki/File:(USA-New_York)_NYC_Medallion_Cab_Toyota_RAV4_NY-Taxi-Y202490C_2024-06-15.jpg), [image](https://upload.wikimedia.org/wikipedia/commons/3/35/%28USA-New_York%29_NYC_Medallion_Cab_Toyota_RAV4_NY-Taxi-Y202490C_2024-06-15.jpg) | Golden-yellow body, dark glazing/pillars, black lower trim and grille, broad hood and raised cabin; small roof identifier separate from advertising assembly. | Generic yellow cab with a small plain roof light; no manufacturer badge, NYC/TLC graphic, actual identification number or advertising assembly. Not a replica of the pictured vehicle. |
+| Brownstones | New York Landmarks Conservancy [Greene Avenue restoration](https://nylandmarks.org/news/428-greene-avenue-restoration/), [image](https://nylandmarks.org/wp-content/uploads/2023/12/8-428-Greene-Ave-After-768x1024.jpg) | Narrow attached tan-brown fronts, tall aligned windows/dark sash, projecting sills and lintels, taller principal floor, raised stoop above basement, thin dark rails, deep bracketed cornice. | Adapt the component vocabulary and proportions to original facades, not this exact building or ornament. No redistribution license established. |
+| Park paths | Central Park Conservancy [running guide](https://www.centralparknyc.org/activities/guides/running), [reservoir-running image](https://d2wsrtli9cxkek.cloudfront.net/media/images/Reservoir_Running_20230907-2999.jpg?auto=compress%2Cformat&crop=focalpoint&fit=crop&fp-x=0.5&fp-y=0.5&h=1151.1627906977&q=80&w=2475&s=95699b886299b7f971461329e1a0289e) | Broad pale-tan granular-looking path, mature trees, grass edges, low dark wire fencing; trunks outside the travel surface. No painted centerline or runner stencil visible. | Tan paths, dark railings, perimeter trees and open walking access. Gate connectivity follows the user's requirement; this photograph does not verify our gates. No redistribution license established. |
+| Park composition | Kidfly182, CC BY 4.0: [Bryant Park source](https://commons.wikimedia.org/wiki/File:Bryant_Park_March_2026_004.jpg), [image](https://upload.wikimedia.org/wikipedia/commons/b/b0/Bryant_Park_March_2026_004.jpg) | Open center, low light border, darker perimeter paving, trees at edges, curved foreground steps. Center is bare/brown in this seasonal image. | Keep an open fictional lawn with edge seating, not an exact Bryant Park layout or a claim that the reference shows a green lawn. |
+| Sidewalk sheds/scaffolds | Deansfa, CC BY-SA 4.0, photographed 2017-12-16: [source](https://commons.wikimedia.org/wiki/File:960_Park_Avenue_(awning_and_scaffolding),_Upper_East_Side,_Manhattan,_New_York.jpg), [image](https://upload.wikimedia.org/wikipedia/commons/9/9b/960_Park_Avenue_%28awning_and_scaffolding%29%2C_Upper_East_Side%2C_Manhattan%2C_New_York.jpg) | Repeated slender uprights, long covered corridor, horizontal beams, continuous overhead deck and underside lights. The image is sideways; its green entrance awning is separate from the protective roof. The taxi image also shows tubular members, diagonal X-braces and dark-green fascia. | Distinguish vertical facade scaffold from horizontal sidewalk shed; keep braces outside the walking passage. Simplified original geometry, not a solid green obstruction or a construction-compliance model. |
+
+Direct DOB guidance remained blocked with HTTP 403. Exact dimensions/colors were not measured. Reference licenses above describe their photographs, not a requirement to import them; runtime artwork uses only new source geometry.
+
+Fire-escape dimensional/inspection rules remain unverified. Water-tank data is self-reported and does not prove individual conditions. Historical taxi metadata does not establish current fleet proportions. Preservation accounts support component vocabulary, not copying those facades. None of this research establishes the commercial visual reference's internal implementation.
+
+No runtime dataset, real-city geometry, third-party model, brand, directory, account, payment, analytics, live weather or backend is proposed. The application remains an original noncommercial ambient city.

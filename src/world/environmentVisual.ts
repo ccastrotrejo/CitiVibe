@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { CAMERA_PROJECTION } from '../content/city';
+import { CITY_EXTENT } from '../content/streets';
 import type { EnvironmentColor, EnvironmentFrame } from './environment';
 
 export interface EnvironmentVisualOptions {
@@ -44,6 +46,7 @@ export class EnvironmentVisual {
     emissive: THREE.Color;
     intensity: number;
   }[] = [];
+  private readonly backdrops: { material: THREE.MeshBasicMaterial; color: THREE.Color }[] = [];
   private lastTime = -1;
   private disposed = false;
 
@@ -61,6 +64,10 @@ export class EnvironmentVisual {
       if (!(object instanceof THREE.Mesh)) return;
       const materials = Array.isArray(object.material) ? object.material : [object.material];
       for (const material of materials) {
+        if (material instanceof THREE.MeshBasicMaterial && material.userData.environmentBackdrop === true && !seen.has(material)) {
+          seen.add(material);
+          this.backdrops.push({ material, color: material.color.clone() });
+        }
         if (!(material instanceof THREE.MeshStandardMaterial) || material.userData.window !== true || seen.has(material)) continue;
         seen.add(material);
         this.windows.push({ material, emissive: material.emissive.clone(), intensity: material.emissiveIntensity });
@@ -72,20 +79,20 @@ export class EnvironmentVisual {
       return seed / 0x100000000;
     };
     for (let index = 0; index < RAIN_HIGH; index++) {
-      this.origins[index * 3] = random() * 76 - 38;
+      this.origins[index * 3] = (random() * 2 - 1) * CITY_EXTENT.x;
       this.origins[index * 3 + 1] = random() * 52;
-      this.origins[index * 3 + 2] = random() * 76 - 38;
+      this.origins[index * 3 + 2] = (random() * 2 - 1) * CITY_EXTENT.z;
     }
     this.positions.set(this.origins);
     this.rainGeometry.setAttribute('position', new THREE.BufferAttribute(this.positions, 3).setUsage(THREE.DynamicDrawUsage));
-    this.rainGeometry.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 26, 0), 65);
+    this.rainGeometry.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 26, 0), Math.hypot(CITY_EXTENT.x, CITY_EXTENT.z, 26));
     this.rain.name = 'Environment rain';
     this.rain.visible = false;
     this.group.name = 'Environment effects';
     this.group.add(this.rain);
     for (let index = 0; index < CLOUD_COUNT; index++) {
       const cloud = new THREE.Mesh(this.cloudGeometry, this.cloudMaterial);
-      cloud.position.set(index * 19 - 48, 48 + random() * 10, random() * 60 - 30);
+      cloud.position.set(index * 28 - 70, 48 + random() * 10, (random() * 2 - 1) * CITY_EXTENT.z);
       cloud.scale.set(7 + random() * 4, 0.7 + random(), 3 + random() * 3);
       cloud.userData.originX = cloud.position.x;
       this.clouds.push(cloud);
@@ -102,7 +109,9 @@ export class EnvironmentVisual {
     if (!Number.isFinite(elapsedSeconds) || elapsedSeconds < 0) throw new RangeError('Effect time must be finite and nonnegative.');
     copyColor(this.sky, frame.palette.sky);
     copyColor(this.fog.color, frame.palette.fog);
-    this.fog.density = frame.fog;
+    for (const { material } of this.backdrops) copyColor(material.color, frame.palette.sky);
+    // Haze should veil the neighborhood, not erase it as the overview camera moves back.
+    this.fog.density = frame.fog * 60 / CAMERA_PROJECTION.distance;
     for (const { light } of this.lights) {
       const hemisphere = light instanceof THREE.HemisphereLight;
       light.intensity = hemisphere ? frame.ambientIntensity : frame.sunIntensity;
@@ -128,7 +137,7 @@ export class EnvironmentVisual {
       }
       this.rainGeometry.getAttribute('position').needsUpdate = true;
       for (const cloud of this.clouds) {
-        cloud.position.x = ((cloud.userData.originX as number) + 60 + (effectTime % 1200) * 0.1) % 120 - 60;
+        cloud.position.x = ((cloud.userData.originX as number) + 84 + (effectTime % 1680) * 0.1) % 168 - 84;
       }
       this.lastTime = effectTime;
     }
@@ -154,8 +163,10 @@ export class EnvironmentVisual {
       material.emissive.copy(emissive);
       material.emissiveIntensity = intensity;
     }
+    for (const { material, color } of this.backdrops) material.color.copy(color);
     this.lights.length = 0;
     this.windows.length = 0;
+    this.backdrops.length = 0;
     this.clouds.length = 0;
     this.group.clear();
   }

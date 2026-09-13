@@ -1,6 +1,6 @@
 # Acceptance criteria and verification plan
 
-**Status: M5 milestone reached; final hardening pending.** The live M1-M5 build has automated coverage for camera/clock/input/lifecycle, original content/art, bounded actors, and the now-integrated environment/audio/quality and occasional airplane; the world was enlarged around the tuned core within budget. Unit and component tests establish live integration and deterministic behavior, but do not substitute for physical-device FPS, two-hour stability, cross-combination legibility, and screen-reader/assistive-tech verification, which remain outstanding (M6/M7). Production readiness is not yet claimed. Camera-follow and the drone were removed at the user's request.
+**Status: connected NYC-inspired park district; final physical-device hardening pending.** The M1-M5 foundation now supports a four-by-four street grid, 32 buildings, 68 moving actors and a car-free central park. Automated coverage establishes integration and deterministic behavior, but does not substitute for physical-device FPS, two-hour stability, or screen-reader/assistive-tech verification (M6/M7). Production readiness is not claimed. Camera-follow and the drone remain excluded.
 
 Use this matrix when implementing each [roadmap](ROADMAP.md) milestone. Numerical budgets are working targets; name the reference devices and record actual results before declaring them met. The [experience spec](EXPERIENCE_SPEC.md) is authoritative for pause/camera behavior.
 
@@ -79,4 +79,23 @@ Visual fixture inputs must include seed, simulation tick, fixed date/time zone o
 - Tour arbitration, guided views, preferences, modal focus, and expanded-view behavior have unit/component coverage. Native fullscreen rejection/escape across desktop browsers, real sound policy, complete settings integration, and final NYC visuals remain outside this completed browser set.
 - The final expanded-view notice cleanup is covered by the seven App component cases plus a renewed typecheck/lint pass.
 
-The browser suite uses software-rendered Chromium and a production bundle, not the development server. These results do not establish physical-computer FPS, screen-reader usability, long-session memory stability, or a finished M1-M8 product. Remaining work is paused until the user explicitly resumes it.
+The browser suite uses software-rendered Chromium and a production bundle, not the development server. This historical checkpoint does not establish physical-computer FPS, screen-reader usability, long-session memory stability, or a finished M1-M8 product. The user subsequently resumed implementation for the connected-city slice.
+
+## Connected-city behavior coverage
+
+The street system uses eight ten-minute seeds (`0`, `1`, `4`, `14`, `42`, `91`, `2401`, `0xffffffff`) to check full-footprint separation, continuous routes, acceleration/braking, per-actor progress, intersection usage, painted stop bars and maximum queue waits below 100 seconds. Green phases last eight seconds; a separate 8.5 m stop-line offset avoids moving the 7 m turn boundary into bicycle corner-cutting geometry. Occupied reservations survive phase changes until the actor's rear clears.
+
+Five ten-minute park seeds check every visitor repeatedly enters/leaves through connected gates, stays continuously on shared paths, maintains spacing and avoids prolonged deadlock. No motor vehicle or cyclist enters the park. The old internal road, bus/car circuit and signals are absent. Street buses circulate without scheduled stops, and neighborhood walkers remain on sidewalks; pedestrian lamps do not imply implemented road crossings.
+
+Geometry checks cover five landmark targets, original version-003 fallback references, path/render alignment, 48 lane markings clear of crossings, four pedestrian stencils on park paths, taxi dimensions/details, deterministic regeneration and independent idempotent disposal. Originality/provenance and image-observation limits are documented in [art](ART_AND_ASSETS.md) and [research](NYC_CITY_RESEARCH.md).
+
+### Final code verification - 2026-09-13
+
+- Strict TypeScript and ESLint pass; **216 Vitest cases in 15 files pass**, including street/park soaks, signal-phase/art wiring, scaffold pedestrian clearance, tree/path clearance, deterministic geometry and resource ownership.
+- The final base scene has **74 visible mesh submissions, 199,216 triangles and 29 materials**, below the explicit expanded-scene ceilings of 240 / 200,000 / 36. These CPU traversal counts exclude additional rendering passes and runtime effects; they are not physical-device FPS or GPU measurements.
+- The production build passes. The entry chunk is **502.29 KB minified / 149.31 KB gzip**; the renderer chunk is **396.32 KB / 102.49 KB gzip**. The >500 KB Vite warning remains visible and is not suppressed. The shared walking-curve math is now also used by the retained model.
+- Nine repository JSON files parse, 117 relative documentation links resolve, the SVG is self-contained, and all eleven original research artifacts retain their recorded sizes and SHA-256 hashes (3,004,002 bytes total).
+- **Blocked: final Playwright/visual pass.** All twelve fresh browser scenarios failed at browser startup, before application assertions. Bundled Chromium 153.0.8010.12 reported `SIGSEGV / SEGV_ACCERR`; isolated blank-page launches with the bundled full browser and system Chrome also timed out, and disabling GPU did not resolve the headless-shell crash. No application changes were made to mask this environment failure.
+- Earlier overview, court, Night/Rain and Mist/Lightweight captures passed inspection before the park/detail revisions; the car-free park was inspected before the final six-detail pass. These are **not** final-art screenshot sign-off. Rerun `npm run test:e2e` and inspect current overview, park, cab/signal/brownstone/scaffold closeups, Night/Rain and Mist after browser startup is restored.
+
+Implementation confidence is high for the tested geometry/simulation contracts; visual/browser confidence remains limited until that blocked pass is completed. Physical computer FPS, assistive technology, automatic-quality runtime calibration and two-hour stability remain separate outstanding work.

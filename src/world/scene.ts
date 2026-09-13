@@ -1,6 +1,11 @@
 import * as THREE from 'three';
-import { CITY, CONTENT, LANDMARKS, ROUTE_LENGTH, sampleRoute, validateLandmarks } from '../content/city';
-import { VEHICLE, WALKER, poseNeutral } from './locomotion';
+import { CITY, CONTENT, LANDMARKS, validateLandmarks } from '../content/city';
+import { CITY_EXTENT, TRAFFIC_ACTORS, type TrafficSignalState } from '../content/streets';
+import { ActorInstances } from './actorInstances';
+import { buildCentralPark } from './park';
+import { buildPavementMarkings } from './pavement';
+import { buildStreetscape } from './streetscape';
+import { WALKER, poseNeutral } from './locomotion';
 import type { LegRig, VehicleRig, WalkerRig, WheelRig } from './locomotion';
 
 export interface CityScene {
@@ -9,7 +14,8 @@ export interface CityScene {
   actors: Map<string, THREE.Group>;
   hitTargets: THREE.Object3D[];
   marker: THREE.Object3D;
-  setSignal?(phase: 'vehicles' | 'clearance' | 'pedestrians'): void;
+  setTrafficSignals?(signals: readonly TrafficSignalState[]): void;
+  updateActors?(): void;
   dispose(): void;
 }
 
@@ -19,26 +25,10 @@ interface Batch {
   transforms: THREE.Matrix4[];
 }
 
-interface BuildingInput {
-  id: string;
-  family: 'hall' | 'terrace' | 'cottage';
-  skin: 'cream' | 'teal' | 'clay';
-  x: number;
-  z: number;
-  width: number;
-  depth: number;
-  height: number;
-}
-
 export interface ArtInputs {
   schemaVersion: number;
   assetVersion: string;
   seed: number;
-  roadWidth: number;
-  sidewalkHalfWidth: number;
-  crossing: { x: number; z: number };
-  busStop: { x: number; z: number };
-  buildings: readonly BuildingInput[];
 }
 
 /** Versioned art inputs, paired with CONTENT's stable route and landmark manifest. */
@@ -46,50 +36,13 @@ export const ART_INPUTS = {
   schemaVersion: 1,
   assetVersion: CONTENT.assetVersion,
   seed: CONTENT.seed,
-  roadWidth: 4,
-  sidewalkHalfWidth: 4.8,
-  crossing: { x: 0, z: -16 },
-  busStop: { x: -9, z: -13 },
-  buildings: [
-    { id: 'west-hall', family: 'hall', skin: 'teal', x: -11.5, z: -9.5, width: 5.6, depth: 4.4, height: 7.8 },
-    { id: 'north-hall', family: 'hall', skin: 'cream', x: -3.8, z: -10, width: 4.8, depth: 4.2, height: 10.4 },
-    { id: 'terraced-houses', family: 'terrace', skin: 'clay', x: 9.3, z: -8.6, width: 6.6, depth: 5.5, height: 6.6 },
-    { id: 'east-cottage', family: 'cottage', skin: 'cream', x: 12.4, z: 6.6, width: 4.6, depth: 4.8, height: 4 },
-    { id: 'garden-cottage', family: 'cottage', skin: 'teal', x: 2.9, z: 8.2, width: 5.2, depth: 4.1, height: 3.5 },
-  ],
 } as const satisfies ArtInputs;
 
 /** Reject malformed authored inputs before allocating scene/GPU resources. */
 export function validateArtInputs(inputs: ArtInputs): void {
   if (inputs.schemaVersion !== 1 || inputs.assetVersion !== CITY.version ||
-    !Number.isSafeInteger(inputs.seed) || inputs.seed < 0 || inputs.seed > 0xffffffff ||
-    inputs.roadWidth !== 4 || !Number.isFinite(inputs.sidewalkHalfWidth) ||
-    inputs.sidewalkHalfWidth < 4.5 || inputs.sidewalkHalfWidth > 5) {
-    throw new Error('Invalid Rainlight Square art version, seed, or street dimensions.');
-  }
-  const crossing = sampleRoute(14);
-  if (inputs.crossing.x !== crossing.x || inputs.crossing.z !== crossing.z ||
-    inputs.busStop.x !== -9 || inputs.busStop.z !== -13) {
-    throw new Error('Art crossing or bus stop does not match the street contract.');
-  }
-  const ids = new Set<string>();
-  if (inputs.buildings.length < 1 || inputs.buildings.length > 8) throw new Error('Invalid district building count.');
-  for (const building of inputs.buildings) {
-    const { id, x, z, width, depth, height, family, skin } = building;
-    if (!id || ids.has(id) || ![x, z, width, depth, height].every(Number.isFinite) ||
-      !['hall', 'terrace', 'cottage'].includes(family) || !['cream', 'teal', 'clay'].includes(skin) ||
-      width < 2 || depth < 2 || height < 2 || height > 14 ||
-      (family === 'terrace' && (width <= 2 || depth <= 2.4)) ||
-      Math.abs(x) + width / 2 > 16.5 || Math.abs(z) + depth / 2 > 13) {
-      throw new Error(`Invalid original building input: ${id}.`);
-    }
-    ids.add(id);
-    if (Math.abs(x) < width / 2 + 1.1 && Math.abs(z + 16) < depth / 2 + 4.5) {
-      throw new Error(`Building blocks the north crossing: ${id}.`);
-    }
-    if (Math.abs(x + 9) < width / 2 + 3 && Math.abs(z + 13) < depth / 2 + 0.7) {
-      throw new Error(`Building blocks the bus stop: ${id}.`);
-    }
+    !Number.isSafeInteger(inputs.seed) || inputs.seed < 0 || inputs.seed > 0xffffffff) {
+    throw new Error('Invalid Rainlight Square art version or seed.');
   }
 }
 
@@ -103,8 +56,6 @@ export function buildCityScene(): CityScene {
     return result;
   };
   const pavilion = landmark(CITY.landmark.id);
-  const terrace = landmark('terrace-steps');
-  const garden = landmark('reed-garden');
   const scene = new THREE.Scene();
   scene.name = CITY.name;
   scene.background = new THREE.Color('#e9e2d3');
@@ -122,9 +73,9 @@ export function buildCityScene(): CityScene {
   const paint = (color: string, roughness = 0.88) =>
     material(new THREE.MeshStandardMaterial({ color, roughness }));
   const palette = {
-    sand: paint('#e9e2d3'),
-    stone: paint('#d6c7aa'),
-    paving: paint('#ebdcc0'),
+    sand: paint('#d2dad3'),
+    stone: paint('#b9bdac'),
+    paving: paint('#deddd0'),
     road: paint('#727f7c'),
     line: paint('#f4e7cb'),
     cream: paint('#f0dec0'),
@@ -142,13 +93,13 @@ export function buildCityScene(): CityScene {
     rubber: paint('#3b4643'),
     skin: paint('#bd8e68'),
     skinLight: paint('#d9b694'),
+    taxi: paint('#e7b94d'),
   };
   // Tag glazing so the environment layer can light windows warmly after dark.
   palette.glass.userData.window = true;
   const box = geometry(new THREE.BoxGeometry());
   const cylinder = geometry(new THREE.CylinderGeometry(1, 1, 1, 10));
   const crown = geometry(new THREE.DodecahedronGeometry(1));
-  const hipRoof = geometry(new THREE.ConeGeometry(1, 1, 4).rotateY(Math.PI / 4));
   const dummy = new THREE.Object3D();
 
   function batcher(parent: THREE.Object3D) {
@@ -201,269 +152,27 @@ export function buildCityScene(): CityScene {
   }
 
   const groundOutline = new THREE.Shape();
-  groundOutline.moveTo(-42, -42);
-  groundOutline.lineTo(42, -42);
-  groundOutline.quadraticCurveTo(46, -42, 46, -38);
-  groundOutline.lineTo(46, 38);
-  groundOutline.quadraticCurveTo(46, 42, 42, 42);
-  groundOutline.lineTo(-42, 42);
-  groundOutline.quadraticCurveTo(-46, 42, -46, 38);
-  groundOutline.lineTo(-46, -38);
-  groundOutline.quadraticCurveTo(-46, -42, -42, -42);
+  groundOutline.moveTo(-CITY_EXTENT.x, -CITY_EXTENT.z);
+  groundOutline.lineTo(CITY_EXTENT.x, -CITY_EXTENT.z);
+  groundOutline.lineTo(CITY_EXTENT.x, CITY_EXTENT.z);
+  groundOutline.lineTo(-CITY_EXTENT.x, CITY_EXTENT.z);
+  groundOutline.closePath();
   const ground = mesh(geometry(new THREE.ExtrudeGeometry(groundOutline, {
     depth: 0.8, bevelEnabled: false, steps: 1, curveSegments: 8,
   })), palette.stone, 'Miniature ground');
   ground.rotation.x = -Math.PI / 2;
   ground.position.y = -0.94;
-  const backdrop = mesh(geometry(new THREE.PlaneGeometry(400, 400)), palette.sand, 'Sand backdrop');
+  const backdrop = mesh(geometry(new THREE.PlaneGeometry(900, 900)),
+    material(new THREE.MeshBasicMaterial({ color: '#dfe5df' })), 'City backdrop');
+  backdrop.material.userData.environmentBackdrop = true;
   backdrop.rotation.x = -Math.PI / 2;
   backdrop.position.y = -0.96;
 
-  // Road edges use the route's exact center and normal, including every rounded turn.
-  function ribbon(halfWidth: number, y: number, offset = 0) {
-    const vertices: number[] = [];
-    const indices: number[] = [];
-    const segments = 256;
-    for (let index = 0; index <= segments; index++) {
-      const point = sampleRoute(index / segments * ROUTE_LENGTH);
-      for (const side of [1, -1]) {
-        const distance = offset + side * halfWidth;
-        vertices.push(
-          point.x + Math.cos(point.heading) * distance, y,
-          point.z - Math.sin(point.heading) * distance,
-        );
-      }
-      if (index < segments) {
-        const start = index * 2;
-        indices.push(start, start + 1, start + 2, start + 1, start + 3, start + 2);
-      }
-    }
-    const shape = geometry(new THREE.BufferGeometry());
-    shape.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-    shape.setIndex(indices);
-    shape.computeVertexNormals();
-    return shape;
-  }
-  mesh(ribbon(ART_INPUTS.sidewalkHalfWidth, -0.025), palette.paving, 'Loop sidewalk');
-  mesh(ribbon(ART_INPUTS.roadWidth / 2, 0), palette.road, 'Garden loop road');
-  mesh(ribbon(0.045, 0.012, 1.85), palette.line, 'Outer road edge');
-  mesh(ribbon(0.045, 0.012, -1.85), palette.line, 'Inner road edge');
-
-  const crossing = new THREE.Group();
-  crossing.name = 'North zebra crossing';
-  const crossingPaint = batcher(crossing);
-  for (let stripe = 0; stripe < 5; stripe++) {
-    crossingPaint.add(box, palette.line,
-      [ART_INPUTS.crossing.x, 0.014, ART_INPUTS.crossing.z - 1.6 + stripe * 0.8],
-      [2.6, 0.024, 0.36]);
-  }
-  crossingPaint.finish();
-  scene.add(crossing);
-  const stop = ART_INPUTS.busStop;
-  block(palette.paving, stop.x, 0.015, stop.z, 5.8, 0.12, 1.3);
-  block(palette.line, stop.x, 0.02, stop.z - 0.85, 5.8, 0.04, 0.16);
-  district.add(cylinder, palette.copperEdge, [stop.x - 3.3, 1.25, stop.z], [0.05, 2.5, 0.05]);
-  block(palette.teal, stop.x - 3.3, 2.3, stop.z, 0.8, 0.65, 0.12);
-  block(palette.cream, stop.x - 3.3, 2.3, stop.z - 0.07, 0.52, 0.2, 0.04);
-
-  const { x: pavilionX, z: pavilionZ } = pavilion.position;
-  block(palette.paving, pavilionX, 0.02, pavilionZ, 11, 0.18, 10);
-  block(palette.paving, -4, 0, 8, 2, 0.1, 10);
-  block(palette.paving, 3.5, 0, -3, 7, 0.1, 2);
-  for (let index = 0; index < 6; index++) {
-    block(palette.stone, -8.4 + index * 1.75, 0.12, 1.2, 0.025, 0.025, 1.25);
-  }
-
-  function house({ x, z, width, depth, height, skin: color, family }: BuildingInput) {
-    const skin = palette[color];
-    block(palette.stone, x, 0.18, z, width + 0.5, 0.45, depth + 0.5);
-    block(skin, x, height / 2 + 0.3, z, width, height, depth);
-    block(palette.cream, x, height + 0.37, z, width + 0.3, 0.25, depth + 0.3);
-    if (family === 'cottage') {
-      district.add(hipRoof, palette.roof, [x, height + 1.08, z],
-        [(width + 0.3) / Math.SQRT2, 1.4, (depth + 0.3) / Math.SQRT2]);
-    } else {
-      block(palette.roof, x, height + 0.52, z, width - 0.4, 0.12, depth - 0.4);
-    }
-    if (family === 'terrace') {
-      block(skin, x, height + 1.2, z - 0.9, width - 1.8, 2, depth - 2.2);
-      block(palette.cream, x, height + 2.25, z - 0.9, width - 1.5, 0.2, depth - 1.9);
-      block(palette.roof, x, height + 2.4, z - 0.9, width - 2, 0.1, depth - 2.4);
-    }
-    for (let level = 1.7; level < height; level += 2) {
-      for (let column = -width / 2 + 1; column < width / 2 - 0.5; column += 1.55) {
-        for (const side of [-1, 1]) {
-          block(palette.glass, x + column, level, z + side * (depth / 2 + 0.02), 0.72, 1.08, 0.05);
-          block(palette.cream, x + column, level - 0.6, z + side * (depth / 2 + 0.09), 0.88, 0.1, 0.24);
-        }
-      }
-      for (let column = -depth / 2 + 1; column < depth / 2 - 0.5; column += 1.55) {
-        for (const side of [-1, 1]) {
-          block(palette.glass, x + side * (width / 2 + 0.02), level, z + column, 0.05, 1.08, 0.72);
-        }
-      }
-    }
-    block(palette.glass, x, 1.15, z + depth / 2 + 0.03, 1.1, 1.7, 0.07);
-    block(palette.wood, x, 2.2, z + depth / 2 + 0.55, 1.7, 0.16, 1.2);
-  }
-  ART_INPUTS.buildings.forEach(house);
-  for (let step = 0; step < 5; step++) {
-    block(palette.paving, terrace.position.x, 0.13 + step * 0.18, terrace.position.z + 0.8 - step * 0.42,
-      5.6, 0.26 + step * 0.36, 0.45);
-  }
-  block(palette.clay, terrace.position.x - 3.15, 0.4, terrace.position.z, 0.5, 0.8, 2.3);
-  block(palette.clay, terrace.position.x + 3.15, 0.4, terrace.position.z, 0.5, 0.8, 2.3);
-  for (const side of [-1, 1]) {
-    district.add(crown, palette.leafLight, [terrace.position.x + side * 3.15, 1.05, terrace.position.z],
-      [0.45, 0.45, 0.85]);
-  }
-
-  const plinth = geometry(new THREE.CylinderGeometry(3.7, 3.9, 0.32, 8));
-  const eaves = geometry(new THREE.CylinderGeometry(4.45, 4.45, 0.22, 8));
-  const copperRoof = geometry(new THREE.CylinderGeometry(0.55, 4.5, 1.7, 8));
-  district.add(plinth, palette.cream, [pavilionX, 0.27, pavilionZ], [1, 1, 0.9]);
-  district.add(eaves, palette.copperEdge, [pavilionX, 5.35, pavilionZ], [1, 1, 0.9]);
-  district.add(copperRoof, palette.copper, [pavilionX, 6.3, pavilionZ], [1, 1, 0.9]);
-  district.add(cylinder, palette.copperEdge, [pavilionX, 7.2, pavilionZ], [0.34, 0.2, 0.34]);
-  district.add(crown, palette.copper, [pavilionX, 7.53, pavilionZ], [0.32, 0.4, 0.32]);
-  for (let index = 0; index < 8; index++) {
-    const angle = index / 8 * Math.PI * 2 + Math.PI / 8;
-    district.add(cylinder, palette.cream, [
-      pavilionX + Math.cos(angle) * 2.95, 2.83, pavilionZ + Math.sin(angle) * 2.65,
-    ], [0.19, 4.8, 0.19]);
-    district.add(cylinder, palette.stone, [
-      pavilionX + Math.cos(angle) * 2.95, 0.64, pavilionZ + Math.sin(angle) * 2.65,
-    ], [0.31, 0.45, 0.31]);
-  }
-  block(palette.wood, pavilionX, 0.95, pavilionZ, 3.5, 0.22, 1.4);
-  block(palette.stone, pavilionX - 1.2, 0.68, pavilionZ, 0.3, 0.5, 1.1);
-  block(palette.stone, pavilionX + 1.2, 0.68, pavilionZ, 0.3, 0.5, 1.1);
-
-  const { x: gardenX, z: gardenZ } = garden.position;
-  block(palette.leafLight, gardenX - 0.6, -0.01, gardenZ + 0.4, 8.6, 0.2, 6.3);
-  block(palette.stone, gardenX, 0.16, gardenZ, 5.2, 0.35, 3.4);
-  block(palette.water, gardenX, 0.35, gardenZ, 4.7, 0.08, 2.9);
-  for (let index = 0; index < 12; index++) {
-    const x = gardenX - 2 + index % 6 * 0.72;
-    const z = gardenZ + (index < 6 ? -1.15 : 1.15);
-    district.add(cylinder, palette.leaf, [x, 0.85, z], [0.045, 0.9 + index % 3 * 0.15, 0.045]);
-    district.add(crown, palette.leafLight, [x, 1.23, z], [0.17, 0.32, 0.16]);
-  }
-
-  const treePositions = [
-    [-14.3, -3, 1], [-14, 1.4, 0.9], [-13, 9.2, 1.1], [-6, 10.3, 0.85],
-    [-0.5, 3.8, 1], [6.3, 3.2, 1.1], [14.7, -1.6, 0.9], [15.2, -10.5, 0.85],
-    [-22.9, -7, 0.9], [-22.9, 1, 1], [-12, 18.9, 0.85], [0, 18.9, 1], [12, 18.9, 0.85],
-    [22.9, 0, 0.85], [22.9, 8, 1],
-  ] as const;
-  let seed: number = ART_INPUTS.seed;
-  treePositions.forEach(([x, z, size], index) => {
-    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
-    district.add(cylinder, palette.wood, [x, 1.3 * size, z], [0.13, 2.6 * size, 0.13]);
-    district.add(crown, index % 3 ? palette.leaf : palette.leafLight, [x, 3.25 * size, z],
-      [1.25 * size, 1.65 * size, 1.2 * size], [0, seed / 0x100000000 * Math.PI * 2, 0.1]);
-    district.add(cylinder, palette.paving, [x, 0.03, z], [0.8, 0.12, 0.8]);
-  });
-  for (const [x, z] of [[-11, 3.7], [-5.4, 10.5], [4.7, -2.8]] as const) {
-    block(palette.wood, x, 0.65, z, 2, 0.16, 0.65);
-    block(palette.wood, x, 1.05, z - 0.3, 2, 0.55, 0.12);
-    block(palette.copperEdge, x - 0.7, 0.3, z, 0.12, 0.6, 0.48);
-    block(palette.copperEdge, x + 0.7, 0.3, z, 0.12, 0.6, 0.48);
-  }
-  for (const [x, z] of [[-16.5, -6], [-16.5, 6], [16.5, -6], [16.5, 6]] as const) {
-    district.add(cylinder, palette.copperEdge, [x, 1.8, z], [0.065, 3.6, 0.065]);
-    block(palette.cream, x, 3.68, z, 0.45, 0.28, 0.45);
-    block(palette.copperEdge, x, 3.87, z, 0.55, 0.1, 0.55);
-  }
-  for (const [x, z, shirt] of [
-    [-11.35, 3.7, palette.clay], [-5.65, 10.5, palette.teal],
-  ] as const) {
-    block(shirt, x, 1.06, z, 0.34, 0.48, 0.22);
-    district.add(crown, palette.skin, [x, 1.46, z], [0.18, 0.22, 0.18]);
-    for (const side of [-1, 1]) {
-      block(palette.rubber, x + side * 0.1, 0.74, z + 0.15, 0.13, 0.15, 0.45);
-      block(palette.rubber, x + side * 0.1, 0.43, z + 0.32, 0.13, 0.56, 0.14);
-      block(shirt, x + side * 0.22, 0.99, z + 0.06, 0.12, 0.32, 0.14);
-    }
-  }
-  const stopSignal = material(new THREE.MeshStandardMaterial({
-    color: '#de6151', emissive: '#de6151', emissiveIntensity: 0.65, roughness: 0.7,
-  }));
-  const goSignal = material(new THREE.MeshStandardMaterial({
-    color: '#86b97f', emissive: '#86b97f', emissiveIntensity: 0.65, roughness: 0.7,
-  }));
-  const signalNormal = new THREE.Vector3(Math.SQRT1_2, 0, Math.SQRT1_2);
-  const lampRotation = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), signalNormal);
-  const signalLights = [
-    { name: 'Vehicle', x: -3.6, z: -18.8, height: 3.5, kind: 'vehicles' },
-    { name: 'North crossing', x: 1.6, z: -18.8, height: 2.5, kind: 'pedestrians' },
-    { name: 'South crossing', x: -1.6, z: -13.2, height: 2.5, kind: 'pedestrians' },
-  ].map(({ name, x, z, height, kind }) => {
-    district.add(cylinder, palette.copperEdge, [x, (height - 0.3) / 2, z], [0.055, height - 0.3, 0.055]);
-    block(palette.rubber, x, height, z, 0.5, 0.84, 0.26, Math.PI / 4);
-    const lamp = (label: string, y: number) => {
-      const light = mesh(cylinder, palette.rubber, `${name} ${label} lamp`);
-      light.position.set(x + signalNormal.x * 0.16, y, z + signalNormal.z * 0.16);
-      light.scale.set(0.135, 0.04, 0.135);
-      light.quaternion.copy(lampRotation);
-      light.receiveShadow = false;
-      return light;
-    };
-    return { kind, stop: lamp('stop', height + 0.2), go: lamp('go', height - 0.2) };
-  });
-
-  // Outer city — an ambient skyline that surrounds the tuned core. Every piece reuses
-  // one of the existing geometries and palette materials, so the batcher folds it into
-  // the established InstancedMeshes: no new draw calls, no new materials. It is purely
-  // decorative backdrop revealed as the camera pans or zooms out; the simulated loop,
-  // route, actors, and signals are untouched. A fixed-seed RNG keeps it deterministic.
-  const outerSkins = [palette.cream, palette.clay, palette.teal, palette.stone, palette.wood] as const;
-  let outerSeed = (ART_INPUTS.seed ^ 0x9e3779b9) >>> 0;
-  const outerRandom = () => {
-    outerSeed = (Math.imul(outerSeed, 1664525) + 1013904223) >>> 0;
-    return outerSeed / 0x100000000;
-  };
-  const outerTower = (x: number, z: number) => {
-    const width = 2 + outerRandom() * 2.6;
-    const depth = 2 + outerRandom() * 2.6;
-    const height = 2.4 + outerRandom() * 8.5;
-    const skin = outerSkins[Math.floor(outerRandom() * outerSkins.length)];
-    block(palette.stone, x, 0.2, z, width + 0.5, 0.4, depth + 0.5);
-    block(skin, x, height / 2 + 0.3, z, width, height, depth);
-    block(palette.cream, x, height + 0.36, z, width + 0.25, 0.22, depth + 0.25);
-    // A single glazed band per street face reads as windows from a distance without
-    // the per-floor geometry the core buildings carry up close.
-    for (const face of [1, -1]) {
-      block(palette.glass, x, height * 0.55, z + face * (depth / 2 + 0.02), width - 0.5, height * 0.7, 0.05);
-    }
-    if (outerRandom() > 0.45) {
-      district.add(hipRoof, palette.roof, [x, height + 0.85, z],
-        [(width + 0.25) / Math.SQRT2, 1.2, (depth + 0.25) / Math.SQRT2]);
-    } else {
-      block(palette.roof, x, height + 0.5, z, width - 0.35, 0.12, depth - 0.35);
-    }
-  };
-  const outerStep = 6.4;
-  for (let ix = -6; ix <= 6; ix++) {
-    for (let iz = -6; iz <= 6; iz++) {
-      const gx = ix * outerStep;
-      const gz = iz * outerStep;
-      if (Math.abs(gx) <= 24 && Math.abs(gz) <= 24) continue;
-      outerTower(gx + (outerRandom() - 0.5) * 2.6, gz + (outerRandom() - 0.5) * 2.6);
-    }
-  }
-  const outerTree = (x: number, z: number) => {
-    const size = 0.8 + outerRandom() * 0.6;
-    district.add(cylinder, palette.wood, [x, 1.3 * size, z], [0.13, 2.6 * size, 0.13]);
-    district.add(crown, outerRandom() > 0.5 ? palette.leaf : palette.leafLight,
-      [x, 3.2 * size, z], [1.2 * size, 1.6 * size, 1.15 * size],
-      [0, outerRandom() * Math.PI * 2, 0.08]);
-  };
-  for (let index = 0; index < 18; index++) {
-    const angle = index / 18 * Math.PI * 2;
-    const radius = 30 + outerRandom() * 12;
-    outerTree(Math.cos(angle) * radius, Math.sin(angle) * radius);
-  }
+  const park = buildCentralPark({ block, add: district.add, box, cylinder, crown, palette });
+  scene.add(park.group);
+  const streetscape = buildStreetscape({ block, add: district.add, box, cylinder, crown, palette });
+  scene.add(streetscape.group);
+  const pavement = buildPavementMarkings({ block, add: district.add, box, cylinder, crown, palette });
   district.finish();
 
   const actors = new Map<string, THREE.Group>();
@@ -538,74 +247,142 @@ export function buildCityScene(): CityScene {
     return { kind: 'walker', pelvis, torso, legs, arms };
   }
 
-  const bus = actorGroup(CITY.busId, 'Ordinary square bus');
-  const busBody = new THREE.Object3D();
-  busBody.name = 'bus-body';
-  bus.add(busBody);
-  const coach = batcher(busBody);
-  coach.add(box, palette.bus, [0, 1.15, 0], [1.9, 1.4, 4.5]);
-  coach.add(box, palette.cream, [0, 2.06, 0], [1.92, 0.46, 4.52]);
-  coach.add(box, palette.cream, [0, 2.33, 0], [1.78, 0.14, 4.32]);
-  coach.add(box, palette.glass, [0, 1.67, 2.265], [1.55, 0.84, 0.035]);
-  coach.add(box, palette.glass, [0, 1.7, -2.265], [1.5, 0.7, 0.035]);
-  for (const side of [-1, 1]) {
-    for (const z of [-1.5, -0.53, 0.44, 1.41]) {
-      coach.add(box, palette.glass, [side * 0.958, 1.7, z], [0.03, 0.75, 0.8]);
-    }
-    coach.add(box, palette.line, [side * 0.59, 0.94, 2.28], [0.3, 0.18, 0.06]);
-    coach.add(box, palette.clay, [side * 0.66, 0.94, -2.28], [0.18, 0.22, 0.06]);
-  }
-  coach.add(box, palette.copperEdge, [0, 0.67, 2.3], [1.8, 0.14, 0.12]);
-  coach.add(box, palette.copperEdge, [0, 0.67, -2.3], [1.8, 0.14, 0.12]);
-  coach.finish();
-  const busWheels: WheelRig[] = [];
-  for (const side of [-1, 1]) {
-    for (const z of [-1.4, 1.4]) {
-      busWheels.push(buildWheel(bus, side * 0.95, 0.38, z, 1, 1, z > 0));
-    }
-  }
-  const busRig: VehicleRig = { kind: 'vehicle', body: busBody, wheels: busWheels, wheelRadius: VEHICLE.busWheelRadius };
-  bus.userData.rig = busRig;
-  poseNeutral(busRig);
-
-  for (const [index, color] of [palette.cream, palette.teal, palette.clay].entries()) {
-    const car = actorGroup(`car-${index + 1}`, 'Small ordinary car');
-    const carBody = new THREE.Object3D();
-    carBody.name = 'car-body';
-    car.add(carBody);
-    const parts = batcher(carBody);
-    parts.add(box, color, [0, 0.6, 0], [1.45, 0.55, 2.65]);
-    parts.add(box, palette.glass, [0, 1.06, -0.15], [1.2, 0.48, 1.45]);
-    parts.add(box, color, [0, 1.33, -0.15], [1.23, 0.12, 1.48]);
-    for (const side of [-1, 1]) {
-      parts.add(box, palette.line, [side * 0.5, 0.67, 1.36], [0.25, 0.15, 0.06]);
-    }
-    parts.finish();
-    const carWheels: WheelRig[] = [];
-    for (const side of [-1, 1]) {
-      for (const z of [-0.91, 0.91]) {
-        carWheels.push(buildWheel(car, side * 0.73, 0.26, z, 0.26 / 0.38, 0.8, z > 0));
-      }
-    }
-    const carRig: VehicleRig = { kind: 'vehicle', body: carBody, wheels: carWheels, wheelRadius: VEHICLE.carWheelRadius };
-    car.userData.rig = carRig;
-    poseNeutral(carRig);
-  }
-
   const shirts = [palette.teal, palette.clay, palette.cream, palette.leaf];
+  const neighborhoodActors: THREE.Group[] = [];
   for (let index = 0; index < 8; index++) {
     const walker = actorGroup(`walker-${index + 1}`, 'Square walker');
+    neighborhoodActors.push(walker);
     const rig = buildWalkerRig(walker, shirts[index % shirts.length], index % 2 ? palette.skin : palette.skinLight);
     walker.userData.rig = rig;
     poseNeutral(rig);
   }
+
+  const bicycleTire = geometry(new THREE.TorusGeometry(0.32, 0.035, 6, 12).rotateY(Math.PI / 2));
+  for (const [index, definition] of TRAFFIC_ACTORS.entries()) {
+    const group = actorGroup(definition.id, `Neighborhood ${definition.vehicleType ?? definition.kind}`);
+    neighborhoodActors.push(group);
+    if (definition.kind === 'pedestrian') {
+      const rig = buildWalkerRig(group, shirts[index % shirts.length], index % 2 ? palette.skin : palette.skinLight);
+      group.userData.rig = rig;
+      poseNeutral(rig);
+      continue;
+    }
+    const body = new THREE.Object3D();
+    group.add(body);
+    const part = (surface: THREE.Material, x: number, y: number, z: number, w: number, h: number, d: number) => {
+      const object = limb(box, surface, [x, y, z], [w, h, d]);
+      body.add(object);
+      return object;
+    };
+    const wheels: WheelRig[] = [];
+    if (definition.kind === 'cyclist') {
+      part(palette.teal, 0, 0.58, 0, 0.08, 0.1, 1.25);
+      part(palette.teal, 0, 0.7, -0.15, 0.08, 0.6, 0.08);
+      part(palette.rubber, 0, 1.03, -0.25, 0.28, 0.08, 0.35);
+      part(palette.copperEdge, 0, 0.85, 0.62, 0.06, 0.75, 0.06);
+      part(palette.rubber, 0, 1.2, 0.62, 0.58, 0.06, 0.08);
+      part(shirts[index % shirts.length], 0, 1.42, -0.05, 0.35, 0.52, 0.24);
+      body.add(limb(crown, palette.skinLight, [0, 1.82, 0.05], [0.18, 0.2, 0.18]));
+      body.add(limb(crown, palette.cream, [0, 1.95, 0.05], [0.21, 0.12, 0.22]));
+      for (const side of [-1, 1]) {
+        body.add(limb(box, shirts[index % shirts.length], [side * 0.23, 1.35, 0.29], [0.11, 0.12, 0.6], [-0.25, 0, 0]));
+      }
+      for (const z of [-0.58, 0.58]) {
+        const steer = new THREE.Object3D();
+        steer.position.set(0, 0.355, z);
+        group.add(steer);
+        const spin = new THREE.Object3D();
+        steer.add(spin);
+        spin.add(limb(bicycleTire, palette.rubber, [0, 0, 0], [1, 1, 1]));
+        spin.add(limb(box, palette.stone, [0, 0, 0], [0.03, 0.59, 0.025]));
+        spin.add(limb(box, palette.stone, [0, 0, 0], [0.03, 0.025, 0.59]));
+        wheels.push({ steer, spin, front: z > 0 });
+      }
+      const pedals = [-1, 1].map((side) => {
+        const crank = new THREE.Object3D();
+        crank.position.set(side * 0.16, 0.78, -0.12);
+        crank.add(limb(box, palette.rubber, [0, -0.15, 0], [0.12, 0.36, 0.13]));
+        body.add(crank);
+        return crank;
+      });
+      const rig: VehicleRig = { kind: 'vehicle', body, wheels, wheelRadius: 0.355, pedals };
+      group.userData.rig = rig;
+      poseNeutral(rig);
+      continue;
+    }
+    const type = definition.vehicleType;
+    const taxi = type === 'taxi';
+    const busType = type === 'bus';
+    const large = busType || type === 'truck';
+    const van = type === 'van';
+    const length = busType ? 4.6 : type === 'truck' ? 4.5 : van ? 3.3 : 2.7;
+    const width = busType ? 1.9 : large ? 1.7 : van ? 1.5 : 1.45;
+    const radius = large ? 0.36 : 0.26;
+    const color = taxi ? palette.taxi : busType ? palette.cream :
+      [palette.teal, palette.clay, palette.cream][index % 3];
+    part(color, 0, taxi ? 0.63 : 0.7, 0, width, taxi ? 0.66 : 0.8, length - 0.1);
+    part(palette.glass, 0, taxi ? 1.13 : 1.24, large || van ? 0 : -0.15,
+      width - 0.17, taxi ? 0.47 : 0.6, large || van ? length - 0.3 : 1.45);
+    part(color, 0, taxi ? 1.39 : 1.6, large || van ? 0 : -0.15,
+      taxi ? width - 0.09 : width, taxi ? 0.1 : 0.15, large || van ? length : 1.5);
+    if (busType) {
+      part(palette.teal, 0, 0.82, 0, width + 0.03, 0.24, length);
+      for (let z = -1.8; z <= 1.8; z += 0.85) part(color, 0, 1.26, z, width, 0.66, 0.12);
+    } else if (large || van) {
+      part(color, 0, 1.25, -0.55, width, 1.24, length - 1.2);
+      part(palette.cream, 0, 1.93, -0.55, width + 0.02, 0.1, length - 1.2);
+      for (const side of [-1, 1]) part(palette.stone, side * width / 2, 1.22, -0.6, 0.03, 0.04, length - 1.5);
+    } else if (taxi) {
+      part(palette.rubber, 0, 1.46, -0.15, 0.66, 0.05, 0.3);
+      part(palette.cream, 0, 1.58, -0.15, 0.62, 0.22, 0.23).name = 'Unbranded taxi roof light';
+      part(palette.rubber, 0, 0.65, 1.32, 0.64, 0.18, 0.045).name = 'Taxi front grille';
+      part(palette.taxi, 0, 0.43, 1.32, 0.26, 0.1, 0.045);
+      for (const side of [-1, 1]) {
+        part(color, side * 0.675, 1.15, -0.13, 0.055, 0.45, 0.085);
+        part(palette.rubber, side * 0.716, 0.57, 0, 0.014, 0.045, 1.8);
+        for (const z of [-0.51, 0.16]) {
+          part(palette.stone, side * 0.718, 0.9, z, 0.012, 0.035, 0.16);
+        }
+        part(palette.rubber, side * 0.709, 0.68, -0.48, 0.018, 0.22, 0.25)
+          .name = 'Generic taxi door medallion';
+        part(palette.taxi, side * 0.72, 0.68, -0.48, 0.006, 0.12, 0.15);
+      }
+      // A tiny original geometric TAXI stencil, without company logos or roof advertising.
+      const letters = [
+        ['111', '010', '010', '010', '010'],
+        ['010', '101', '111', '101', '101'],
+        ['101', '101', '010', '101', '101'],
+        ['111', '010', '010', '010', '111'],
+      ];
+      for (const side of [-1, 1]) letters.forEach((letter, column) => {
+        letter.forEach((row, y) => [...row].forEach((pixel, x) => {
+          if (pixel === '1') part(palette.rubber, side * (-0.255 + column * 0.14 + x * 0.035),
+            1.65 - y * 0.035, -0.15 + side * 0.119, 0.031, 0.031, 0.006);
+        }));
+      });
+    }
+    for (const side of [-1, 1]) {
+      part(palette.line, side * width * 0.32, 0.75, length / 2 - 0.025, 0.23, 0.16, 0.04);
+      part(palette.clay, side * width * 0.32, 0.75, -length / 2 + 0.025, 0.2, 0.16, 0.04);
+      for (const z of [-length * 0.32, length * 0.32]) {
+        wheels.push(buildWheel(group, side * (width / 2 - 0.13), radius, z, radius / 0.38, 0.7, z > 0));
+      }
+    }
+    const rig: VehicleRig = { kind: 'vehicle', body, wheels, wheelRadius: radius };
+    group.userData.rig = rig;
+    poseNeutral(rig);
+  }
+  const actorInstances = new ActorInstances(neighborhoodActors);
+  scene.add(actorInstances.group);
+  const bus = actors.get(CITY.busId)!;
+  actors.forEach((actor) => actor.traverse((part) => { part.castShadow = false; }));
 
   const invisible = material(new THREE.MeshBasicMaterial({
     transparent: true, opacity: 0, colorWrite: false, depthWrite: false,
   }));
   const hitTargets: THREE.Object3D[] = [];
   for (const point of LANDMARKS) {
-    const height = point.id === pavilion.id ? 8 : 1.6;
+    const height = point.id === pavilion.id ? 4 : 1.6;
     const target = new THREE.Mesh(cylinder, invisible);
     target.name = `${point.name} semantic hit volume`;
     target.userData.semanticId = point.id;
@@ -624,32 +401,27 @@ export function buildCityScene(): CityScene {
 
   scene.add(new THREE.HemisphereLight('#fff1d8', '#a99f87', 2.4));
   const sun = new THREE.DirectionalLight('#fff1d6', 3);
-  sun.position.set(-16, 28, 20);
+  sun.position.set(-65, 100, 70);
   sun.castShadow = true;
   sun.shadow.mapSize.set(1024, 1024);
-  Object.assign(sun.shadow.camera, { left: -34, right: 34, top: 34, bottom: -34, near: 1, far: 85 });
+  Object.assign(sun.shadow.camera, { left: -105, right: 105, top: 100, bottom: -100, near: 1, far: 300 });
   sun.shadow.normalBias = 0.06;
   sun.shadow.bias = -0.00015;
   scene.add(sun);
   scene.updateMatrixWorld(true);
 
   let disposed = false;
-  let signalPhase: 'vehicles' | 'clearance' | 'pedestrians' | undefined;
-  function setSignal(phase: 'vehicles' | 'clearance' | 'pedestrians') {
-    if (disposed || phase === signalPhase) return;
-    signalPhase = phase;
-    for (const light of signalLights) {
-      const mayProceed = phase === light.kind;
-      light.stop.material = mayProceed ? palette.rubber : stopSignal;
-      light.go.material = mayProceed ? goSignal : palette.rubber;
-    }
-  }
-  setSignal('vehicles');
   return {
-    scene, bus, actors, hitTargets, marker, setSignal,
+    scene, bus, actors, hitTargets, marker,
+    setTrafficSignals: (signals) => streetscape.setSignals(signals),
+    updateActors: () => actorInstances.update(),
     dispose() {
       if (disposed) return;
       disposed = true;
+      actorInstances.dispose();
+      pavement.dispose();
+      park.dispose();
+      streetscape.dispose();
       instances.forEach((instance) => instance.dispose());
       geometries.forEach((shape) => shape.dispose());
       materials.forEach((surface) => surface.dispose());

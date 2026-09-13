@@ -1,8 +1,36 @@
 # Art and assets
 
-**Status:** M1-M3 art includes a compact original procedural district, three landmark forms, a bounded set of actor models, and an original SVG still, authored on 2026-09-12. M2 uses a reproducible TypeScript workflow rather than requiring Python/Blender/GLB export. Imported screenshots remain research only; no textures or audio are shipped by this art slice.
+**Status:** the connected-city expansion uses asset version `rainlight-003`. A car-free central park replaces the village and its internal vehicle loop; original street-connected neighborhood blocks, cycling infrastructure and varied traffic surround it. Authored TypeScript remains the reproducible art workflow; reference photographs remain research only. The M1-M3 record below is historical and does not describe current source contracts, footprint or population.
 
-**Current review priority:** desktop at **1440 × 900** and **1920 × 1080**, checking the overview, three landmark views, street activity and signal legibility. Existing basic responsiveness remains, but mobile edge-case hardening is not an acceptance gate for this art deliverable. Desktop visual/GPU verification belongs to the integrated runtime review; the unit checks below do not claim it has been completed.
+## Connected-city original assets - rainlight-003
+
+The ground expands from the decorative 92 x 84 m island to **136 x 124 m**. Four avenues at X = -60, -30, 30, 60 and four cross streets at Z = -54, -26, 26, 54 define sixteen intersections. Street geometry and movement share [`streets.ts`](../src/content/streets.ts). Eight authored blocks contain 32 buildings; the five former village buildings, copper gazebo and internal asphalt circuit are removed.
+
+[`streetscape.ts`](../src/world/streetscape.ts) adds original street-wall facades, floor-by-floor windows, cornices, fire escapes, roof tanks, stoops, public spaces, street trees, subway stairs, and construction detail. Bike paths and intersection markings are infrastructure, not advertising. Juniper Court (-45, 40) and Crosstown Steps (45, -40) join the three retained landmarks, each with an original semantic hit volume and camera anchor.
+
+The models distinguish sedans, unbranded yellow cabs, vans, trucks, buses, and helmeted cyclists. Yellow cabs have lower cabins, dark glazing, trim, grille, door details and small original TAXI roof lights, without manufacturer/TLC logos, actual identification numbers or roof advertising. Cyclists have distance-driven wheels and alternating pedals. [`ActorInstances`](../src/world/actorInstances.ts) submits shared geometries/materials across **all 68 actors** while preserving individually driven poses. It owns only instance buffers; the parent scene owns geometry/material disposal. Eight park walkers retain their semantic IDs, but the former garden bus/cars are removed.
+
+[`park.ts`](../src/world/park.ts) authors a 46 x 38 m lawn, pond, arched footbridge, low limestone pergola, terrace, slatted benches and dark perimeter railings. Tan granular-path color distinguishes the walking routes from pale city sidewalks. Trees stand outside gate openings and leave an open central lawn. Path ribbons follow the same [`park.ts` content curves](../src/content/park.ts) as walking visitors, including four gates and outside sidewalk connections. The bridge is scenery; no bridge-crossing visitor behavior is claimed.
+
+[`pavement.ts`](../src/world/pavement.ts) creates original flat bicycle/rider/arrow and pedestrian-running stencils from geometry, not downloaded icons or textures. All 48 protected-lane segments receive direction-aligned white marks away from stop bars and crosswalks. Four park paths receive contrasting pedestrian marks. A NYC-specific runner stencil was not established by the image research; these are original functional cues, not replicas or traffic-engineering claims. The [image-reference record](NYC_CITY_RESEARCH.md#photo-reference-pass---2026-09-13) documents the source observations and limits.
+
+[`rainlight-003.svg`](../public/city/rainlight-003.svg) is a self-contained original companion illustration of the park district, not a screenshot, copied reference image, or exact scene export. Its inline metadata records the authored focus points in a 1200 x 900 viewBox:
+
+| Landmark | Illustration point | CSS left / top |
+| --- | --- | --- |
+| Rainlight Pavilion | 595.9, 452.85 | 49.6583% / 50.3167% |
+| Terrace Steps | 653.3, 482.25 | 54.4417% / 53.5833% |
+| Reed Garden | 538.5, 467.55 | 44.875% / 51.95% |
+| Juniper Court | 251.5, 457.75 | 20.9583% / 50.8611% |
+| Crosstown Steps | 948.5, 482.25 | 79.0417% / 53.5833% |
+
+Scene and still were authored for this project from standard geometry and new vectors, without source-site models, textures, fonts, maps, brands, or signs. The older `rainlight-001.svg` is retained as the historical original. A neutral sky-matched unlit backdrop avoids tinting the whole city yellow, while world lighting and tagged windows still respond to time/weather. Rain/cloud coverage and shadow bounds expand with the scene; effects retain their fixed allocation caps.
+
+Expanded-city CPU submission ceilings are 240 visible mesh submissions, 200,000 triangles, and 36 materials. These replace the small M3 geometry-test ceilings for this larger requested slice, not the unverified device FPS goals. Record measurements in [acceptance criteria](ACCEPTANCE_CRITERIA.md); do not infer GPU performance from these limits.
+
+There are **32 buildings** and **68 moving actors**. Final scene traversal measurements belong in [acceptance criteria](ACCEPTANCE_CRITERIA.md); the earlier version-002 counts are superseded. CPU geometry counts exclude extra renderer passes and are not FPS measurements. Static shadows are cached; moving actors do not cast into the cache. Rain/cloud budgets remain fixed, and unchanged actor poses are not resubmitted between simulation ticks.
+
+**Review scope:** overview, park and street-detail focus, Night/Rain and Mist/Lightweight; record the final executed checks in acceptance criteria. Browser layouts target 1024 x 768, 1440 x 900 and 1920 x 1080, including five-landmark cycling and fallback. The heading has an opaque light surface so a dark sky cannot erase its text. Physical-device GPU and assistive-technology verification remain outstanding; mobile-specific hardening is not an acceptance gate.
 
 ## Originality and rights
 
@@ -12,9 +40,9 @@ Broad ideas such as a low-poly miniature, repeated building modules, lively stre
 
 The source GLB has zero embedded textures/images and a generator string naming a Python script. That supports colored procedural geometry as a useful approach; it does not provide an original script, license, or proof that all source visuals were procedural.
 
-## Implemented M1-M3 originals: Rainlight Square
+## Historical M1-M3 originals: Rainlight Square
 
-The initial implementation uses a warm handcrafted miniature with a copper-roofed pavilion, cream/terracotta/teal buildings, a small garden, and ordinary street activity. The initial M1 block was extended in place for M2-M3: five buildings across flat-roofed hall, stepped terrace and hipped-roof cottage families; an open civic pavilion; planted terrace steps; a shallow reed garden; two seated figures; and twelve moving-actor models. The district footprint was not expanded. These assets were authored directly for LivingCity by GitHub Copilot, without downloading, tracing, importing, or deriving geometry from the reference assets. They contain no third-party artwork, textures, fonts, icons, branding, advertisements, or external resource requests. This records actual local source provenance, not a claim about the source site's implementation history. The later NYC-inspired direction is recorded in M8 and has not replaced this artwork yet.
+The initial implementation used a warm handcrafted miniature with a copper-roofed pavilion, cream/terracotta/teal buildings, a small garden, and ordinary street activity. The initial M1 block was extended in place for M2-M3: five buildings across flat-roofed hall, stepped terrace and hipped-roof cottage families; an open civic pavilion; planted terrace steps; a shallow reed garden; two seated figures; and twelve moving-actor models. The district footprint was not expanded at that checkpoint. These original assets were authored directly for LivingCity without downloading or tracing the reference assets. The following version-001 records describe that historical checkpoint; the connected-city section above supersedes its population, footprint, target count and current asset version.
 
 | Asset/version | Authored source and reproduction | Rights/provenance |
 | --- | --- | --- |
@@ -60,17 +88,17 @@ Choose a small original palette by material role: ground/road, sidewalk/curb, ma
 | Plaza and landscape | Fountain or garden feature, benches, planted edges, open pedestrian circulation, meaningful resting spots. |
 | Vegetation | A few reusable tree/shrub silhouettes with scale/hue variation; avoid one mesh/material per tree. |
 | Props | Original lights, seating, cycle racks, civic wayfinding and service details; no ad slots or branded billboards. |
-| Actors | Simple ordinary buses, cars and people, authored separately with coherent scale and pivots. An occasional airplane is future planning only; no airplane or drone is implemented in this art deliverable. |
+| Actors | Simple ordinary buses, cars, cyclists and people, authored separately with coherent scale and pivots. The occasional airplane is implemented separately; no drone. |
 
 A building's roof detail should not cost more than the whole actor system without a visible benefit. Close views need enough geometry to hold up, but the overview composition remains the main use.
 
 ## Reproducible TypeScript workflow
 
 1. **Inputs:** retain the versioned `ART_INPUTS` record and paired `CONTENT` manifest. Edit the explicit building dimensions/families or seed, not opaque geometry or research data. Keep meters, Y-up, bounds, route shape, landmark IDs and camera anchors consistent.
-2. **Validation:** `buildCityScene()` validates art and landmark inputs before constructing resources. Changes to the north crossing, bus stop, actor lengths or shared route require coordinated simulation changes, not independent decorative adjustments.
+2. **Validation:** `buildCityScene()` validates art and landmark inputs before constructing resources. Street stop bars, actor footprints, park gates and shared paths require coordinated simulation changes, not independent decorative adjustments.
 3. **Generation:** the authored source produces shared primitives, a sampled route ribbon, instanced static families and separately transformable actor groups. Seed 2401 determines fixed tree rotation variation; time and runtime randomness never enter generation.
 4. **Reproduction:** use the dependency lockfile and call `buildCityScene()` again. The art test compares all geometry position/index arrays and instance matrices across independent builds. No Python/Blender process, GLB encoder/decoder or downloaded model is needed.
-5. **Companion still:** keep the editable `rainlight-001.svg` with its asset version and inline focus-point metadata. Regenerate by serving/copying this canonical SVG; changes to district composition require a deliberate matching vector edit and fallback-coordinate review.
+5. **Companion still:** keep the editable `rainlight-003.svg` with its asset version and inline focus-point metadata. Regenerate by serving/copying this canonical SVG; changes to district composition require a deliberate matching vector edit and fallback-coordinate review. Version 001 remains unchanged as a historical artifact.
 6. **Verification and delivery:** run the art tests, lint and typecheck; review camera/focus views in the integrated runtime; measure renderer calls and device performance separately. Vite's hashed source bundle carries the procedural art, alongside the separately versioned original SVG.
 
 Direct source generation is the chosen M2 equivalent reproducible-art workflow: it retains original source, dimensions, semantic manifests, stable pivots, deterministic output and explicit resource ownership without adding an export toolchain for roughly thirteen thousand triangles. GLB delivery is a possible later option if measured transfer/loading or an external art workflow requires it, not an outstanding M2 requirement or a claim that a binary export already exists.

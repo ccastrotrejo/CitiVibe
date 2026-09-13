@@ -18,12 +18,12 @@ export const AIRPLANE = {
   minimumGap: 90,
   maximumGap: 180,
   altitude: 46,
-  startX: -240,
-  startZ: -180,
-  endX: 240,
-  endZ: 180,
+  startX: -480,
+  startZ: -360,
+  endX: 480,
+  endZ: 360,
   speed: 15,
-  routeLength: 600,
+  routeLength: 1200,
 } as const;
 
 const HEADING = Math.atan2(AIRPLANE.endX - AIRPLANE.startX, AIRPLANE.endZ - AIRPLANE.startZ);

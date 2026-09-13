@@ -43,13 +43,17 @@ export function createWorld({ canvas, model, onChange, onLifecycle }: WorldOptio
     throw error;
   }
   renderer.shadowMap.enabled = true;
+  renderer.shadowMap.autoUpdate = false;
+  renderer.shadowMap.needsUpdate = true;
   let lightweight = model.quality === 'lightweight';
   function applyQuality(): void {
     lightweight = model.quality === 'lightweight';
+    renderer.shadowMap.enabled = !lightweight;
+    renderer.shadowMap.needsUpdate = !lightweight;
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, lightweight ? 1 : 1.5));
   }
   applyQuality();
-  const camera = new OrthographicCamera(-38, 38, 38, -38, 0.1, 300);
+  const camera = new OrthographicCamera(-63, 63, 63, -63, 0.1, 500);
   const clock = new FrameClock();
   const locomotion = new Locomotion();
   let environment: EnvironmentVisual;
@@ -69,12 +73,13 @@ export function createWorld({ canvas, model, onChange, onLifecycle }: WorldOptio
   const pointer = new Vector2();
   const listeners = new AbortController();
   let frame: number | null = null;
+  let viewDirty = false;
   let disposed = false;
   let lost = false;
   let failed = false;
   let pageHidden = document.hidden;
   let restoreTimeout: ReturnType<typeof setTimeout> | undefined;
-  let viewHeight = 76;
+  let viewHeight: number = CAMERA_PROJECTION.overviewHeight;
 
   const visible = () => !pageHidden && !document.hidden;
   const available = () => !disposed && !lost && !failed && visible();
@@ -87,6 +92,7 @@ export function createWorld({ canvas, model, onChange, onLifecycle }: WorldOptio
   }
 
   function draw() {
+    viewDirty = false;
     const { pose } = model.camera;
     for (const actor of model.simulation.actors) {
       const mesh = art.actors.get(actor.id);
@@ -94,7 +100,8 @@ export function createWorld({ canvas, model, onChange, onLifecycle }: WorldOptio
       mesh.position.set(actor.position.x, actor.position.y, actor.position.z);
       mesh.rotation.y = actor.heading;
     }
-    art.setSignal?.(model.simulation.signal);
+    art.setTrafficSignals?.(model.simulation.traffic.signals);
+    art.updateActors?.();
     const selected = LANDMARKS.find(({ id }) => id === model.selectedId);
     art.marker.visible = Boolean(selected);
     if (selected) art.marker.position.set(selected.position.x, 0.12, selected.position.z);
@@ -113,8 +120,8 @@ export function createWorld({ canvas, model, onChange, onLifecycle }: WorldOptio
     renderer.render(art.scene, camera);
   }
 
-  function schedule() {
-    if (available() && frame === null && !model.paused) frame = requestAnimationFrame(animate);
+  function schedule(explicit = false) {
+    if (available() && frame === null && (!model.paused || explicit)) frame = requestAnimationFrame(animate);
   }
 
   function animate(now: number) {
@@ -123,14 +130,18 @@ export function createWorld({ canvas, model, onChange, onLifecycle }: WorldOptio
     try {
       const cameraRevision = model.camera.revision;
       let simulated = 0;
-      clock.advance(now, (dt) => {
-        model.step(dt);
-        simulated += dt;
-      });
-      locomotion.update(model.simulation.actors, art.actors, simulated, model.reducedMotion);
-      envElapsed += simulated;
-      if (model.camera.revision !== cameraRevision) onChange();
-      draw();
+      if (!model.paused) {
+        clock.advance(now, (dt) => {
+          model.step(dt);
+          simulated += dt;
+        });
+      }
+      if (simulated > 0) {
+        locomotion.update(model.simulation.actors, art.actors, simulated, model.reducedMotion);
+        envElapsed += simulated;
+        if (model.camera.revision !== cameraRevision) onChange();
+      }
+      if (simulated > 0 || viewDirty) draw();
       schedule();
     } catch (error) {
       reportFailure(error);
@@ -149,9 +160,14 @@ export function createWorld({ canvas, model, onChange, onLifecycle }: WorldOptio
     model.command(command);
     if (command.type === 'set-quality') { applyQuality(); resize(); }
     if (command.type === 'open-panel' || command.type === 'set-reduced-motion') input.clear();
-    if (model.paused || wasPaused !== model.paused) halt();
+    if ((model.paused && command.type !== 'navigate') || wasPaused !== model.paused) halt();
     onChange();
     if (available()) {
+      if (command.type === 'navigate') {
+        viewDirty = true;
+        schedule(true);
+        return;
+      }
       try { draw(); } catch (error) { reportFailure(error); }
       schedule();
     }
@@ -181,7 +197,7 @@ export function createWorld({ canvas, model, onChange, onLifecycle }: WorldOptio
     const { width, height } = canvas.getBoundingClientRect();
     if (width === 0 || height === 0) return;
     const aspect = width / height;
-    viewHeight = Math.max(60, 76 / aspect);
+    viewHeight = Math.max(CAMERA_PROJECTION.overviewHeight, CAMERA_PROJECTION.overviewWidth / aspect);
     camera.left = -viewHeight * aspect / 2;
     camera.right = viewHeight * aspect / 2;
     camera.top = viewHeight / 2;
@@ -214,7 +230,11 @@ export function createWorld({ canvas, model, onChange, onLifecycle }: WorldOptio
     if (pageHidden) suspend();
     else resume();
   }, { signal: listeners.signal });
-  window.addEventListener('pagehide', () => { pageHidden = true; suspend(); }, { signal: listeners.signal });
+  window.addEventListener('pagehide', (event) => {
+    pageHidden = true;
+    suspend();
+    if (event.persisted === false) dispose();
+  }, { signal: listeners.signal });
   window.addEventListener('pageshow', () => { pageHidden = document.hidden; resume(); }, { signal: listeners.signal });
 
   canvas.addEventListener('webglcontextlost', (event) => {
@@ -238,6 +258,7 @@ export function createWorld({ canvas, model, onChange, onLifecycle }: WorldOptio
       detachEffects();
       art.dispose();
       art = buildArt();
+      renderer.shadowMap.needsUpdate = true;
       attachEffects();
       locomotion.reset();
       lost = false;

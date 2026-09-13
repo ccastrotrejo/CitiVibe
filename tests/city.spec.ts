@@ -45,11 +45,28 @@ test('reduced motion, focus cycling, DPR bounds, and accessible controls', async
   await page.keyboard.press(']');
   await expect(page.getByText('Reed Garden', { exact: true }).first()).toBeVisible();
   await page.keyboard.press(']');
+  await expect(page.getByText('Juniper Court', { exact: true }).first()).toBeVisible();
+  await page.keyboard.press(']');
+  await expect(page.getByText('Crosstown Steps', { exact: true }).first()).toBeVisible();
+  await page.keyboard.press(']');
   await expect(page.getByText('Rainlight Pavilion', { exact: true }).first()).toBeVisible();
   const dpr = await page.locator('canvas').evaluate((canvas: HTMLCanvasElement) => canvas.width / canvas.clientWidth);
   expect(dpr).toBeLessThanOrEqual(1.5);
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   await page.getByRole('button', { name: 'Field guide' }).click();
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+});
+
+test('scene labels remain readable over nighttime rain', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'Resume city' })).toBeEnabled();
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByRole('combobox', { name: /^Weather/ }).selectOption('rain');
+  await page.getByRole('combobox', { name: /^Time of day/ }).selectOption('night');
+  await page.getByRole('button', { name: 'Close settings', exact: true }).click();
+  await expect(page.locator('.environment-badge')).toHaveText('Night / Rain');
+  await expect(page.locator('.scene-heading')).toHaveCSS('background-color', 'rgb(255, 253, 247)');
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 });
 
@@ -64,7 +81,7 @@ test('unsupported WebGL keeps landmark navigation, not a blank canvas', async ({
   await page.goto('/');
   await expect(page.getByText(/WebGL2 is unavailable/)).toBeVisible();
   await page.getByRole('button', { name: 'Next landmark' }).click();
-  await expect(page.getByText(/A copper-roofed gathering place/)).toBeVisible();
+  await expect(page.getByText(/An open limestone pergola/)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Pause city' })).toBeDisabled();
   expect(await page.locator('.city-poster').evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0)).toBe(true);
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
@@ -163,6 +180,8 @@ test('mouse gestures yield the camera without touching overlay controls', async 
   await page.mouse.move(x, y);
   await page.mouse.wheel(0, -80);
   await expect(page.getByText('Free view', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Pause city', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Resume city', exact: true })).toBeEnabled();
 });
 
 for (const [width, height] of [[1024, 768], [1440, 900], [1920, 1080]]) {
@@ -185,6 +204,6 @@ for (const [width, height] of [[1024, 768], [1440, 900], [1920, 1080]]) {
       })).toBe(true);
     }
     await page.getByRole('button', { name: 'Next landmark' }).click();
-    await expect(page.getByText(/A copper-roofed gathering place/)).toBeVisible();
+    await expect(page.getByText(/An open limestone pergola/)).toBeVisible();
   });
 }

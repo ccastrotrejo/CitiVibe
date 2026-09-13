@@ -194,7 +194,7 @@ describe('articulated walker rig', () => {
 describe('vehicle rig', () => {
   it('rolls wheels by distance over radius, monotonically', () => {
     const world = scene();
-    const rig = world.actors.get('car-1')!.userData.rig as VehicleRig;
+    const rig = world.actors.get('city-vehicle-1')!.userData.rig as VehicleRig;
     poseVehicleRig(rig, { distance: 3, pitch: 0, roll: 0, steer: 0, drop: 0 });
     for (const wheel of rig.wheels) expect(wheel.spin.rotation.x).toBeCloseTo(3 / rig.wheelRadius, 9);
     const before = rig.wheels[0].spin.rotation.x;
@@ -204,7 +204,7 @@ describe('vehicle rig', () => {
 
   it('applies attitude to the body and steer only to front wheels', () => {
     const world = scene();
-    const rig = world.actors.get('square-bus')!.userData.rig as VehicleRig;
+    const rig = world.bus.userData.rig as VehicleRig;
     poseVehicleRig(rig, { distance: 1, pitch: 0.02, roll: -0.01, steer: 0.15, drop: 0.02 });
     expect(rig.body.rotation.x).toBeCloseTo(0.02, 9);
     expect(rig.body.rotation.z).toBeCloseTo(-0.01, 9);
@@ -216,6 +216,22 @@ describe('vehicle rig', () => {
 });
 
 describe('locomotion driver', () => {
+  it('drives bicycle wheels and alternating pedals from traveled distance', () => {
+    const world = scene();
+    const simulation = new ActorSimulation();
+    const cyclist = simulation.actors.find((actor) => actor.kind === 'cyclist');
+    expect(cyclist).toBeDefined();
+    const rig = world.actors.get(cyclist!.id)!.userData.rig as VehicleRig;
+    expect(rig.pedals).toHaveLength(2);
+    poseVehicleRig(rig, { distance: 4.2, pitch: 0, roll: 0, steer: 0, drop: 0 });
+    expect(rig.pedals![1].rotation.x - rig.pedals![0].rotation.x).toBeCloseTo(Math.PI);
+    expect(rig.wheels[0].spin.rotation.x).toBeCloseTo(4.2 / rig.wheelRadius);
+    const before = rig.pedals![0].rotation.x;
+    const driver = new Locomotion();
+    driver.update(simulation.actors, world.actors, 0, false);
+    expect(rig.pedals![0].rotation.x).toBe(before);
+  });
+
   it('poses every rig from a live simulation without drift or error', () => {
     const world = scene();
     const simulation = new ActorSimulation();
@@ -229,7 +245,7 @@ describe('locomotion driver', () => {
       }
       driver.update(simulation.actors, world.actors, 1 / 30, false);
     }
-    const bus = world.actors.get('square-bus')!.userData.rig as VehicleRig;
+    const bus = world.bus.userData.rig as VehicleRig;
     expect(Number.isFinite(bus.wheels[0].spin.rotation.x)).toBe(true);
     expect(Math.abs(bus.body.rotation.x)).toBeLessThanOrEqual(VEHICLE.maxPitch + 1e-9);
     expect(Math.abs(bus.body.rotation.z)).toBeLessThanOrEqual(VEHICLE.maxRoll + 1e-9);
@@ -237,7 +253,7 @@ describe('locomotion driver', () => {
 
   it('is frame-rate independent: wheel spin depends only on distance', () => {
     const world = scene();
-    const rig = world.actors.get('car-1')!.userData.rig as VehicleRig;
+    const rig = world.actors.get('city-vehicle-1')!.userData.rig as VehicleRig;
     poseVehicleRig(rig, { distance: 7.25, pitch: 0, roll: 0, steer: 0, drop: 0 });
     const coarse = rig.wheels[0].spin.rotation.x;
     poseVehicleRig(rig, { distance: 0, pitch: 0, roll: 0, steer: 0, drop: 0 });

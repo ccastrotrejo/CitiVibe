@@ -37,7 +37,7 @@ p { text-wrap: pretty; }
 .scene-shell { position: relative; min-width: 0; min-height: min(670px, calc(100dvh - 240px)); background: #e9e8dc; isolation: isolate; }
 .scene-navigation { position: absolute; inset: 0; overflow: hidden; container-type: size; }
 .scene-navigation:focus-visible { outline-offset: -5px; }
-.scene-heading { position: absolute; top: 2rem; left: 2rem; z-index: 2; pointer-events: none; }
+.scene-heading { position: absolute; top: 2rem; left: 2rem; z-index: 2; pointer-events: none; padding: 0.75rem 1rem; border-radius: 10px; background: var(--surface); }
 .eyebrow { display: block; font-size: 0.625rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
 h1 { font-family: Georgia, serif; font-weight: 400; font-size: clamp(1.65rem, 3vw, 2.75rem); letter-spacing: -0.045em; line-height: 1.15; margin-top: 0.6rem; }
 .scene-heading p { color: var(--muted); margin-top: 0.6rem; font-size: 0.8rem; }
@@ -98,10 +98,12 @@ h1 { font-family: Georgia, serif; font-weight: 400; font-size: clamp(1.65rem, 3v
 .lifecycle-panel strong { font-family: Georgia, serif; font-size: 1.25rem; font-weight: 400; }
 .lifecycle-panel p { font-size: 0.8rem; line-height: 1.6; margin-top: 0.5rem; }
 .lifecycle-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; flex-shrink: 0; }
-.static-marker { position: absolute; z-index: 1; left: 49.117%; top: 33.222%; font-size: 0.7rem; padding: 0.5rem; background: var(--surface); border: 2px solid var(--accent); border-radius: 8px; transform: translate(-50%, -100%); }
+.static-marker { position: absolute; z-index: 1; left: 49.6583%; top: 50.3167%; font-size: 0.7rem; padding: 0.5rem; background: var(--surface); border: 2px solid var(--accent); border-radius: 8px; transform: translate(-50%, -100%); }
 .static-marker > span { position: absolute; width: 8px; height: 8px; bottom: -6px; left: calc(50% - 4px); background: var(--accent); transform: rotate(45deg); }
-.marker-terrace-steps { left: 61.5%; top: 51.333%; }
-.marker-reed-garden { left: 36.75%; top: 45.889%; }
+.marker-terrace-steps { left: 54.4417%; top: 53.5833%; }
+.marker-reed-garden { left: 44.875%; top: 51.95%; }
+.marker-juniper-court { left: 20.9583%; top: 50.8611%; }
+.marker-crosstown-steps { left: 79.0417%; top: 53.5833%; }
 .help-dialog { border: 1px solid var(--line); border-radius: 14px; padding: 1.5rem; color: var(--ink); background: var(--surface); width: min(560px, calc(100% - 2rem)); max-height: calc(100dvh - 2rem); overflow: auto; }
 .help-dialog::backdrop { background: #23352a70; }
 .dialog-heading { display: flex; gap: 1rem; align-items: flex-start; justify-content: space-between; margin-bottom: 1rem; }

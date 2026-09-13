@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
+import { CAMERA_PROJECTION } from '../content/city';
 import { EnvironmentController } from './environment';
 import { EnvironmentVisual } from './environmentVisual';
 
@@ -30,6 +31,32 @@ function fixture() {
 }
 
 describe('bounded environment GPU adapter', () => {
+  it('covers the expanded avenues with rain and keeps the unlit backdrop aligned with the sky', () => {
+    const scene = new THREE.Scene();
+    const material = new THREE.MeshBasicMaterial({ color: '#dfe5df' });
+    material.userData.environmentBackdrop = true;
+    const geometry = new THREE.PlaneGeometry(900, 900);
+    scene.add(new THREE.Mesh(geometry, material));
+    const original = material.color.clone();
+    const visual = new EnvironmentVisual(scene);
+    const environment = new EnvironmentController();
+    environment.setTime('night', DATE);
+    visual.update(environment.frame, OPTIONS, 0);
+    expect(material.color).toEqual(scene.background);
+    const rain = scene.getObjectByName('Environment rain') as THREE.Points;
+    const positions = rain.geometry.getAttribute('position');
+    const x = Array.from({ length: positions.count }, (_, index) => positions.getX(index));
+    const z = Array.from({ length: positions.count }, (_, index) => positions.getZ(index));
+    expect(Math.max(...x)).toBeGreaterThan(65);
+    expect(Math.min(...x)).toBeLessThan(-65);
+    expect(Math.max(...z)).toBeGreaterThan(60);
+    expect(Math.min(...z)).toBeLessThan(-60);
+    visual.dispose();
+    expect(material.color).toEqual(original);
+    material.dispose();
+    geometry.dispose();
+  });
+
   it('reuses existing lights and changes only explicitly tagged window materials', () => {
     const world = fixture();
     const lightCount = world.scene.children.filter((object) => object instanceof THREE.Light).length;
@@ -47,7 +74,7 @@ describe('bounded environment GPU adapter', () => {
     expect(world.wall.emissiveIntensity).toBe(0.4);
     expect(world.actor.position).toEqual(actorPosition);
     expect(world.scene.fog).toBeInstanceOf(THREE.FogExp2);
-    expect((world.scene.fog as THREE.FogExp2).density).toBe(0.016);
+    expect((world.scene.fog as THREE.FogExp2).density).toBeCloseTo(0.016 * 60 / CAMERA_PROJECTION.distance);
     world.dispose();
   });
 

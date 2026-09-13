@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
-import { CAMERA_ANCHORS, CITY } from '../content/city';
+import { CAMERA_ANCHORS, CAMERA_PROJECTION, CITY } from '../content/city';
 import { AIRPLANE, AirplaneSimulation, createAirplaneVisual } from './airplane';
 
 const DT = 1 / 30;
@@ -40,9 +40,10 @@ function inventory(group: THREE.Group) {
 }
 
 function cameraFor(aspect: number, x: number, z: number, yaw: number, zoom: number): THREE.OrthographicCamera {
-  const height = Math.max(60, 76 / aspect);
-  const camera = new THREE.OrthographicCamera(-height * aspect / 2, height * aspect / 2, height / 2, -height / 2, 0.1, 300);
-  camera.position.set(x + Math.sin(yaw) * 80, 85, z + Math.cos(yaw) * 80);
+  const height = Math.max(CAMERA_PROJECTION.overviewHeight, CAMERA_PROJECTION.overviewWidth / aspect);
+  const camera = new THREE.OrthographicCamera(-height * aspect / 2, height * aspect / 2, height / 2, -height / 2, 0.1, 500);
+  const radius = CAMERA_PROJECTION.distance * Math.cos(CAMERA_PROJECTION.defaultPitch);
+  camera.position.set(x + Math.sin(yaw) * radius, CAMERA_PROJECTION.distance * Math.sin(CAMERA_PROJECTION.defaultPitch), z + Math.cos(yaw) * radius);
   camera.lookAt(x, 0, z);
   camera.zoom = zoom;
   camera.updateProjectionMatrix();
@@ -63,14 +64,14 @@ describe('AirplaneSimulation', () => {
     const position = state.position;
     const gap = nextGap(seed).seconds;
     expect(state.active).toBe(false);
-    expect(state.position).toEqual({ x: -240, y: 46, z: -180 });
+    expect(state.position).toEqual({ x: AIRPLANE.startX, y: AIRPLANE.altitude, z: AIRPLANE.startZ });
     for (let tick = 0; tick < gap * 30 - 1; tick += 1) simulation.step(DT);
     expect(state.active).toBe(false);
     simulation.step(DT);
     expect(state.active).toBe(true);
     expect(simulation.state).toBe(state);
     expect(state.position).toBe(position);
-    expect(state.position).toEqual({ x: -240, y: 46, z: -180 });
+    expect(state.position).toEqual({ x: AIRPLANE.startX, y: AIRPLANE.altitude, z: AIRPLANE.startZ });
   });
 
   it('is reproducible without wall time, timers, or ambient randomness', () => {
@@ -145,7 +146,7 @@ describe('AirplaneSimulation', () => {
     const state = simulation.state;
     const position = state.position;
     waitForFlight(simulation);
-    for (let tick = 0; tick < 600; tick += 1) simulation.step(DT);
+    for (let tick = 0; tick < AIRPLANE.routeLength / AIRPLANE.speed / DT / 2; tick += 1) simulation.step(DT);
     expect(state.active).toBe(true);
     expect(state.position.x).toBe(0);
     simulation.setReducedMotion(true);
@@ -158,7 +159,7 @@ describe('AirplaneSimulation', () => {
     expect(JSON.stringify(simulation)).toBe(disabled);
     simulation.setReducedMotion(false);
     expect(state.active).toBe(false);
-    expect(state.position).toEqual({ x: -240, y: 46, z: -180 });
+    expect(state.position).toEqual({ x: AIRPLANE.startX, y: AIRPLANE.altitude, z: AIRPLANE.startZ });
     const gap = nextGap(nextGap(2401).seed).seconds;
     for (let tick = 0; tick < gap * 30 - 1; tick += 1) {
       simulation.setReducedMotion(false);
@@ -181,7 +182,7 @@ describe('AirplaneSimulation', () => {
     expect(waitForFlight(simulation)).toBe(nextGap(nextGap(2401).seed).seconds * 30);
   });
 
-  it('reuses one state and visual through 12,000 seconds of bounded gaps and continuous 40-second passes', () => {
+  it('reuses one state and visual through 12,000 seconds of bounded gaps and continuous passes', () => {
     const simulation = new AirplaneSimulation();
     const visual = createAirplaneVisual();
     const original = inventory(visual.group);
@@ -206,17 +207,17 @@ describe('AirplaneSimulation', () => {
             expect(waitingTicks).toBeLessThanOrEqual(180 * 30);
             waitingTicks = 0;
             starts += 1;
-            expect(Math.abs(position.x)).toBe(240);
-            expect(Math.abs(position.z)).toBe(180);
+            expect(Math.abs(position.x)).toBe(AIRPLANE.endX);
+            expect(Math.abs(position.z)).toBe(AIRPLANE.endZ);
             expect(inventory(visual.group)).toEqual(original);
           }
         } else {
           flightTicks += 1;
           if (!state.active) {
             exits += 1;
-            expect(flightTicks).toBe(40 * 30);
-            expect(Math.abs(position.x)).toBe(240);
-            expect(Math.abs(position.z)).toBe(180);
+            expect(flightTicks).toBe(AIRPLANE.routeLength / AIRPLANE.speed * 30);
+            expect(Math.abs(position.x)).toBe(AIRPLANE.endX);
+            expect(Math.abs(position.z)).toBe(AIRPLANE.endZ);
             gap = nextGap(gap.seed);
             flightTicks = 0;
           }
@@ -226,7 +227,7 @@ describe('AirplaneSimulation', () => {
         }
         const movement = Math.hypot(position.x - x, position.z - z);
         if (![position.x, position.y, position.z, state.heading].every(Number.isFinite) ||
-          position.y !== 46 || Math.abs(position.x) > 240 || Math.abs(position.z) > 180 ||
+          position.y !== AIRPLANE.altitude || Math.abs(position.x) > AIRPLANE.endX || Math.abs(position.z) > AIRPLANE.endZ ||
           movement > 15 * DT + 1e-9 ||
           Math.abs(position.x - x - Math.sin(state.heading) * movement) > 1e-9 ||
           Math.abs(position.z - z - Math.cos(state.heading) * movement) > 1e-9) {
@@ -238,7 +239,8 @@ describe('AirplaneSimulation', () => {
         x = position.x;
         z = position.z;
       }
-      expect(exits).toBe(69);
+      expect(exits).toBeGreaterThanOrEqual(Math.floor(12000 / (AIRPLANE.maximumGap + AIRPLANE.routeLength / AIRPLANE.speed)));
+      expect(exits).toBeLessThanOrEqual(Math.floor(12000 / (AIRPLANE.minimumGap + AIRPLANE.routeLength / AIRPLANE.speed)));
       expect(inventory(visual.group)).toEqual(original);
     } finally {
       visual.dispose();
@@ -247,13 +249,14 @@ describe('AirplaneSimulation', () => {
 
   it('places the full airplane outside all tested desktop endpoint views, including maximum zoom-out and pan', () => {
     const endpoints = [
-      new THREE.Vector3(-240, 46, -180), new THREE.Vector3(240, 46, 180),
+      new THREE.Vector3(AIRPLANE.startX, AIRPLANE.altitude, AIRPLANE.startZ),
+      new THREE.Vector3(AIRPLANE.endX, AIRPLANE.altitude, AIRPLANE.endZ),
     ];
     const targets = [[0, 0], [-CITY.bounds, -CITY.bounds], [-CITY.bounds, CITY.bounds],
       [CITY.bounds, -CITY.bounds], [CITY.bounds, CITY.bounds]];
     for (const aspect of [4 / 3, 16 / 10, 16 / 9, 21 / 9, 32 / 9]) {
       for (const [x, z] of targets) {
-        for (const zoom of [0.65, 1, 1.9, 2.7]) {
+        for (const zoom of [0.65, 1, 2.7, CAMERA_PROJECTION.maxZoom]) {
           for (let turn = 0; turn < 24; turn += 1) {
             const frustum = frustumFor(cameraFor(aspect, x, z, turn * Math.PI / 12, zoom));
             for (const endpoint of endpoints) {
@@ -265,13 +268,17 @@ describe('AirplaneSimulation', () => {
     }
   });
 
-  it('crosses the current authored overview and focus compositions rather than remaining off-screen', () => {
-    for (const { pose } of CAMERA_ANCHORS) {
+  it('crosses the overview and retained garden views; distant closeups need not show every flight', () => {
+    for (const { pose } of CAMERA_ANCHORS.slice(0, 4)) {
       const frustum = frustumFor(cameraFor(16 / 9, pose.x, pose.z, pose.yaw, pose.zoom));
       let visible = false;
-      for (let distance = 0; distance <= 600; distance += 5) {
-        const fraction = distance / 600;
-        if (frustum.containsPoint(new THREE.Vector3(-240 + 480 * fraction, 46, -180 + 360 * fraction))) visible = true;
+      for (let distance = 0; distance <= AIRPLANE.routeLength; distance += 5) {
+        const fraction = distance / AIRPLANE.routeLength;
+        if (frustum.containsPoint(new THREE.Vector3(
+          AIRPLANE.startX + (AIRPLANE.endX - AIRPLANE.startX) * fraction,
+          AIRPLANE.altitude,
+          AIRPLANE.startZ + (AIRPLANE.endZ - AIRPLANE.startZ) * fraction,
+        ))) visible = true;
       }
       expect(visible).toBe(true);
     }

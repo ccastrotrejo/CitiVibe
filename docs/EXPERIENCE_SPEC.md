@@ -1,8 +1,8 @@
 # Experience specification
 
-**This document is the LivingCity behavior contract**, not recovered source algorithms. The current checkpoint implements core navigation/orbit, focus, tours/guided views, pause, reduced motion, help/settings, fullscreen/expanded view, visibility, and an honest loading/error still. Camera-follow features and the drone were explicitly removed by the user on 2026-09-12. The environment (weather/time/quality), ambient audio, and occasional airplane modules are now integrated into the live runtime, and the world was enlarged around the tuned core. The app is always full-live: the earlier user-facing "static view" opt-out was removed, though the original still remains as a loading and WebGL-failure backdrop with landmark navigation. Remaining unfinished work: complete M4 tours/preferences, the NYC-inspired visual pass, and final M6/M7 accessibility and performance sign-off. [Product scope](PRODUCT_BRIEF.md) takes precedence; the [reference analysis](REFERENCE_ANALYSIS.md) records what was actually observed.
+**This document is the LivingCity behavior contract**, not recovered source algorithms. The current checkpoint implements core navigation/orbit, focus, tours/guided views, pause, reduced motion, help/settings, fullscreen/expanded view, visibility, and an honest loading/error still. Camera-follow features and the drone were explicitly removed by the user on 2026-09-12. Environment controls, ambient audio, and the occasional airplane are integrated into the live runtime, alongside the expanded NYC-inspired neighborhood. The earlier user-facing "static view" opt-out was removed, though the original still remains as a loading and WebGL-failure backdrop with landmark navigation. Physical-device accessibility/performance, long-session sign-off, adaptive quality, and the broader UI redesign remain outside this completed slice. [Product scope](PRODUCT_BRIEF.md) takes precedence; the [reference analysis](REFERENCE_ANALYSIS.md) records what was actually observed.
 
-For the current live slice, Afternoon/Sunny and sound-off are explicit fixed status, not nonfunctional controls. Versioned motion and guide preferences are persisted locally with visible storage-error notices; saved audio consent never enables sound. Native modal help/settings interrupt camera movement without restarting it on close. The fallback uses original landmark markers and concise descriptions, not a catalog.
+For the current live slice, Afternoon/Sunny and sound-off are initial defaults; settings can change time, weather, quality, and explicitly enable sound. Versioned preferences are persisted locally with visible storage-error notices; saved audio consent never enables sound. Native modal help/settings interrupt camera movement without restarting it on close. The expanded city adds Juniper Court and Crosstown Steps to the same landmark cycling and tour contract. The original companion illustration and concise descriptions remain a fallback, not a catalog.
 
 **Platform scope:** the latest user direction prioritizes desktop/laptop computers and excludes mobile edge-case work. Mouse/trackpad and keyboard are the supported verification priority. Touch and mobile-sheet guidance below is retained as future reference, not a current implementation gate.
 
@@ -32,7 +32,9 @@ Effective simulation running requires a ready renderer, a visible page, and no u
 
 ## Camera modes and transitions
 
-Use one camera controller with bounded pan, zoom, height/tilt, and near/far distances. The implementation uses an orthographic projection. All four map edges are reachable by panning; the target stays within the original district's +/-28 m bounds. Orbit covers all azimuths, with elevation bounded to 30-75 degrees at a fixed distance from the ground pivot. World bounds and target anchors determine limits; no camera clipping through buildings or flying indefinitely off the district.
+Use one camera controller with bounded pan, zoom, height/tilt, and near/far distances. The implementation uses an orthographic projection. The expanded ground spans +/-68 m on X and +/-62 m on Z, with a camera-target limit of +/-68 m and an overview sized to show the whole neighborhood. Orbit covers all azimuths, with elevation bounded to 30-75 degrees at a fixed 200 m distance from the ground pivot. World bounds and target anchors determine limits; no camera clipping through buildings or flying indefinitely off the district.
+
+Expanded landmark anchors use zoom 2.7 with a maximum of 4.5, so Zoom in remains useful after focusing. Manual navigation updates intent immediately and coalesces repeated input into one requested render; it never starts a paused simulation loop.
 
 | Mode | Meaning | Entry | Exit |
 | --- | --- | --- | --- |
@@ -54,6 +56,14 @@ Original POIs have a stable ID, name, one- or two-sentence environmental descrip
 Focus transitions take approximately 600-900 ms with gentle ease-out. While paused or reduced-motion is active, focus and reset move to the requested static view immediately. Do not use a long cinematic transition for routine controls.
 
 Global tour mixes overview/high angles, restrained street-level glides within safe anchors, and brief original-landmark holds. Suggested segments are 12-20 seconds, with 4-8 second holds; timing and choices are seeded for reproducibility. Skip unavailable segments with a bounded fallback to a known valid static anchor; stop with a visible message if no segment is valid.
+
+The current global route includes overview, pavilion, crosstown, terrace, garden and court. Longer neighborhood travel extends the segment rather than accelerating the camera; travel time is at least ground distance / 3.6, followed by a five-second hold.
+
+### Park and street activity
+
+The center is car-free: no internal asphalt circuit, vehicle stop, bus/car loop, or crossing signals. Its eight visitors follow continuous shared walking curves through open north/east/south/west gates onto adjacent city sidewalks. Some pause briefly at the pergola; spacing and merge ownership prevent overlap and permanent queues. The gate connections remain step-free and free of trees, fence segments and construction props. Running/walking pavement symbols identify pedestrian paths; they do not promise that every visitor is a jogger.
+
+All motor vehicles and cyclists remain on the surrounding grid. Its 24 vehicles, twelve cyclists and 24 sidewalk walkers share the same pause/visibility clock as park visitors. Signals use north-south, east-west, pedestrian and all-red clearance phases; occupied reservations survive phase changes. Bumpers stop behind the shared 8.5 m painted bars, while the separate 7 m turn boundary keeps bicycle turns inside the road. Street buses have no scheduled dwell stops, and neighborhood walkers currently stay on sidewalks rather than crossing roads. These are explicit miniature simplifications, not NYC traffic-standard compliance.
 
 Starting tour with a selected landmark uses a slow bounded orbit of that landmark. Tour status identifies the current subject and always exposes Stop. With reduced motion, replace automatic travel/advance with **stepwise guided views** and explicit Previous/Next actions. Guided views use ordinary `focus` mode without an active tour clock and remain usable while paused.
 
@@ -87,6 +97,8 @@ For device-clock lighting, compute local time from the browser; do not request l
 ### Visibility, focus, and recovery
 
 On `visibilitychange` to hidden or `pagehide`, suspend simulation, animation frames, and audio; discard the frame accumulator and record existing user pause/mode without changing them. On return, rebase timing before the next tick. If the user had paused, remain paused. Otherwise resume the valid prior world state; local-clock lighting is the only wall-time resynchronization exception.
+
+An actual page exit outside the back-forward cache also disposes the renderer. A persisted bfcache page retains its suspended world and resumes through `pageshow`.
 
 Losing window focus alone clears pressed keys and pointer gestures, but a **visible second-screen city may keep running**. Do not conflate blur with a hidden document. Release pointer capture on cancellation, blur, and lifecycle changes.
 

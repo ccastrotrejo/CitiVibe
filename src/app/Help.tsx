@@ -24,7 +24,8 @@ export function Help({ reduced, onReducedChange, onClose }: HelpProps) {
   return <Modal title="A field guide to the square" closeLabel="Close help" onClose={onClose}>
     <p>Drag to pan. Command-drag on Mac, Control-drag, or right-drag rotates and tilts around the city. Scroll or pinch to get closer. Shift-scroll and two-finger sideways gestures rotate horizontally. Camera buttons offer the same controls.</p>
     <p>You can explore the entire modeled district. Panning stops at its outer edge, and tilt stays between a street-facing angle and an overhead view so the camera cannot disappear underground. Reset returns to the original overview.</p>
-    <p>Choose a landmark to settle into its view. Any manual camera movement takes you back to free exploration. The bus, cars, and walkers go about their day on their own.</p>
+    <p>Choose a landmark to settle into its view. Any manual camera movement takes you back to free exploration. Buses, yellow cabs, delivery vans, trucks, cyclists, and walkers go about their day on their own.</p>
+    <p>Look for protected green bike lanes, traffic waiting at intersections, rooftop water tanks, fire escapes, subway stairs, and the neighborhood court. The central park is car-free: visitors enter and leave through gates connected to the city sidewalks. Street signals and every moving actor freeze when you pause.</p>
     <h3>Keyboard shortcuts</h3>
     <p className="muted">Shortcuts work only when the city navigation area has focus. Tab always moves between controls.</p>
     <dl className="shortcuts">{SHORTCUTS.map(([keys, action]) => <div key={keys}><dt><kbd>{keys}</kbd></dt><dd>{action}</dd></div>)}</dl>

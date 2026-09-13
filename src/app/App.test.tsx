@@ -2,6 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App';
+import { CONTENT } from '../content/city';
 import type { WorldModel } from '../world/model';
 import type { WorldCommand } from '../world/types';
 
@@ -111,7 +112,7 @@ describe('accessible city controls', () => {
     expect(screen.getByRole('button', { name: 'Resume city' })).toBeEnabled();
     await user.click(screen.getByRole('button', { name: 'Guided views' }));
     await user.click(screen.getByRole('button', { name: 'Next view' }));
-    expect(screen.getByText(/Guided view 2 \/ 4/)).toBeInTheDocument();
+    expect(screen.getByText(`Guided view 2 / ${CONTENT.tourAnchorIds.length}`, { exact: false })).toBeInTheDocument();
     expect(window.localStorage.getItem('livingcity.preferences')).toContain('"motion":"reduced"');
   });
 

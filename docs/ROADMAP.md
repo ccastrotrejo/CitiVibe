@@ -2,11 +2,19 @@
 
 **Status: all roadmap goals M1-M8 authorized on 2026-09-12; implementation and verification in progress.** The latest requests expand the initial M1-M3 scope, add an NYC-inspired visual identity, and ask for detailed updates. Earlier removals remain binding: no actor-follow features, no drone, and no mobile-edge-case work. The planned occasional airplane is included in the all-roadmap implementation scope. Read [AGENTS.md](../AGENTS.md) and the [product boundary](PRODUCT_BRIEF.md) first.
 
-**Milestone checkpoint (M5 reached; M1-M4 implemented).** The live build integrates the full M1-M3 foundation (original district, closed route, bounded 1-bus/3-car/8-walker simulation with signal arbitration and deterministic locomotion), the M4 control surface (landmark focus cycling, Command/Control-drag orbit, continuous and per-landmark tours with explicit Stop, reduced-motion guided views, help/fullscreen/preferences, all routed through one camera state machine), the **M5 environment + audio surface** (Sunny/Cloudy/Rain/Mist, Afternoon/Night/Local/Cycle time, quality tiers, pause-safe clocks, and gesture-gated ambient sound with mute/volume), and the **occasional airplane**. The world was also enlarged around the tuned core (a deterministic outer skyline revealed on pan/zoom-out) within the same draw-call/material budget, and the app is configured for static deployment on Vercel (`vercel.json` + verified production build). Remaining: a dedicated cross-input parity test for M4, M6 desktop/accessibility hardening, M7 performance/reliability sign-off, and the M8 NYC identity pass. Unchecked items below are not completed-product claims; final legibility/perf/accessibility verification is deferred to M6/M7 after the M8 artwork.
+**Historical main-branch checkpoint (M5 reached; M1-M4 implemented).** Main at `a0dcac3` provided the original district, 1-bus/3-car/8-walker garden simulation, complete camera/control surface, environment/audio, quality presets and occasional airplane. It also configured Vercel static hosting. The connected-city slice below replaces its central vehicle loop and supersedes its geometry/population counts while preserving the control, environment and lifecycle contracts. Unchecked hardening items remain outstanding; this is not a completed M1-M8 product claim.
 
 **Platform update:** desktop/laptop-first. The user explicitly excluded mobile edge-case work; phone-specific acceptance/profiling is no longer required. Current layout verification targets 1024x768, 1440x900, and 1920x1080.
 
 Dependencies favor working vertical slices. Accessibility, cleanup, failure handling, and basic profiling start in milestone 1; the later hardening milestones broaden coverage rather than postponing those responsibilities.
+
+## Latest authorized slice - connected NYC-inspired neighborhood
+
+On 2026-09-12 the user explicitly resumed implementation from the latest main and requested a substantially larger city, multiple roads/intersections/traffic lights, vehicle variety, bike paths, and deeper NYC research. This supersedes the earlier M3 population cap and the reflection pause for this bounded slice. It does not authorize every possible feature listed by the research or restore excluded commerce, drones, camera follow, GIS, or backend systems.
+
+The implementation is a four-by-four street grid, eight surrounding blocks with 32 buildings, signal/reservation-controlled traffic, protected cycling and varied buses/cabs/cars/vans/trucks. Later feedback replaces the central village and internal road with a **car-free park**, where eight visitors enter and leave through gates connected to surrounding sidewalks. The total moving population is 68. Two new original public-space landmarks join the existing focus/tour/fallback behavior. The subsequent photo-reference pass refines six requested details: signals, pavement symbols, cabs, brownstones, park and scaffolding. See [verified research and image observations](NYC_CITY_RESEARCH.md). Street bus dwell, walking road crossings, operational subways, active construction and broader waterfront/seasonal simulations remain follow-on work.
+
+The original M1-M5 checkpoint below remains a historical baseline. The connected-city verification record in [acceptance criteria](ACCEPTANCE_CRITERIA.md) supersedes its old geometry and population counts. M6/M7 physical-device and long-session sign-off remain separate.
 
 ## Milestones
 
@@ -48,7 +56,7 @@ Dependencies favor working vertical slices. Accessibility, cleanup, failure hand
 - [x] Vary speeds and route phases deterministically; include a few waiting/sitting people.
 - [x] Keep the moving population bounded to one bus, three cars, and eight walkers; no drone.
 - [x] Add restrained micro-animation and occasional seeded events after core movement is stable.
-- [ ] Treat cyclists, motorcycles, skating figures, and balloons as optional refinements, not systems required before completion. _Intentionally deferred; optional, not required for completion._
+- [ ] Treat motorcycles, skating figures, and balloons as optional refinements. _Cyclists were subsequently requested and implemented in the connected-city slice; the original garden traffic cap and bus dwell are historical, not current behavior._
 
 **Done when:** route loops are continuous, cars and crossing pedestrians obey the chosen conflict rules, bus stops are believable, target IDs survive quality changes, and the seeded scene runs ten minutes without runaway spawning or deadlock. Applicable AC-04, AC-05, AC-08, AC-15, AC-18. _Implemented with `moving`/`waiting`/`dwelling` states and signal arbitration; the ten-minute soak is folded into M7 long-session profiling._
 
@@ -90,7 +98,7 @@ Dependencies favor working vertical slices. Accessibility, cleanup, failure hand
 - [ ] Test reduced-motion transitions, stepwise tours, static focus navigation, and sound-independent operation.
 - [ ] Test supported desktop browsers and assistive technology on a physical computer.
 
-**Done when:** the complete keyboard route and fallback are usable without adding a directory; no primary control is obscured; panels scroll without moving the scene. Applicable AC-02, AC-09 through AC-14, AC-19. _Not started. Automated 1024/1440/1920 overflow and shortcut-scoping checks exist from earlier slices, but the full hardening pass and physical assistive-tech testing remain._
+**Done when:** the complete keyboard route and fallback are usable without adding a directory; no primary control is obscured; panels scroll without moving the scene. Applicable AC-02, AC-09 through AC-14, AC-19. _Partially covered by automated desktop layouts, axe, keyboard, modal and fallback checks. Enlarged-text, cross-browser and physical assistive-technology sign-off remain outstanding._
 
 ### M7 - Optimization and hardening
 
@@ -100,21 +108,21 @@ Dependencies favor working vertical slices. Accessibility, cleanup, failure hand
 - [ ] Establish deterministic visual fixtures across seed/time/weather/quality; check scene and UI regressions.
 - [ ] Record the measured result and any approved budget revisions; leave no claim supported only by a screenshot.
 
-**Done when:** the applicable full [acceptance matrix](ACCEPTANCE_CRITERIA.md) passes or explicit limitations are approved and documented. No hidden analytics, backend, commercial features, or unlicensed runtime assets. _Not started. Resource cleanup and context-loss handling are implemented and unit-covered, but real-frame/heap profiling and the long-session soak are outstanding._
+**Done when:** the applicable full [acceptance matrix](ACCEPTANCE_CRITERIA.md) passes or explicit limitations are approved and documented. No hidden analytics, backend, commercial features, or unlicensed runtime assets. _Partial: all-actor instancing, static-shadow caching, coalesced navigation rendering, resource disposal and multi-seed ten-minute simulation soaks are implemented. Physical frame/heap profiling, adaptive-quality runtime calibration and two-hour visible/hidden stability remain outstanding._
 
 ### M8 - NYC-inspired world and interface
 
 Replace the initial garden-village feel with an **original fictional NYC-like neighborhood**, not a literal map or a recreation of named buildings. Execute this visual pass before the final M6/M7 accessibility and performance sign-off so measurements cover the final artwork.
 
-- [ ] Create a denser street-wall silhouette with original brick/brownstone and limestone mid-rises, varied cornices, fire escapes, rooftop water tanks, and restrained taller accents.
-- [ ] Rework streets and public space toward asphalt, concrete sidewalks, curb details, railings, small tree pits, and pocket parks. Keep all vehicle/walker paths and crossings physically aligned.
-- [ ] Give ordinary cars a restrained yellow-cab visual cue without copying taxi-company branding, logos, or commercial signage. Preserve buses, pedestrians, and the rare airplane; no drone or camera-follow actions.
+- [x] Create a denser street-wall silhouette with original brick/brownstone and limestone mid-rises, varied cornices, fire escapes, rooftop water tanks, and restrained taller accents.
+- [x] Rework streets and public space toward asphalt, concrete sidewalks, curb details, railings, small tree pits, and a car-free central park. Keep routes, gate openings, stop bars and painted lane symbols aligned.
+- [x] Give ordinary cars a restrained yellow-cab visual cue without copying taxi-company branding, logos, or commercial signage. Preserve buses, pedestrians, and the rare airplane; no drone or camera-follow actions.
 - [ ] Replace the soft garden palette and decorative UI voice with an understated urban/transit-inspired desktop control system: clear typography, charcoal/stone surfaces, warm brick, and limited yellow accents. Keep the world dominant, not a marketing page.
-- [ ] Update landmark names/descriptions/forms and camera compositions coherently; preserve stable semantic IDs where possible and explicitly migrate/revalidate changed references.
-- [ ] Regenerate the original static illustration, revise asset provenance/versioning, and inspect overview, focused, night, rain, and mist views.
-- [ ] Re-run scene budgets, desktop accessibility, deterministic visuals, and resource-lifetime checks after the art change.
+- [x] Update landmark descriptions/forms and camera compositions coherently; preserve the three original IDs and add Juniper Court/Crosstown Steps across focus, tour and fallback.
+- [ ] Regenerate the original static illustration, revise asset provenance/versioning, and inspect overview, focused, night, rain, and mist views. _Version 003 and photo provenance are complete. The car-free park was inspected before the final detail pass; final detail screenshots are blocked by browser startup failures._
+- [ ] Re-run scene budgets, desktop accessibility, deterministic visuals, and resource-lifetime checks after the art change. _Final unit/resource/budget checks pass. The fresh browser run fails before loading the app; do not substitute the earlier 12 passing scenarios for final artwork verification._
 
-**Done when:** the scene and chrome read as one NYC-inspired experience at supported desktop sizes, not just a color swap; no exact real-city layout, source artwork, branded billboard, directory, or commercial feature has been introduced; camera/actor/fallback behavior remains correct. _Not started. The live world still uses the garden-village identity; this pass replaces the art and palette before final M6/M7 sign-off._
+**Done when:** the scene and chrome read as one NYC-inspired experience at supported desktop sizes, not just a color swap; no exact real-city layout, source artwork, branded billboard, directory, or commercial feature has been introduced; camera/actor/fallback behavior remains correct. _Requested world/detail implementation complete; final browser/visual verification is blocked as recorded in acceptance criteria. Existing light desktop controls are retained; a broader charcoal/transit UI redesign is not part of this slice. Full M6/M7 sign-off remains separate._
 
 ## Estimate interpretation
 
