@@ -2,11 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { FrameClock } from './clock';
 import {
   GRAVITY, MAX_SNOW_SWE_MM, MAX_WATER_MM, PRECIPITATION_HEIGHT, RAIN_COUNT, SNOW_COUNT,
-  SPLASH_COUNT, WeatherPhysics, rainTerminalSpeed, sampleWind, settlingVelocity, waterWaveSpeed,
+  SPLASH_COUNT, WEATHER_EXTENT, WeatherPhysics, rainTerminalSpeed, sampleWind, settlingVelocity, waterWaveSpeed,
 } from './weatherPhysics';
 import type { WeatherForcing } from './weatherPhysics';
 import { WeatherSurface } from './weatherSurface';
 import { GROUND_PUDDLES, updatePuddleDimensions } from './groundWater';
+import { CITY_EXTENT } from '../content/streets';
 
 const RAIN: WeatherForcing = { rain: 1, rainIntensityMmH: 8, snow: 0, temperatureC: 10, humidity: 0.94, windSpeed: 3.5, sunIntensity: 0.9 };
 const SNOW: WeatherForcing = { rain: 0, rainIntensityMmH: 8, snow: 1, temperatureC: -4, humidity: 0.85, windSpeed: 2.2, sunIntensity: 1 };
@@ -73,10 +74,23 @@ describe('physically informed weather', () => {
     expect(physics.splashAges).toHaveLength(SPLASH_COUNT);
     for (const pool of [physics.rain, physics.snow]) {
       for (let index = 0; index < pool.count; index++) {
-        expect(Math.abs(pool.positions[index * 3])).toBeLessThanOrEqual(48);
-        expect(Math.abs(pool.positions[index * 3 + 2])).toBeLessThanOrEqual(48);
+        expect(Math.abs(pool.positions[index * 3])).toBeLessThanOrEqual(CITY_EXTENT.x);
+        expect(Math.abs(pool.positions[index * 3 + 2])).toBeLessThanOrEqual(CITY_EXTENT.z);
         expect(pool.positions[index * 3 + 1]).toBeGreaterThan(-0.14);
         expect(pool.positions[index * 3 + 1]).toBeLessThanOrEqual(PRECIPITATION_HEIGHT);
+      }
+    }
+  });
+
+  it('covers the entire expanded city while retaining half-metre collision cells', () => {
+    const physics = new WeatherPhysics();
+    const surface = new WeatherSurface();
+    expect(surface.cellSize).toBe(0.5);
+    for (const pool of [physics.rain, physics.snow]) {
+      for (const [axis, extent] of [[0, CITY_EXTENT.x], [2, CITY_EXTENT.z]] as const) {
+        const coordinates = Array.from({ length: pool.count }, (_, index) => pool.positions[index * 3 + axis]);
+        expect(Math.min(...coordinates)).toBeLessThan(-extent * 0.95);
+        expect(Math.max(...coordinates)).toBeGreaterThan(extent * 0.95);
       }
     }
   });
@@ -295,7 +309,7 @@ describe('static weather top-envelope', () => {
     expect(field.heightAt(0.25, 0.25)).toBeCloseTo(4.125);
     expect(field.heightAt(-1.75, -1.75)).toBeCloseTo(3.125);
     expect(field.heightAt(8, 8)).toBeCloseTo(-0.96);
-    expect(field.heightAt(49, 0)).toBe(-0.96);
+    expect(field.heightAt(WEATHER_EXTENT + 1, 0)).toBe(-0.96);
     const held = field.heights.slice();
     field.triangle(0, 0, 0, 0, 2, 0, 0, 3, 0);
     expect(field.heights).toEqual(held);

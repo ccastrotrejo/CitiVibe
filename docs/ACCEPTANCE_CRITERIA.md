@@ -1,8 +1,90 @@
 # Acceptance criteria and verification plan
 
-**Status: M5 plus extended weather/dock work; final browser and broader hardening gates pending.** The live M1-M5 build has automated coverage for camera/clock/input/lifecycle, original content/art, bounded actors, and the now-integrated environment/audio/quality and occasional airplane; the world was enlarged around the tuned core within budget. Unit and component tests establish live integration and deterministic behavior, but do not substitute for physical-device FPS, two-hour stability, cross-combination legibility, and screen-reader/assistive-tech verification, which remain outstanding (M6/M7). Production readiness is not yet claimed. Camera-follow and the drone were removed at the user's request.
+**Status: version-005 implementation is integrated locally; final automated verification/publication is pending. Served-browser and physical-device gates remain open.** The current scene retains thirty-six intersections, twenty-four blocks, 94 buildings and a 78 x 176 m park within a 220 x 340 m map. It now has full-size basketball/pickleball courts, 186 people/vehicle rigs, two balls, eight compact subway entrances, seven additional sidewalk sheds and four additional facade scaffold sections. The published main integration at `48dc3fe` and its earlier checkpoints remain historical records below. Automated coverage does not substitute for physical-device FPS, long-session, cross-combination or assistive-technology verification. Production readiness is not claimed; camera-follow and the drone remain excluded.
 
 Use this matrix when implementing each [roadmap](ROADMAP.md) milestone. Numerical budgets are working targets; name the reference devices and record actual results before declaring them met. The [experience spec](EXPERIENCE_SPEC.md) is authoritative for pause/camera behavior.
+
+## Version-005 integration - 2026-09-13
+
+Basketball is 28.6512 x 15.24 m and pickleball 13.4112 x 6.096 m, with full runoff areas, a continuous 2 m passage and unchanged human scale. Grounded practice cycles, paddle/hand contacts, fixed rim/net targets under snow, pause/recovery and reduced-motion stills remain covered. The scene uses approximately 0.20 x 0.26 x 0.016 m paddle blades and a 0.037 m pickleball radius. Camera/semantic tests cover both court runoffs while excluding adjoining streets; the original fallback uses matching dimensions, placement and focus metadata.
+
+The traveling population is 180: 96 neighborhood walkers, twenty-four park walkers, twelve runners, 36 motor vehicles and twelve cyclists. Six court players bring the rig count to 186. Fourteen twenty-minute traffic/weather seeds and five fifteen-minute park seeds retain body separation, progression, gates, traction behavior and existing vehicle/cyclist/signal fingerprints.
+
+All eight metro openings are 1.9 x 4.5 m at sidewalk grade. Tests raycast first/middle/last treads and the -2.24 m landing through both the island and backdrop, and compare below-grade weather-grid heights with the actual exposed geometry. Seven additional sheds retain 2 m clear walking channels and at least 2.4 m headroom; four also have upper facade frames. The original construction scene, 94 buildings and retained street furniture remain.
+
+| Current CPU snapshot | Triangles | Visible submissions | Visible materials | Geometries |
+| --- | --- | --- | --- | --- |
+| Base scene | 536,690 | 91 | 30 | 33 |
+| Accumulated snow | 855,496 | 147 | 35 | 36 |
+
+The complete base scene remains within the unchanged **550,000 / 110 / 36** ceilings. The streetscape-only guard explicitly changes from 430,000 triangles / 31,000 parts to 440,000 / 32,000 for six additional entrances, seven sheds and four upper scaffolds; the measured module is 437,092 triangles / 31,460 parts / 30 batches, with no new paint materials. This submodule allowance is not a relaxation of the whole-scene budget. Snow work and extra render passes remain separate, not a claimed device-performance result.
+
+The grid remains 462,400 cells and 3,699,200 bytes, with three foliage batches and 48 snow meshes. Maximum captured static height is about 23.707 m, below the precipitation spawn plane. These are CPU/allocation counts, not GPU frame time, FPS or complete memory accounting.
+
+Isolated WebKit screenshots cover the full-size court, compact Crosstown stairs and accumulated snow. Controlled shadow-on/off comparisons identified ground/roof self-shadow striping; scaling the depth bias to 1.25 shadow texels removed the observed bands in sunny and snowy views without increasing map resolution or disabling shadows. The earlier 2 mm snow-shell separation remains in both color and shadow passes. These captures use an in-memory local bundle, not successful served-URL navigation, and do not establish long-session flicker elimination.
+
+The first combined run passed 406 of 407 tests; only the 900-second, two-world camera-tour test exceeded its 5-second wall-clock limit under shared load. All 28 model tests then passed in isolation without changing assertions or timeouts. A complete repeat is pending. Nine JSON files parse; 121 relative links across fifteen project documents resolve. All eleven original research artifacts remain byte-identical (3,004,002 bytes), and earlier SVG versions are unchanged.
+
+## Historical version-004 feature checkpoint - 2026-09-13 (pre-merge)
+
+Before synchronization with the newer weather/deployment work on main, the integrated city follow-up at `eabf072` passed **248 Vitest cases in 16 files**, strict TypeScript, ESLint and the production build. It included 94 buildings, 36 intersections, 24 surrounding blocks, 126 traveling actors, six court players and two sports balls. The park contained 87 trees with clear shared paths. This checkpoint also predates the smaller-pickleball/moving-player correction; it does not verify that follow-up.
+
+Eight twenty-minute street seeds retain full-footprint separation, park exclusion, circuit completion and waits below 100 seconds at the increased population. Five fifteen-minute park seeds cover gate transitions, spacing and sustained running. Court checks verify continuous basketball dribble/pass/shot/rebound trajectories, shared-rim alignment, both pickleball directions, net clearance, receiving-side bounces, paddle contact, bounded play, retained-clock reconstruction and reduced-motion stills. Overview/shadow tests pass after explicitly refreshing the expanded shadow camera's projection.
+
+The pre-merge base scene measured **88 visible mesh submissions, 507,474 triangles and 31 materials**, within the explicit 110 / 550,000 / 36 source-scene ceilings. These figures exclude extra renderer passes and runtime weather effects and are not physical-device FPS. The entry chunk was 505.13 KB minified / 150.62 KB gzip; the renderer chunk was 405.84 KB / 106.07 KB gzip. The >500 KB warning remained visible.
+
+**Visual verification remains blocked.** Chromium startup still crashes or times out. An alternative WebKit binary was installed after its missing-executable error; it launches, but navigation to the local app times out before application assertions. Native browser inspection also fails closed because it cannot verify the page URL. No missing-permission workaround or final screenshot claim is made. The shared preview remains HTTP-responsive, but that alone is not visual acceptance. The final merged revision requires a new integrated verification record.
+
+## Implemented merge adaptations
+
+The code reconciliation now retains rectangular precipitation bounds of +/-110 X and +/-170 Z without increasing the fixed particle pools. The separate height/deposition grid uses square extent 170, resolution 680x680 and 0.5 m cells. Its heights/retention Float32 arrays total 3,699,200 bytes by allocation arithmetic; this is not a runtime-memory or GPU profile.
+
+Shared tree/reed batches now receive wind, and volumetric snow includes park lawn/path materials. Three rain basins move to Great Lawn X/Z points (4, -3), (13, -4), (5, 6), rim Y=-0.035, with real holes through lawn overlays and the island base. Reservoir ripples align with water Y=0.018. Shadows refresh on retained weather revisions so canopy sway and snow depth are not permanently cached.
+
+The compact non-modal Settings dock, bottom-only landmark controls, CitiVibe header without title card/Field guide button, and shortcuts inside Settings are retained. These are implemented merge semantics supplied during integration. The refreshed CPU accounting below includes the final metro changes; it does not establish final suite or browser/visual success.
+
+## Historical published-merge CPU accounting - 2026-09-13
+
+| Snapshot | Triangles | Visible mesh submissions | Visible materials | Geometries |
+| --- | --- | --- | --- | --- |
+| Base scene | 511,728 | 92 | 30 | 33 |
+| Accumulated snow | 818,742 | 149 | 35 | 36 |
+
+These are CPU-accounted geometry snapshots supplied by the integration run, **not measured GPU draw calls, frame time or FPS**. They exclude the runtime airplane. The base snapshot fits the stated base-scene accounting ceilings; the snow snapshot includes additional rendering work and must not be presented as meeting those same base-only limits or a verified device-performance budget.
+
+The grid retains 462,400 cells and 3,699,200 bytes across its heights/retention arrays. There are three foliage batches and 49 snow meshes. These allocation/object counts are not a complete runtime-memory or GPU profile.
+
+## Final local automated merge validation - 2026-09-13
+
+The final local integration run passed **all 385 tests in 18 files** with `--maxWorkers=1` in **76.42 seconds**. Strict TypeScript, ESLint and the production build also passed. This is local automated validation, **not browser, screenshot, visual or physical-device sign-off**.
+
+The earlier court paused-redraw test omitted the scheduled draw tick; the parent test now advances that tick before asserting. The concurrent tour test reached its default timeout under shared CPU load; its targeted run and the complete sequential suite passed without changing timeouts or weakening assertions. Interim suite counts are not retained as final results.
+
+The production entry chunk is **521.71 KB minified / 155.31 KB gzip**; the renderer chunk is **426.08 KB minified / 112.09 KB gzip**. Vite's >500 KB warning remains visible; no warning suppression or completed bundle optimization is claimed.
+
+Documentation validation checked **130 relative links across 16 Markdown documents**. All **nine JSON files** parse, and all **eleven original research artifacts** retain their recorded byte counts and hashes. The browser startup/navigation, final visual review, physical-device performance, assistive-technology and long-session blockers remain outstanding.
+
+### Subsequent structural snow-render fix
+
+A user-reported snow flicker was traced to copied facade skirts rising within the original wall plane. The structural fix adds 2 mm of normalized world-normal separation identically in the color and shadow vertex passes, without changing source geometry or physics. Fully accumulated snow uses opaque depth ordering; settling/melting retains a transparent fade, with shader invalidation only when the opacity mode changes. Zero-retention targets no longer create coplanar zero-thickness shells.
+
+Three regression cases were added for depth margin at supported camera angles and color/shadow agreement, stable opaque/fade modes, and zero-retention exclusion. After the fix, 31 targeted weather-volume, environment and runtime tests, strict TypeScript, ESLint and the production build passed. The 385-test full-suite record above predates this fix; a full 388-test run is not claimed. The renderer chunk was 426.50 KB minified / 112.24 KB gzip; entry size and recorded geometry counts were unchanged.
+
+### Isolated WebKit rendering probe
+
+A fresh diagnostic rendered an inline HTML control successfully but timed out navigating even to an intercepted, locally fulfilled test URL. A separate in-memory document supports WebGL2. Bundling the local app with the existing Vite toolchain and injecting its JS/CSS into that owned document produced actual sunny overview and accumulated-snow overview/Crosstown screenshots without reported page or shader errors. The snow fixture used an inspection-only model hook to seed retained snow, then exercised the visible weather, pause and landmark controls. This hook and the generated captures remain session artifacts, not application code.
+
+These initial captures established isolated renderer operation, not successful navigation to the served app, storage behavior, production loading, long-running flicker elimination or physical-device performance. Originless local-storage notices are expected in this harness. Later version-005 captures are recorded separately above.
+
+## Remaining verification gates
+
+- Rerun local automated checks after any further implementation changes. Do not add historical feature/main test counts together or reuse their passing status for a new revision.
+- Complete browser/visual verification of the shared city, park, court and counterflow geometry with weather-aware motion: snow grounding, conservative traction, stopping bars, full-body reservations, ball/rim/net alignment, pause, reduced motion and graphics recovery.
+- Complete served-browser review of the full-size basketball/pickleball surfaces, readable player drives/rebounds/repositioning, moving contacts and reduced-motion stills. Isolated renderer captures and geometry/motion assertions do not establish every browser/device combination.
+- Inspect expanded precipitation/snow coverage and ground-pool openings against buildings, courts, gate approaches and walking/cycling paths. The incoming main's small-district grid and snow-batch counts are not current expanded-scene measurements.
+- Keep version-005 base/snow accounting separate from shadow passes and GPU profiling; refresh it if artwork changes again. Historical feature and merge measurements are not current snapshots.
+- Complete browser/accessibility review of CitiVibe naming, no title card or Field guide button, Settings/`?` help discovery, Help modality and non-modal Settings focus/input behavior. Retain Vercel cache/security headers; no deployment is authorized by these checks.
+- Rerun browser startup and navigation before claiming application assertions or final screenshots. Preserve the documented blockers until an actual merged browser run establishes otherwise.
 
 ## Behavior matrix
 
@@ -26,7 +108,7 @@ Use this matrix when implementing each [roadmap](ROADMAP.md) milestone. Numerica
 | AC-16 | Initial district geometry aims for 3-5 MB compressed; loading state/still is honest and useful. | Record encoded/transferred/decoded sizes separately, cold and warm loads, compression/decoder overhead, and asset version. No fabricated loading percentages. |
 | AC-17 | Retry, late-load cancellation, unmount, and context restore never create duplicate worlds. All GPU/audio/listener/timer resources are released by disposal. | Ten mount/unmount and failure/retry cycles; inspect resource counts after settling. Trigger WebGL context loss/restoration where supported and verify explicit fallback on failure. |
 | AC-18 | Long sessions do not accumulate actors, histories, timers, resources, or stale frame work. | Two-hour visible/hidden/pause stress session with periodic quality/weather/focus changes and resource snapshots. Investigate monotonic growth. |
-| AC-19 | Unsupported WebGL/load error/context failure shows an original static fallback, explanation, help, and noncommercial landmark focus navigation; no directory. Unavailable controls explain why. | Disable WebGL, fail assets, lose context, retry, and use keyboard/screen reader at mobile width. Verify original assets, no copied source poster. |
+| AC-19 | Unsupported WebGL/load error/context failure shows an original static fallback, explanation, help, and noncommercial landmark focus navigation; no directory. Unavailable controls explain why. | Disable WebGL, fail assets, lose context, retry, and use keyboard/screen reader at supported desktop widths. Verify original assets, no copied source poster. |
 | AC-20 | Same seed, simulation tick, weather, time, quality, viewport, and asset version reproduce the same composed scene within agreed raster tolerance. | Deterministic screenshots and state assertions; no wall-clock/random drift in fixtures. |
 
 ## Viewports and accessibility targets
@@ -51,7 +133,8 @@ These proposals need calibration on named devices. Measure a production build wi
 | Control responsiveness | Visible state feedback within 100 ms; camera automation yields by the next rendered frame after input handling. | Input-to-state/frame instrumentation and real interaction review, including under rain/load. |
 | DPR | High <= 1.75; Automatic <= 1.5 initially; Lightweight <= 1.0. | Assert actual drawing-buffer size relative to CSS dimensions at DPR 1/2/3 device settings. |
 | Primary geometry | Aim for 3-5 MB compressed district bundle. | Actual assets and decoder overhead; record both compressed delivery and decoded memory. |
-| Draw calls/materials | Initial art goals: <= 100 main-pass calls laptop, <= 60 Lightweight, roughly 12-24 shared world materials. | Renderer statistics plus GPU profile; count extra passes separately. See [art](ART_AND_ASSETS.md). |
+| Source-scene accounting | Expanded base scene: <= 550,000 triangles, <= 110 visible mesh submissions, <= 36 materials. | CPU traversal including actor artwork; exclude runtime weather and extra passes from this specific accounting, then measure those separately. These are not FPS results. |
+| Render work | Initial profiling goals: <= 100 main-pass calls laptop and <= 60 Lightweight; recalibrate explicitly for the merged weather/world workload. | Actual renderer statistics plus GPU profile, including snow/pool/particle work; count shadow and other extra passes separately. See [art](ART_AND_ASSETS.md). |
 | Loading UI | Meaningful original still/status within one second after HTML is available; no more than ten seconds without a slow-load explanation and actionable fallback. | Controlled slow/failing resource tests; this is not a universal time-to-interactive promise. |
 | Long-session memory | After a ten-minute warm-up, aim for no monotonic growth and <= 10% retained-memory growth after repeated scenarios at 60/120 minutes. | Compare equivalent settled states; document GC variability and GPU measurement limits, investigate resource counts rather than relying on one heap sample. |
 | Hidden/paused work | Zero application RAF loop while hidden. Paused scene renders only on requested changes, not continuous actor/effect ticks. | Frame/timer counters; verify sound scheduling and event queues stop. |
@@ -70,7 +153,7 @@ Failing a proposed budget requires profiling and an explicit revised decision, n
 
 Visual fixture inputs must include seed, simulation tick, fixed date/time zone or explicit normalized phase, weather preset, natural-weather off or deterministic schedule, camera anchor, quality, viewport/DPR, asset version, and motion preference. Fix any audio randomness separately or disable audio in visual tests. Compare scene and control state, not only pixels.
 
-## Verified pause checkpoint - 2026-09-12
+## Historical verified pause checkpoint - 2026-09-12
 
 - Full strict TypeScript and ESLint checks pass.
 - The full Vitest run passes **153 tests in 11 files**, including pure subsystem tests for features not yet connected to the UI/runtime.
@@ -79,24 +162,46 @@ Visual fixture inputs must include seed, simulation tick, fixed date/time zone o
 - Tour arbitration, guided views, preferences, modal focus, and expanded-view behavior have unit/component coverage. Native fullscreen rejection/escape across desktop browsers, real sound policy, complete settings integration, and final NYC visuals remain outside this completed browser set.
 - The final expanded-view notice cleanup is covered by the seven App component cases plus a renewed typecheck/lint pass.
 
-The browser suite uses software-rendered Chromium and a production bundle, not the development server. These historical results do not establish physical-computer FPS, screen-reader usability, long-session memory stability, or a finished M1-M8 product. The subsequent user requests resumed the weather/settings slices described below, not unrelated milestones.
+The browser suite uses software-rendered Chromium and a production bundle, not the development server. This historical checkpoint does not establish physical-computer FPS, screen-reader usability, long-session memory stability, or a finished M1-M8 product. The user subsequently resumed implementation for the connected-city slice.
 
-## Weather depth and controls checkpoint - 2026-09-13
+## Historical version-003 behavior coverage
 
-- The final integrated run after the intensity UI handoff passes strict TypeScript, ESLint, production build, and **272 unit/component tests across 14 files**.
+The street system uses eight ten-minute seeds (`0`, `1`, `4`, `14`, `42`, `91`, `2401`, `0xffffffff`) to check full-footprint separation, continuous routes, acceleration/braking, per-actor progress, intersection usage, painted stop bars and maximum queue waits below 100 seconds. Green phases last eight seconds; a separate 8.5 m stop-line offset avoids moving the 7 m turn boundary into bicycle corner-cutting geometry. Occupied reservations survive phase changes until the actor's rear clears.
+
+Five ten-minute park seeds check every visitor repeatedly enters/leaves through connected gates, stays continuously on shared paths, maintains spacing and avoids prolonged deadlock. No motor vehicle or cyclist enters the park. The old internal road, bus/car circuit and signals are absent. Street buses circulate without scheduled stops, and neighborhood walkers remain on sidewalks; pedestrian lamps do not imply implemented road crossings.
+
+Public-lighting checks cover the shipped lamp manifest (66 street lamps clear of the park lawn, 15 park lamps inside the lawn and beyond every walking-path body clearance), rejection of duplicate/off-island/park-intruding/path-blocking fixtures, presence of dusk-tagged emissive heads and non-shadowing additive ground pools, per-window glow attributes carrying both unlit windows and several distinct tints, and the environment ramp driving lamp emissive and pool opacity from day to night and restoring them on disposal.
+
+Geometry checks cover five landmark targets, original version-003 fallback references, path/render alignment, 48 lane markings clear of crossings, four pedestrian stencils on park paths, taxi dimensions/details, deterministic regeneration and independent idempotent disposal. Originality/provenance and image-observation limits are documented in [art](ART_AND_ASSETS.md) and [research](NYC_CITY_RESEARCH.md).
+
+### Version-003 code verification - 2026-09-13
+
+- Strict TypeScript and ESLint pass; **216 Vitest cases in 15 files pass**, including street/park soaks, signal-phase/art wiring, scaffold pedestrian clearance, tree/path clearance, deterministic geometry and resource ownership.
+- The final base scene has **74 visible mesh submissions, 199,216 triangles and 29 materials**, below the explicit expanded-scene ceilings of 240 / 200,000 / 36. These CPU traversal counts exclude additional rendering passes and runtime effects; they are not physical-device FPS or GPU measurements.
+- The production build passes. The entry chunk is **502.29 KB minified / 149.31 KB gzip**; the renderer chunk is **396.32 KB / 102.49 KB gzip**. The >500 KB Vite warning remains visible and is not suppressed. The shared walking-curve math is now also used by the retained model.
+- Nine repository JSON files parse, 117 relative documentation links resolve, the SVG is self-contained, and all eleven original research artifacts retain their recorded sizes and SHA-256 hashes (3,004,002 bytes total).
+- **Blocked: final Playwright/visual pass.** All twelve fresh browser scenarios failed at browser startup, before application assertions. Bundled Chromium 153.0.8010.12 reported `SIGSEGV / SEGV_ACCERR`; isolated blank-page launches with the bundled full browser and system Chrome also timed out, and disabling GPU did not resolve the headless-shell crash. No application changes were made to mask this environment failure.
+- Earlier overview, court, Night/Rain and Mist/Lightweight captures passed inspection before the park/detail revisions; the car-free park was inspected before the final six-detail pass. These are **not** final-art screenshot sign-off. Rerun `npm run test:e2e` and inspect current overview, park, cab/signal/brownstone/scaffold closeups, Night/Rain and Mist after browser startup is restored.
+
+Implementation confidence is high for the tested geometry/simulation contracts; visual/browser confidence remains limited until that blocked pass is completed. Physical computer FPS, assistive technology, automatic-quality runtime calibration and two-hour stability remain separate outstanding work.
+The following incoming-main records describe the earlier weather/settings branch, before reconciliation with the expanded city. Their test totals, bundle sizes and browser observations are retained as historical evidence, not merged validation.
+
+## Historical incoming-main weather depth and controls checkpoint - 2026-09-13
+
+- The incoming-main run after the intensity UI handoff passed strict TypeScript, ESLint, production build, and **272 unit/component tests across 14 files**.
 - Physics tests cover the verified rain-speed table, drag relaxation, bounded wind/pools, sampled roof collision, water/SWE and complete catchment/pool conservation, melting/drying, intensity bounds, 30/60 Hz determinism, and bounded snow-ground support without cumulative walker elevation.
 - Renderer-adapter tests cover snow-shell color/shadow shader wiring, retained depth uniforms, canopy transform following, borrowed-resource ownership/disposal, actual holes/paraboloid beds, rising/spreading pool transforms, graphics rebuilds, and reduced-motion ripple suppression. Shader-string tests are not GPU compilation.
 - Intensity controls have coverage for zero/max dispatch, persistence/reload, backward-compatible v1 preferences, invalid-data notices, Rain/natural-mode visibility, live-status audio coupling and fresh sound consent. Zero rain stops new rain input without clearing existing stored water.
 - Earlier browser work exercised the original weather coating, pause, recovery, persistence, night contrast and accessibility. The combined browser run reached 13 passing cases; its remaining exact-image case passed separately after fixing the test's comparison of UI hover/focus pixels and replacing enormous raw-PNG assertion diffs with hashes. Capture now waits for requested rendering and excludes UI overlays when comparing the world.
-- **Current browser blocker:** both installed Chromium headless-shell and full Chromium crash with `SIGSEGV` before loading a page. Native app observation also returned unavailable content; no unsupported claim about the host's exact cause is made. This blocks the latest geometry/shadow, intensity and final integrated dock browser pass. Authored browser tests are not counted as passed.
+- **Browser blocker at that checkpoint:** both installed Chromium headless-shell and full Chromium crashed with `SIGSEGV` before loading a page. Native app observation also returned unavailable content; no unsupported claim about the host's exact cause is made. This blocked the geometry/shadow, intensity and final integrated dock browser pass. Authored browser tests were not counted as passed.
 - New browser scenarios assert one lower-left Settings trigger, compact dock bounds, no modal/backdrop, internal scroll isolation, city keyboard/pause access, focus return and axe checks at 1024x768, 1440x900 and 1920x1080. The weather probe observes actual snow-depth uniforms and ground-pool model matrices without adding a production debug global.
-- The current build retains Vite's 500 KB chunk warning (**508.84 KB minified / 150.80 KB gzip** for its largest chunk; lazy renderer **396.75 KB / 100.67 KB gzip**). No warning suppression or completed optimization is claimed.
+- That build retained Vite's 500 KB chunk warning (**508.84 KB minified / 150.80 KB gzip** for its largest chunk; lazy renderer **396.75 KB / 100.67 KB gzip**). No warning suppression or completed optimization is claimed.
 
 All 11 supplied research artifact byte counts and SHA-256 hashes were verified unchanged; checked-in JSON parses and documentation links resolve. This is not final visual, physical-device FPS, assistive-technology, or two-hour memory sign-off.
 
-## Smoother weather transitions - 2026-09-13
+## Historical incoming-main smoother weather transitions - 2026-09-13
 
 - Replaced the two-second/restarted smoothstep with a retained two-stage blend: manual changes reach 99% in about eight simulation seconds; natural changes in about thirty. Retargeting preserves current values and blend velocity, including natural/manual handoff.
 - Regression tests first reproduced the old timing and velocity reset, then passed with the new model. Coverage includes interrupted bounds, 30/60 Hz atmospheric equivalence, rain/snow/cloud/lighting projection, mid-blend renderer rebuilding, pause/resume without catch-up, and immediate paused/reduced-motion selections without clearing snow.
-- Strict TypeScript, ESLint, the production build and **279 tests across 14 files** pass. The largest chunk is **509.17 KB minified / 150.89 KB gzip**; the existing bundle warning remains.
+- Strict TypeScript, ESLint, the production build and **279 tests across 14 files** passed before the connected-city merge. The largest chunk was **509.17 KB minified / 150.89 KB gzip**; the existing bundle warning remained.
 - The browser weather probe now checks actual fog uniforms during the gradual transition and allows the snow fixture forty simulation seconds to accumulate. These browser assertions are **authored, not passed**: renewed headless-shell and full-Chromium startup probes both time out before page creation. The previous draft's GPU/visual readiness gate remains unresolved.

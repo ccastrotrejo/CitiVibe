@@ -9,13 +9,14 @@ export interface FoliageBatch {
 
 /** Capture only static art, before actors and semantic hit volumes are attached. */
 export function captureWeatherSurface(scene: THREE.Scene): WeatherSurface {
-  const surface = new WeatherSurface();
+  scene.updateMatrixWorld(true);
+  const bounds = new THREE.Box3().setFromObject(scene);
+  const surface = new WeatherSurface(Math.min(-0.96, bounds.min.y));
   const transform = new THREE.Matrix4();
   const instance = new THREE.Matrix4();
   const a = new THREE.Vector3();
   const b = new THREE.Vector3();
   const c = new THREE.Vector3();
-  scene.updateMatrixWorld(true);
   scene.traverse((object) => {
     if (!(object instanceof THREE.Mesh)) return;
     const positions = object.geometry.getAttribute('position');
@@ -61,10 +62,14 @@ export class FoliageWind {
       if (!bottom) throw new Error('Wind-responsive foliage needs valid geometry bounds.');
       for (let index = 0; index < transforms.length; index++) {
         const original = transforms[index];
+        if (reduced) {
+          mesh.setMatrixAt(index, original);
+          continue;
+        }
         const elements = original.elements;
         this.pivot.set(0, bottom.min.y, 0).applyMatrix4(original);
         const variation = 0.85 + 0.15 * Math.sin(time * Math.PI / 3 + elements[12] * 0.2 + elements[14] * 0.15);
-        const force = reduced ? 0 : Math.min(0.09, speed * speed * 0.0015) * variation / Math.max(1, speed);
+        const force = Math.min(0.09, speed * speed * 0.0015) * variation / Math.max(1, speed);
         this.angle.set(wind.z * force, 0, -wind.x * force);
         this.rotation.setFromEuler(this.angle);
         this.bend.compose(this.pivot, this.rotation, this.scale);

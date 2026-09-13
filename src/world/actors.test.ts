@@ -1,271 +1,211 @@
 // @vitest-environment node
+import { Vector3 } from 'three';
 import { describe, expect, it, vi } from 'vitest';
-import { CITY, ROUTE_LENGTH, sampleRoute } from '../content/city';
-import { ACTIVITY, ActorSimulation, type ActorState } from './actors';
+import { PARK_ACTORS, PARK_BOUNDS, PARK_PATHS, PARK_ROUTES, PARK_RUNNING_ROUTE, sampleParkRoute } from '../content/park';
+import { STREET_X, STREET_Z, TRAFFIC_ACTORS } from '../content/streets';
+import { ActorSimulation, type ActorState } from './actors';
 
 const DT = 1 / 30;
+const outsidePark = ({ x, z }: { x: number; z: number }) => Math.abs(x) > PARK_BOUNDS.x || Math.abs(z) > PARK_BOUNDS.z;
 
-function angleDifference(a: number, b: number): number {
-  return Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
+function pedestriansOverlap(first: ActorState, second: ActorState): boolean {
+  if (Math.hypot(first.position.x - second.position.x, first.position.z - second.position.z) >= Math.SQRT2 * 0.7) return false;
+  const afx = Math.sin(first.heading);
+  const afz = Math.cos(first.heading);
+  const bfx = Math.sin(second.heading);
+  const bfz = Math.cos(second.heading);
+  for (const [x, z] of [[afx, afz], [afz, -afx], [bfx, bfz], [bfz, -bfx]]) {
+    const separation = Math.abs((first.position.x - second.position.x) * x + (first.position.z - second.position.z) * z);
+    const radius = 0.35 * (Math.abs(afx * x + afz * z) + Math.abs(afz * x - afx * z) +
+      Math.abs(bfx * x + bfz * z) + Math.abs(bfz * x - bfx * z));
+    if (separation >= radius - 1e-7) return false;
+  }
+  return true;
 }
 
-function travel(from: number, to: number, length: number): number {
-  return (to - from + length) % length;
-}
-
-function vehicleLength(state: ActorState): number {
-  return state.kind === 'bus' ? 4.8 : 2.8;
-}
-
-function vehicleOverlap(a: ActorState, b: ActorState): boolean {
-  const forwardA = { x: Math.sin(a.heading), z: Math.cos(a.heading) };
-  const forwardB = { x: Math.sin(b.heading), z: Math.cos(b.heading) };
-  const rightA = { x: forwardA.z, z: -forwardA.x };
-  const rightB = { x: forwardB.z, z: -forwardB.x };
-  const halfWidthA = a.kind === 'bus' ? 1.1 : 0.9;
-  const halfWidthB = b.kind === 'bus' ? 1.1 : 0.9;
-  return [forwardA, forwardB, rightA, rightB].every((axis) => {
-    const centerDistance = Math.abs((a.position.x - b.position.x) * axis.x + (a.position.z - b.position.z) * axis.z);
-    const radiusA = vehicleLength(a) / 2 * Math.abs(forwardA.x * axis.x + forwardA.z * axis.z) +
-      halfWidthA * Math.abs(rightA.x * axis.x + rightA.z * axis.z);
-    const radiusB = vehicleLength(b) / 2 * Math.abs(forwardB.x * axis.x + forwardB.z * axis.z) +
-      halfWidthB * Math.abs(rightB.x * axis.x + rightB.z * axis.z);
-    return centerDistance < radiusA + radiusB - 1e-7;
-  });
-}
-
-describe('authored road continuity', () => {
-  const arc = Math.PI * 3;
-  const joins = [0, 28, 28 + arc, 48 + arc, 48 + 2 * arc, 76 + 2 * arc, 76 + 3 * arc, 96 + 3 * arc, ROUTE_LENGTH];
-
-  it.each(joins)('has a continuous position and tangent at distance %s', (join) => {
-    const epsilon = 0.0001;
-    const before = sampleRoute(join - epsilon);
-    const after = sampleRoute(join + epsilon);
-    expect(Math.hypot(after.x - before.x, after.z - before.z)).toBeLessThanOrEqual(2 * epsilon + 1e-9);
-    expect(angleDifference(before.heading, after.heading)).toBeLessThanOrEqual(2 * epsilon / 6 + 1e-9);
-    expect(before.y).toBe(0);
-    expect(after.y).toBe(0);
-  });
-
-  it('keeps the north bus stop and crossing aligned with the art contract', () => {
-    expect(sampleRoute(ACTIVITY.busStop)).toEqual({ x: -9, y: 0, z: -16, heading: Math.PI / 2 });
-    expect(sampleRoute(14)).toEqual({ x: 0, y: 0, z: -16, heading: Math.PI / 2 });
-  });
-});
-
-describe('ActorSimulation', () => {
-  it('allocates the bounded semantic population and retains every actor and position object', () => {
-    const simulation = new ActorSimulation();
-    const population = simulation.actors;
-    const states = [...population];
-    const positions = population.map(({ position }) => position);
-    expect(population.map(({ id }) => id)).toEqual([
-      'square-bus', 'car-1', 'car-2', 'car-3',
-      'walker-1', 'walker-2', 'walker-3', 'walker-4', 'walker-5', 'walker-6', 'walker-7', 'walker-8',
-    ]);
-    expect(simulation.getActor('unavailable')).toBeUndefined();
-    expect(Object.isFrozen(population)).toBe(true);
-    for (let tick = 0; tick < 300; tick += 1) simulation.step(DT);
-    expect(simulation.actors).toBe(population);
-    for (let index = 0; index < states.length; index += 1) {
-      expect(simulation.actors[index]).toBe(states[index]);
-      expect(simulation.actors[index].position).toBe(positions[index]);
-      expect(simulation.getActor(states[index].id)).toBe(states[index]);
-    }
-  });
-
-  it('repeats the same seed without ambient randomness or wall-clock input', () => {
-    const random = vi.spyOn(Math, 'random').mockImplementation(() => { throw new Error('Unseeded randomness'); });
-    const clock = vi.spyOn(Date, 'now').mockImplementation(() => { throw new Error('Wall clock'); });
-    try {
-      const first = new ActorSimulation();
-      const second = new ActorSimulation(2401);
-      const different = new ActorSimulation(2402);
-      expect(different.actors).not.toEqual(first.actors);
-      for (let tick = 0; tick < 3000; tick += 1) {
-        first.step(DT);
-        second.step(DT);
+describe('connected car-free park', () => {
+  it('connects continuous walking routes through real gates and outside sidewalks', () => {
+    const before = new Vector3();
+    const after = new Vector3();
+    for (const route of [...PARK_ROUTES, PARK_RUNNING_ROUTE]) {
+      for (const segment of route.segments) {
+        sampleParkRoute(route, segment.start - 0.0001, before);
+        sampleParkRoute(route, segment.start + 0.0001, after);
+        expect(before.distanceTo(after)).toBeLessThan(0.001);
       }
-      expect(first.actors).toEqual(second.actors);
-      expect(first.signal).toBe(second.signal);
-      expect(first.elapsed).toBe(second.elapsed);
-      expect(random).not.toHaveBeenCalled();
-      expect(clock).not.toHaveBeenCalled();
-    } finally {
-      random.mockRestore();
-      clock.mockRestore();
+    }
+    for (const path of PARK_PATHS) {
+      for (const point of path.curve.getSpacedPoints(200)) {
+        const fromRoad = Math.min(
+          ...STREET_X.map((x) => Math.abs(x - point.x)),
+          ...STREET_Z.map((z) => Math.abs(z - point.z)),
+        );
+        expect(fromRoad, path.id).toBeGreaterThan(5.3);
+      }
     }
   });
 
-  it.each([NaN, Infinity, -Infinity, -1])('rejects delta %s without changing state', (delta) => {
+  it('retains stable actors and positions without any former park vehicles', () => {
     const simulation = new ActorSimulation();
-    const before = JSON.stringify(simulation);
-    expect(() => simulation.step(delta)).toThrow(RangeError);
-    expect(JSON.stringify(simulation)).toBe(before);
+    const actors = [...simulation.actors];
+    const positions = actors.map(({ position }) => position);
+    expect(actors.map(({ id }) => id)).toEqual([
+      ...PARK_ACTORS.map(({ id }) => id),
+      ...TRAFFIC_ACTORS.map(({ id }) => id),
+    ]);
+    expect(simulation.getActor('square-bus')).toBeUndefined();
+    expect(simulation.getActor('car-1')).toBeUndefined();
+    expect(Object.isFrozen(simulation.actors)).toBe(true);
+    expect(actors).toHaveLength(180);
+    expect(actors.filter(({ kind }) => kind === 'car' || kind === 'bus')).toHaveLength(36);
+    expect(actors.filter(({ kind }) => kind === 'cyclist')).toHaveLength(12);
+    expect(actors.filter(({ kind }) => kind === 'pedestrian')).toHaveLength(132);
+    expect(actors.filter(({ gait }) => gait === 'walk')).toHaveLength(24);
+    expect(actors.filter(({ gait }) => gait === 'run')).toHaveLength(12);
+    expect(new Set(actors.map(({ id }) => id)).size).toBe(180);
+    expect(PARK_ACTORS.map(({ id }) => id)).toEqual([
+      ...Array.from({ length: 24 }, (_, index) => `walker-${index + 1}`),
+      ...Array.from({ length: 12 }, (_, index) => `runner-${index + 1}`),
+    ]);
+    simulation.step(DT);
+    actors.forEach((actor, index) => {
+      expect(simulation.actors[index]).toBe(actor);
+      expect(actor.position).toBe(positions[index]);
+      expect(simulation.getActor(actor.id)).toBe(actor);
+    });
   });
 
-  it.each([NaN, Infinity, -1, 1.2, 0x100000000])('rejects invalid seed %s', (seed) => {
+  it.each([NaN, Infinity, -Infinity, -1, 1.2, 0x100000000])('rejects invalid seed %s', (seed) => {
     expect(() => new ActorSimulation(seed)).toThrow(RangeError);
   });
 
-  it('discards oversized deltas and does not advance on zero delta or while externally paused', () => {
-    const clamped = new ActorSimulation();
-    const normal = new ActorSimulation();
-    clamped.step(300);
-    normal.step(DT);
-    expect(clamped).toEqual(normal);
-    const paused = JSON.stringify(clamped);
-    for (let tick = 0; tick < 900; tick += 1) clamped.step(0);
-    expect(JSON.stringify(clamped)).toBe(paused);
-    expect(clamped.elapsed).toBe(DT);
-    clamped.step(DT);
-    normal.step(DT);
-    expect(clamped).toEqual(normal);
-  });
-
-  it('dwells at the same bus stop for three seconds on repeated laps, then resumes', () => {
+  it.each([NaN, Infinity, -Infinity, -1])('rejects invalid delta %s without changing state', (dt) => {
     const simulation = new ActorSimulation();
-    const bus = simulation.getActor(CITY.busId)!;
-    const dwellDurations: number[] = [];
-    let started = -1;
-    let priorDistance = bus.distance;
-    let travelSinceDwell = 0;
-    for (let tick = 0; tick < 5400; tick += 1) {
-      simulation.step(DT);
-      travelSinceDwell += travel(priorDistance, bus.distance, ROUTE_LENGTH);
-      priorDistance = bus.distance;
-      if (bus.state === 'dwelling') {
-        expect(bus.position.x).toBeCloseTo(-9, 5);
-        expect(bus.position.z).toBe(-16);
-        expect(bus.speed).toBe(0);
-        if (started < 0) {
-          if (dwellDurations.length > 0) expect(travelSinceDwell).toBeCloseTo(ROUTE_LENGTH, 4);
-          travelSinceDwell = 0;
-          started = simulation.elapsed;
-        }
-      } else if (started >= 0) {
-        dwellDurations.push(simulation.elapsed - started);
-        started = -1;
-      }
-    }
-    expect(dwellDurations.length).toBeGreaterThanOrEqual(2);
-    for (const duration of dwellDurations) {
-      expect(duration).toBeGreaterThanOrEqual(3 - 1e-7);
-      expect(duration).toBeLessThanOrEqual(3 + DT + 1e-7);
-    }
+    const before = JSON.stringify(simulation);
+    expect(() => simulation.step(dt)).toThrow(RangeError);
+    expect(JSON.stringify(simulation)).toBe(before);
   });
 
-  it.each([[2401, 1], [0, 1], [0xffffffff, 1], [2401, 0.75], [2401, 0.3]])('keeps seed %s with traction %s safe and progressing for 600 seconds', (seed, traction) => {
-    const simulation = new ActorSimulation(seed);
-    const actors = simulation.actors;
-    const vehicles = actors.filter(({ kind }) => kind === 'bus' || kind === 'car');
-    const walkers = actors.filter(({ kind }) => kind === 'pedestrian');
-    const prior = actors.map((state) => ({ distance: state.distance, speed: state.speed, heading: state.heading, ...state.position }));
-    const totals = actors.map(() => 0);
-    const lastProgress = actors.map(() => 0);
-    const maxIdle = actors.map(() => 0);
-    const signals = new Set<string>();
-    const states = new Set<string>();
-    let crossingTicks = 0;
-    let clearanceWithTraffic = 0;
-    let closestGap = Infinity;
-    let maxAcceleration = 0;
-    let maxBraking = 0;
-    let phaseStarted = 0;
-    let priorSignal = simulation.signal;
-    let longestPhase = 0;
-    for (let tick = 0; tick < 18_000; tick += 1) {
-      simulation.step(DT, traction);
-      signals.add(simulation.signal);
-      if (simulation.signal !== priorSignal) {
-        longestPhase = Math.max(longestPhase, simulation.elapsed - phaseStarted);
-        phaseStarted = simulation.elapsed;
-        priorSignal = simulation.signal;
-      }
-      const occupiedRoad = vehicles.some(({ position, kind }) =>
-        Math.abs(position.z + 16) < 2 && Math.abs(position.x) < 3 + (kind === 'bus' ? 2.4 : 1.4));
-      const occupiedCrossing = walkers.some(({ position }) =>
-        Math.abs(position.x) < 3 && position.z > -18.35 && position.z < -13.65);
-      if (occupiedCrossing) crossingTicks += 1;
-      if (simulation.signal === 'clearance' && occupiedRoad) clearanceWithTraffic += 1;
-      if (occupiedCrossing && (occupiedRoad || simulation.signal !== 'pedestrians')) {
-        throw new Error(`Crossing conflict for seed ${seed}, tick ${tick}, signal ${simulation.signal}`);
-      }
-      if (occupiedRoad && simulation.signal === 'pedestrians') {
-        throw new Error(`Pedestrian phase began before traffic cleared: seed ${seed}, tick ${tick}`);
-      }
-      for (let first = 0; first < vehicles.length; first += 1) {
-        for (let second = first + 1; second < vehicles.length; second += 1) {
-          const a = vehicles[first];
-          const b = vehicles[second];
-          const gap = Math.min(travel(a.distance, b.distance, ROUTE_LENGTH), travel(b.distance, a.distance, ROUTE_LENGTH)) -
-            (vehicleLength(a) + vehicleLength(b)) / 2;
-          closestGap = Math.min(closestGap, gap);
-          if (gap < 2 - 1e-6 || vehicleOverlap(a, b)) throw new Error(`Vehicle overlap: ${a.id}/${b.id}, seed ${seed}, tick ${tick}`);
-        }
-      }
-      for (let first = 0; first < walkers.length; first += 1) {
-        for (let second = first + 1; second < walkers.length; second += 1) {
-          const a = walkers[first];
-          const b = walkers[second];
-          // Two bounding circles enclosing the measured 0.62m × 0.338m walking bodies.
-          if (Math.hypot(a.position.x - b.position.x, a.position.z - b.position.z) < 0.71) {
-            throw new Error(`Pedestrian overlap: ${a.id}/${b.id}, seed ${seed}, tick ${tick}`);
-          }
-        }
-      }
-      for (let index = 0; index < actors.length; index += 1) {
-        const state = actors[index];
-        const before = prior[index];
-        states.add(`${state.kind}:${state.state}`);
-        const movement = travel(before.distance, state.distance, state.routeLength);
-        totals[index] += movement;
-        if (movement > 0.0001) lastProgress[index] = simulation.elapsed;
-        maxIdle[index] = Math.max(maxIdle[index], simulation.elapsed - lastProgress[index]);
-        const displacement = Math.hypot(state.position.x - before.x, state.position.y - before.y, state.position.z - before.z);
-        const finite = [state.position.x, state.position.y, state.position.z, state.distance, state.heading, state.speed].every(Number.isFinite);
-        if (!finite || state.distance < 0 || state.distance >= state.routeLength ||
-          Math.abs(state.position.x) > CITY.bounds || Math.abs(state.position.z) > CITY.bounds ||
-          displacement > 4.2 * DT || angleDifference(state.heading, before.heading) > 0.1) {
-          throw new Error(`Discontinuous or unbounded ${state.id}, seed ${seed}, tick ${tick}`);
-        }
-        if (state.kind === 'bus' || state.kind === 'car') {
-          maxAcceleration = Math.max(maxAcceleration, (state.speed - before.speed) / DT);
-          maxBraking = Math.max(maxBraking, (before.speed - state.speed) / DT);
-        } else if (state.position.y !== 0) throw new Error('Walker is not on the ground');
-        Object.assign(before, { distance: state.distance, speed: state.speed, heading: state.heading, ...state.position });
-      }
-      if (actors.length !== 12) throw new Error('Population changed');
-    }
-    expect(signals).toEqual(new Set(['vehicles', 'clearance', 'pedestrians']));
-    expect(states.has('bus:dwelling')).toBe(true);
-    expect(states.has('car:waiting')).toBe(true);
-    expect(states.has('pedestrian:waiting')).toBe(true);
-    expect(crossingTicks).toBeGreaterThan(1000);
-    expect(clearanceWithTraffic).toBeGreaterThan(0);
-    expect(closestGap).toBeGreaterThanOrEqual(2 - 1e-6);
-    expect(maxAcceleration).toBeLessThanOrEqual(1.4 * traction + 1e-6);
-    expect(maxBraking).toBeLessThanOrEqual(2.4 * traction + 1e-4);
-    expect(longestPhase).toBeLessThan(30);
-    expect(simulation.elapsed).toBeCloseTo(600, 6);
-    for (let index = 0; index < actors.length; index += 1) {
-      expect(totals[index] / actors[index].routeLength, `${actors[index].id} must complete at least two loops`).toBeGreaterThan(2);
-      expect(maxIdle[index], `${actors[index].id} must not starve`).toBeLessThan(40);
-      expect(simulation.getActor(actors[index].id)).toBe(actors[index]);
-    }
+  it('discards excess delta and freezes all actor timers on zero delta', () => {
+    const first = new ActorSimulation();
+    const second = new ActorSimulation();
+    first.step(300);
+    second.step(DT);
+    expect(first).toEqual(second);
+    const before = JSON.stringify(first);
+    for (let tick = 0; tick < 1000; tick++) first.step(0);
+    expect(JSON.stringify(first)).toBe(before);
   });
 
-  it('reduces vehicle speed in low grip without slowing the pedestrian clock', () => {
+  it('reduces vehicle speed in low grip without slowing the park clock', () => {
     const dry = new ActorSimulation();
     const snowy = new ActorSimulation();
     for (let tick = 0; tick < 90; tick++) {
       dry.step(DT);
       snowy.step(DT, 0.3);
     }
-    expect(snowy.getActor('car-1')!.speed).toBeLessThan(dry.getActor('car-1')!.speed);
+    const totalSpeed = (simulation: ActorSimulation) => simulation.actors
+      .filter(({ kind }) => kind === 'car' || kind === 'bus').reduce((sum, actor) => sum + actor.speed, 0);
+    expect(totalSpeed(snowy)).toBeLessThan(totalSpeed(dry));
     expect(snowy.getActor('walker-3')).toEqual(dry.getActor('walker-3'));
     expect(snowy.elapsed).toBe(dry.elapsed);
     for (const traction of [NaN, Infinity, 0.2, 1.1]) expect(() => snowy.step(DT, traction)).toThrow(RangeError);
   });
+
+  it('reproduces seed and ticks without ambient randomness or wall time', () => {
+    const random = vi.spyOn(Math, 'random').mockImplementation(() => { throw new Error('Unseeded randomness'); });
+    const clock = vi.spyOn(Date, 'now').mockImplementation(() => { throw new Error('Wall clock'); });
+    try {
+      const first = new ActorSimulation(91);
+      const second = new ActorSimulation(91);
+      for (let tick = 0; tick < 1000; tick++) { first.step(DT); second.step(DT); }
+      expect(first).toEqual(second);
+      expect(new ActorSimulation(92).actors).not.toEqual(new ActorSimulation(91).actors);
+    } finally { random.mockRestore(); clock.mockRestore(); }
+  });
+
+  it.each([0, 1, 42, 91, 2401])('keeps seed %s car-free while every visitor enters and leaves', (seed) => {
+    const simulation = new ActorSimulation(seed);
+    const walkers = simulation.actors.filter(({ gait }) => gait === 'walk');
+    const runners = simulation.actors.filter(({ gait }) => gait === 'run');
+    const parkActors = [...walkers, ...runners];
+    expect(walkers).toHaveLength(24);
+    expect(runners).toHaveLength(12);
+    const transitions = new Uint16Array(walkers.length);
+    const gates = Array.from({ length: walkers.length }, () => new Map<string, number>());
+    const wasOutside = walkers.map(({ position }) => outsidePark(position));
+    const previous = walkers.map(({ position }) => new Vector3(position.x, 0, position.z));
+    const longestIdle = new Float64Array(walkers.length);
+    const idle = new Float64Array(walkers.length);
+    const walkerDistance = new Float64Array(walkers.length);
+    const runnerDistance = new Float64Array(runners.length);
+    const expectedRunner = new Vector3();
+    const expectedWalker = new Vector3();
+    const next = new Vector3();
+    for (let tick = 0; tick < 27_000; tick++) {
+      simulation.step(DT);
+      walkers.forEach((actor, index) => {
+        next.set(actor.position.x, 0, actor.position.z);
+        const movement = next.distanceTo(previous[index]);
+        if (movement >= 0.037) throw new Error(`Visitor jump: ${actor.id}, seed ${seed}, tick ${tick}.`);
+        const route = PARK_ROUTES[index % PARK_ROUTES.length];
+        sampleParkRoute(route, actor.distance, expectedWalker);
+        if (next.distanceTo(expectedWalker) > 1e-8 || actor.speed < 0 || actor.speed > 1.051) {
+          throw new Error(`Visitor left its walking route or speed bound: ${actor.id}, seed ${seed}, tick ${tick}.`);
+        }
+        walkerDistance[index] += actor.speed * DT;
+        const outside = outsidePark(actor.position);
+        if (outside !== wasOutside[index]) {
+          transitions[index]++;
+          const gate = Math.abs(next.x) > PARK_BOUNDS.x - 1 ? (next.x < 0 ? 'west' : 'east') :
+            next.z < 0 ? 'north' : 'south';
+          gates[index].set(gate, (gates[index].get(gate) ?? 0) + 1);
+        }
+        wasOutside[index] = outside;
+        idle[index] = movement < 1e-7 ? idle[index] + DT : 0;
+        longestIdle[index] = Math.max(longestIdle[index], idle[index]);
+        previous[index].copy(next);
+        for (let other = index + 1; other < walkers.length; other++) {
+          const p = walkers[other].position;
+          if (Math.hypot(p.x - next.x, p.z - next.z) <= 0.7 || pedestriansOverlap(actor, walkers[other])) {
+            throw new Error(`Visitors overlap: ${index}/${other}, seed ${seed}, tick ${tick}.`);
+          }
+        }
+      });
+      runners.forEach((actor, index) => {
+        runnerDistance[index] += actor.speed * DT;
+        if (outsidePark(actor.position) || actor.speed < 0 || actor.speed > 2.651) {
+          throw new Error(`Runner stopped or left the park: ${actor.id}, seed ${seed}, tick ${tick}.`);
+        }
+        sampleParkRoute(PARK_RUNNING_ROUTE, actor.distance, expectedRunner);
+        if (Math.hypot(actor.position.x - expectedRunner.x, actor.position.z - expectedRunner.z) > 1e-8) {
+          throw new Error(`Runner left the track: ${actor.id}.`);
+        }
+        for (const other of parkActors) {
+          if (other === actor) continue;
+          if (Math.hypot(other.position.x - actor.position.x, other.position.z - actor.position.z) <= 0.7 ||
+            pedestriansOverlap(actor, other)) {
+            throw new Error(`Runner collision: ${actor.id}/${other.id}, seed ${seed}, tick ${tick}.`);
+          }
+        }
+      });
+      for (const actor of simulation.traffic.actors) {
+        if (actor.kind === 'car' || actor.kind === 'bus' || actor.kind === 'cyclist') {
+          if (!outsidePark(actor.position)) throw new Error(`Vehicle entered the park: ${actor.id}.`);
+        }
+      }
+    }
+    transitions.forEach((count) => expect(count).toBeGreaterThanOrEqual(4));
+    gates.forEach((counts, index) => {
+      expect(new Set(counts.keys()), walkers[index].id).toEqual(new Set(index % 2 === 0 ? ['east', 'south'] : ['west', 'north']));
+      for (const count of counts.values()) expect(count).toBeGreaterThanOrEqual(2);
+      expect(walkerDistance[index] / 900, walkers[index].id).toBeGreaterThan(0.8);
+    });
+    longestIdle.forEach((seconds) => expect(seconds).toBeLessThan(25));
+    runnerDistance.forEach((distance) => {
+      expect(distance).toBeGreaterThan(PARK_RUNNING_ROUTE.length * 10);
+      expect(distance / 900).toBeGreaterThan(2.3);
+    });
+    expect(simulation.elapsed).toBeCloseTo(simulation.traffic.elapsed);
+  }, 30_000);
 });

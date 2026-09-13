@@ -1,7 +1,8 @@
 import { GroundWater } from './groundWater';
+import { CITY_EXTENT } from '../content/streets';
 
 export const GRAVITY = 9.80665;
-export const WEATHER_EXTENT = 48;
+export const WEATHER_EXTENT = Math.max(CITY_EXTENT.x, CITY_EXTENT.z);
 export const PRECIPITATION_HEIGHT = 52;
 export const RAIN_COUNT = 600;
 export const SNOW_COUNT = 420;
@@ -138,9 +139,9 @@ export class PrecipitationPool {
 
   spawn(index: number): void {
     const offset = index * 3;
-    this.positions[offset] = (this.random() * 2 - 1) * WEATHER_EXTENT;
+    this.positions[offset] = (this.random() * 2 - 1) * CITY_EXTENT.x;
     this.positions[offset + 1] = PRECIPITATION_HEIGHT;
-    this.positions[offset + 2] = (this.random() * 2 - 1) * WEATHER_EXTENT;
+    this.positions[offset + 2] = (this.random() * 2 - 1) * CITY_EXTENT.z;
     this.velocities[offset] = 0;
     this.velocities[offset + 1] = this.terminal[index];
     this.velocities[offset + 2] = 0;
@@ -219,8 +220,8 @@ export class WeatherPhysics {
     stepSurface(this.surface, this.flux, forcing, dt);
     this.groundWater.step(dt * SURFACE_TIME_SCALE, this.flux);
     if (animate) {
-      this.cloudOffset.x = wrap(this.cloudOffset.x + this.wind.x * dt * 0.15, 120);
-      this.cloudOffset.z = wrap(this.cloudOffset.z + this.wind.z * dt * 0.15, 120);
+      this.cloudOffset.x = wrap(this.cloudOffset.x + this.wind.x * dt * 0.15, (CITY_EXTENT.x + 14) * 2);
+      this.cloudOffset.z = wrap(this.cloudOffset.z + this.wind.z * dt * 0.15, (CITY_EXTENT.z + 14) * 2);
       for (let index = 0; index < SPLASH_COUNT; index++) this.splashAges[index] = Math.min(1, this.splashAges[index] + dt);
       if (forcing.rain * forcing.rainIntensityMmH > 0.001) this.stepPool(this.rain, dt, forcing.windSpeed);
       if (forcing.snow > 0.001) this.stepPool(this.snow, dt, forcing.windSpeed);
@@ -250,9 +251,9 @@ export class WeatherPhysics {
       const samples = Math.max(1, Math.ceil(Math.max(Math.abs(dx), Math.abs(dz)) / 0.25));
       for (let sample = 1; sample <= samples; sample++) {
         const fraction = sample / samples;
-        positions[offset] = wrap(fromX + dx * fraction + WEATHER_EXTENT, WEATHER_EXTENT * 2) - WEATHER_EXTENT;
+        positions[offset] = wrap(fromX + dx * fraction + CITY_EXTENT.x, CITY_EXTENT.x * 2) - CITY_EXTENT.x;
         positions[offset + 1] = fromY - dy * fraction;
-        positions[offset + 2] = wrap(fromZ + dz * fraction + WEATHER_EXTENT, WEATHER_EXTENT * 2) - WEATHER_EXTENT;
+        positions[offset + 2] = wrap(fromZ + dz * fraction + CITY_EXTENT.z, CITY_EXTENT.z * 2) - CITY_EXTENT.z;
         const x = positions[offset];
         const z = positions[offset + 2];
         const top = Math.max(this.height(x, z) + this.snowDepth * this.retention(x, z),

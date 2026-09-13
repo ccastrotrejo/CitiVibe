@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App';
+import { CONTENT } from '../content/city';
 import { DEFAULT_PREFERENCES, loadPreferences, PREFERENCE_KEY, WEATHER_LABELS } from '../content/preferences';
 import { CityAudio } from '../world/audio';
 import type { WorldModel } from '../world/model';
@@ -37,6 +38,17 @@ beforeEach(() => {
 });
 
 describe('accessible city controls', () => {
+  it('keeps an accessible page heading without covering the city with a title card', async () => {
+    render(<App />);
+    await screen.findByText('City is living');
+    expect(screen.getByRole('heading', { level: 1, name: 'Rainlight Square' })).toHaveClass('sr-only');
+    expect(screen.queryByText('The park district / 003')).not.toBeInTheDocument();
+    expect(screen.queryByText('A green heart. A living neighborhood.')).not.toBeInTheDocument();
+    expect(document.querySelector('.scene-heading')).toBeNull();
+    expect(document.querySelector('.wordmark')).toHaveTextContent('CitiVibe.');
+    expect(screen.queryByRole('button', { name: 'Field guide' })).not.toBeInTheDocument();
+  });
+
   it('connects pause, focus cycling, and manual interruption without follow controls', async () => {
     const user = userEvent.setup();
     render(<App />);
@@ -101,13 +113,28 @@ describe('accessible city controls', () => {
     render(<App />);
     await screen.findByText('City is living');
     await user.click(screen.getByRole('button', { name: 'Next landmark' }));
-    const trigger = screen.getByRole('button', { name: 'Field guide' });
-    await user.click(trigger);
+    const trigger = screen.getByRole('region', { name: 'City navigation' });
+    trigger.focus();
+    await user.keyboard('?');
     expect(screen.getByRole('dialog')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Close help' }));
     expect(trigger).toHaveFocus();
     expect(screen.getByText('Free view')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /follow/i })).not.toBeInTheDocument();
+  });
+
+  it('keeps discoverable keyboard help in Settings without a header helper', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText('City is living');
+    const settings = screen.getByRole('button', { name: 'Settings' });
+    await user.click(settings);
+    const summary = screen.getByText('Keyboard shortcuts', { exact: true });
+    await user.click(summary);
+    expect(summary.closest('details')).toHaveAttribute('open');
+    expect(screen.getByText('Pan around the square')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Close settings' }));
+    expect(settings).toHaveFocus();
   });
 
   it('retains noncommercial focus navigation after renderer failure and retry', async () => {
@@ -150,7 +177,7 @@ describe('accessible city controls', () => {
     expect(screen.getByRole('button', { name: 'Resume city' })).toBeEnabled();
     await user.click(screen.getByRole('button', { name: 'Guided views' }));
     await user.click(screen.getByRole('button', { name: 'Next view' }));
-    expect(screen.getByText(/Guided view 2 \/ 4/)).toBeInTheDocument();
+    expect(screen.getByText(`Guided view 2 / ${CONTENT.tourAnchorIds.length}`, { exact: false })).toBeInTheDocument();
     expect(window.localStorage.getItem('livingcity.preferences')).toContain('"motion":"reduced"');
   });
 
@@ -335,6 +362,8 @@ describe('accessible city controls', () => {
     await user.click(screen.getByText('More controls'));
     screen.getByRole('checkbox', { name: 'Show navigation hint' }).focus();
     await user.tab();
+    expect(screen.getByText('Keyboard shortcuts', { exact: true })).toHaveFocus();
+    await user.tab();
     expect(screen.getByRole('button', { name: 'Settings' })).toHaveFocus();
     await user.tab();
     expect(screen.getByRole('button', { name: 'Pan up' })).toHaveFocus();
@@ -372,18 +401,17 @@ describe('accessible city controls', () => {
     expect(lifecycle.model?.modalOpen).toBe(false);
   });
 
-  it.each(['button', 'shortcut'])('switches settings to real modal Help through its %s without a focus race', async (entry) => {
+  it('switches settings to real modal Help through its shortcut without a focus race', async () => {
     const user = userEvent.setup();
     render(<App />);
     await screen.findByText('City is living');
     await user.click(screen.getByRole('button', { name: 'Settings' }));
-    const returnTarget = entry === 'button' ? screen.getByRole('button', { name: 'Field guide' }) :
-      screen.getByRole('region', { name: 'City navigation' });
+    const returnTarget = screen.getByRole('region', { name: 'City navigation' });
     await user.click(returnTarget);
-    if (entry === 'shortcut') await user.keyboard('?');
+    await user.keyboard('?');
     expect(screen.queryByRole('region', { name: 'City settings' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Settings' })).toHaveAttribute('aria-expanded', 'false');
-    expect(screen.getByRole('dialog', { name: 'A field guide to the square' })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'City controls' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Close help' })).toHaveFocus();
     expect(lifecycle.model?.modalOpen).toBe(true);
     expect(lifecycle.command).toHaveBeenLastCalledWith({ type: 'open-panel' });

@@ -1,10 +1,10 @@
 import type { SurfaceFlux } from './weatherPhysics';
 
-export const GROUND_LEVEL = -0.14;
+export const GROUND_LEVEL = -0.035;
 export const GROUND_PUDDLES = [
-  { id: 'west-verge', x: -14, z: 5, radiusX: 0.9, radiusZ: 1.25, maxDepth: 0.085, catchmentM2: 40 },
-  { id: 'terrace-verge', x: 9, z: 1.7, radiusX: 1.2, radiusZ: 0.8, maxDepth: 0.075, catchmentM2: 40 },
-  { id: 'south-verge', x: 8.1, z: 10, radiusX: 1.05, radiusZ: 0.75, maxDepth: 0.08, catchmentM2: 40 },
+  { id: 'west-verge', x: 4, z: -3, radiusX: 0.9, radiusZ: 1.25, maxDepth: 0.085, catchmentM2: 40 },
+  { id: 'terrace-verge', x: 13, z: -4, radiusX: 1.2, radiusZ: 0.8, maxDepth: 0.075, catchmentM2: 40 },
+  { id: 'south-verge', x: 5, z: 6, radiusX: 1.05, radiusZ: 0.75, maxDepth: 0.08, catchmentM2: 40 },
 ] as const;
 
 export interface PuddleState {

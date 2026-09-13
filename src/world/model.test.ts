@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CAMERA_PROJECTION, CITY, LANDMARKS, ROUTE_LENGTH, sampleRoute, validateLandmarks } from '../content/city';
+import { CAMERA_PROJECTION, CITY, CONTENT, LANDMARKS, validateLandmarks } from '../content/city';
 import { CameraController, OVERVIEW } from './camera';
 import { FrameClock, STEP } from './clock';
 import { WorldModel } from './model';
@@ -73,7 +73,8 @@ describe('single camera owner', () => {
   it.each([0, Math.PI / 4, Math.PI / 2, Math.PI, -Math.PI / 2])('can pan to all four map edges at yaw %f', (yaw) => {
     const camera = new CameraController();
     camera.navigate({ type: 'navigate', rotate: yaw - camera.pose.yaw });
-    for (const [x, z] of [[-28, -28], [28, -28], [28, 28], [-28, 28]]) {
+    for (const [x, z] of [[-CITY.bounds.x, -CITY.bounds.z], [CITY.bounds.x, -CITY.bounds.z],
+      [CITY.bounds.x, CITY.bounds.z], [-CITY.bounds.x, CITY.bounds.z]]) {
       const dx = x - camera.pose.x;
       const dz = z - camera.pose.z;
       camera.navigate({
@@ -164,9 +165,9 @@ describe('single camera owner', () => {
   it('bounds all manual camera directions and immediate focus', () => {
     const camera = new CameraController();
     for (let i = 0; i < 100; i++) camera.navigate({ type: 'navigate', panX: 20, panZ: -20, rotate: 1, zoom: 0.5 });
-    expect(Math.abs(camera.pose.x)).toBeLessThanOrEqual(CITY.bounds);
-    expect(Math.abs(camera.pose.z)).toBeLessThanOrEqual(CITY.bounds);
-    expect(camera.pose.zoom).toBe(2.7);
+    expect(Math.abs(camera.pose.x)).toBeLessThanOrEqual(CITY.bounds.x);
+    expect(Math.abs(camera.pose.z)).toBeLessThanOrEqual(CITY.bounds.z);
+    expect(camera.pose.zoom).toBe(CAMERA_PROJECTION.maxZoom);
     expect(Math.abs(camera.pose.yaw)).toBeLessThanOrEqual(Math.PI);
     camera.navigate({ type: 'navigate', zoom: -100 });
     for (let i = 0; i < 10; i++) camera.navigate({ type: 'navigate', zoom: -1 });
@@ -238,18 +239,18 @@ describe('authored content', () => {
       const b = new WorldModel(false);
       a.command({ type: 'start-tour' });
       b.command({ type: 'start-tour' });
-      for (let i = 0; i < 240 * 30; i++) {
+      for (let i = 0; i < 900 * 30; i++) {
         const previous = { ...a.camera.pose };
         a.step(STEP);
         b.step(STEP);
         expect(a.camera.pose).toEqual(b.camera.pose);
         expect(Math.hypot(a.camera.pose.x - previous.x, a.camera.pose.z - previous.z)).toBeLessThan(0.2);
-        expect(Math.abs(a.camera.pose.x)).toBeLessThanOrEqual(CITY.bounds);
-        expect(Math.abs(a.camera.pose.z)).toBeLessThanOrEqual(CITY.bounds);
+        expect(Math.abs(a.camera.pose.x)).toBeLessThanOrEqual(CITY.bounds.x);
+        expect(Math.abs(a.camera.pose.z)).toBeLessThanOrEqual(CITY.bounds.z);
       }
       expect(a.camera.revision).toBeGreaterThan(10);
-      expect(a.snapshot().view).toMatchObject({ guided: false, total: 4 });
-    });
+      expect(a.snapshot().view).toMatchObject({ guided: false, total: CONTENT.tourAnchorIds.length });
+    }, 20000);
 
     it('uses selected-landmark compositions and preserves them through pause', () => {
       const model = new WorldModel(false);
@@ -295,7 +296,7 @@ describe('authored content', () => {
       advance(model, 120);
       expect(model.camera.pose).toEqual(pose);
       model.command({ type: 'guided-step', direction: -1 });
-      expect(model.snapshot().view?.index).toBe(3);
+      expect(model.snapshot().view?.index).toBe(CONTENT.tourAnchorIds.length - 1);
       model.command({ type: 'guided-step', direction: 1 });
       expect(model.snapshot().view?.index).toBe(0);
       model.command({ type: 'focus-landmark', id: LANDMARKS[2].id });
@@ -303,10 +304,4 @@ describe('authored content', () => {
     });
   });
 
-  it('has a closed continuous route with tangent continuity', () => {
-    const before = sampleRoute(ROUTE_LENGTH - 0.001);
-    const after = sampleRoute(0.001);
-    expect(Math.hypot(before.x - after.x, before.z - after.z)).toBeCloseTo(0.002, 4);
-    expect(before.heading).toBeCloseTo(after.heading, 3);
-  });
 });

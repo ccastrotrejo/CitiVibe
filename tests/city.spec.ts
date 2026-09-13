@@ -7,6 +7,9 @@ test('live navigation, focus interruption, help focus, and static pause', async 
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto('/');
   await expect(page.getByText('City is living', { exact: true })).toBeVisible({ timeout: 15000 });
+  await expect(page).toHaveTitle('CitiVibe - Rainlight Square');
+  await expect(page.locator('.wordmark')).toHaveText('CitiVibe.');
+  await expect(page.getByRole('button', { name: 'Field guide' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: /follow/i })).toHaveCount(0);
   await page.getByRole('button', { name: 'Next landmark' }).click();
   await expect(page.getByText('Landmark view', { exact: true })).toBeVisible();
@@ -15,11 +18,12 @@ test('live navigation, focus interruption, help focus, and static pause', async 
   await page.keyboard.press('ArrowRight');
   await expect(page.getByText('Free view', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Next landmark' }).click();
-  await page.getByRole('button', { name: 'Field guide' }).click();
+  await scene.focus();
+  await page.keyboard.press('?');
   await expect(page.getByRole('dialog')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Close help' })).toBeFocused();
   await page.keyboard.press('Escape');
-  await expect(page.getByRole('button', { name: 'Field guide' })).toBeFocused();
+  await expect(scene).toBeFocused();
   await expect(page.getByText('Free view', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Pause city' }).click();
   await page.getByRole('button', { name: 'Reset overview' }).click();
@@ -44,13 +48,32 @@ test('reduced motion, focus cycling, DPR bounds, and accessible controls', async
   await page.keyboard.press(']');
   await expect(page.getByText('Terrace Steps', { exact: true }).first()).toBeVisible();
   await page.keyboard.press(']');
-  await expect(page.getByText('Reed Garden', { exact: true }).first()).toBeVisible();
+  await expect(page.getByText('Reservoir Walk', { exact: true }).first()).toBeVisible();
+  await page.keyboard.press(']');
+  await expect(page.getByText('Juniper Court', { exact: true }).first()).toBeVisible();
+  await page.keyboard.press(']');
+  await expect(page.getByText('Crosstown Steps', { exact: true }).first()).toBeVisible();
   await page.keyboard.press(']');
   await expect(page.getByText('Rainlight Pavilion', { exact: true }).first()).toBeVisible();
   const dpr = await page.locator('canvas').evaluate((canvas: HTMLCanvasElement) => canvas.width / canvas.clientWidth);
   expect(dpr).toBeLessThanOrEqual(1.5);
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
-  await page.getByRole('button', { name: 'Field guide' }).click();
+  await page.getByRole('region', { name: 'City navigation' }).focus();
+  await page.keyboard.press('?');
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+});
+
+test('scene labels remain readable over nighttime rain', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'Resume city' })).toBeEnabled();
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByRole('combobox', { name: /^Weather/ }).selectOption('rain');
+  await page.getByRole('combobox', { name: /^Time of day/ }).selectOption('night');
+  await page.getByRole('button', { name: 'Close settings', exact: true }).click();
+  await expect(page.locator('.environment-badge')).toHaveText('Night / Rain');
+  await expect(page.locator('.scene-heading')).toHaveCount(0);
+  await expect(page.getByRole('heading', { level: 1, name: 'Rainlight Square' })).toHaveClass('sr-only');
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 });
 
@@ -65,7 +88,7 @@ test('unsupported WebGL keeps landmark navigation, not a blank canvas', async ({
   await page.goto('/');
   await expect(page.getByText(/WebGL2 is unavailable/)).toBeVisible();
   await page.getByRole('button', { name: 'Next landmark' }).click();
-  await expect(page.getByText(/A copper-roofed gathering place/)).toBeVisible();
+  await expect(page.getByText(/An open limestone pergola/)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Pause city' })).toBeDisabled();
   expect(await page.locator('.city-poster').evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0)).toBe(true);
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
@@ -164,6 +187,8 @@ test('mouse gestures yield the camera without touching overlay controls', async 
   await page.mouse.move(x, y);
   await page.mouse.wheel(0, -80);
   await expect(page.getByText('Free view', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Pause city', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Resume city', exact: true })).toBeEnabled();
 });
 
 for (const [width, height] of [[1024, 768], [1440, 900], [1920, 1080]]) {
@@ -173,7 +198,7 @@ for (const [width, height] of [[1024, 768], [1440, 900], [1920, 1080]]) {
     await page.goto('/');
     await expect(page.getByRole('button', { name: 'Resume city' })).toBeEnabled();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    for (const name of ['Resume city', 'Next landmark', 'Previous landmark', 'Zoom in', 'Pan up', 'Rotate left', 'More overhead', 'More street-level', 'Field guide']) {
+    for (const name of ['Resume city', 'Next landmark', 'Previous landmark', 'Zoom in', 'Pan up', 'Rotate left', 'More overhead', 'More street-level', 'Settings']) {
       const button = page.getByRole('button', { name, exact: true });
       await button.scrollIntoViewIfNeeded();
       const bounds = await button.boundingBox();
@@ -186,6 +211,6 @@ for (const [width, height] of [[1024, 768], [1440, 900], [1920, 1080]]) {
       })).toBe(true);
     }
     await page.getByRole('button', { name: 'Next landmark' }).click();
-    await expect(page.getByText(/A copper-roofed gathering place/)).toBeVisible();
+    await expect(page.getByText(/An open limestone pergola/)).toBeVisible();
   });
 }

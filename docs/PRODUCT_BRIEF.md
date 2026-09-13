@@ -1,6 +1,6 @@
 # Product brief
 
-**Status:** scoped product direction with M1-M3 implementation authorized on 2026-09-12. Rainlight Square implements the first district and activity slice; later features and numerical performance budgets remain proposals. User scope is binding.
+**Status:** connected-city expansion explicitly authorized on 2026-09-12, starting from the live M1-M5 main branch. The new request adds multiple streets, signal-controlled intersections, varied road traffic, protected cycling paths, and NYC-inspired detail around Rainlight Square. Research identifies additional possibilities without turning them all into promised features. User scope is binding.
 
 ## Purpose
 
@@ -21,14 +21,14 @@ No account, transaction, identity, location permission, or network service shoul
 | Layer | Concrete behavior | Avoid |
 | --- | --- | --- |
 | Routes | Vehicles and walkers follow connected paths at varied but coherent speeds. Routes have visible destinations or loops. | Random jitter, synchronized clones, actors teleporting across visible joins. |
-| Street rules | Cars slow at stops; a bus dwells; pedestrians wait at a crossing; conflicting movements take turns. | Every actor moving continuously, overlapping traffic at intersections. |
-| Human scale | A few people sit, gather, pause, or pass through a plaza; later add cyclists and other small mobility types. | Simulating every activity type before the basic streets are convincing. |
+| Street rules | Road vehicles and cyclists queue at signals; conflicting movements take turns; park visitors pause and yield at shared paths. | Overlapping traffic, permanent deadlock, or cars entering the park. |
+| Human scale | People sit, walk through park gates, or run around the reservoir; cyclists use protected neighborhood tracks in both directions. | Runners represented only by paint or accelerated walking poses. |
 | Micro-animation | Small wheel motion, gentle tree or flag movement, fountain detail, rooftop activity. | Constant bobbing on every object, large distracting motion, gratuitous effects. |
 | Environment | Gradual light, cloud, rain, and mist changes; lighting cues respond to the selected time. | Abrupt automatic changes, mandatory weather, live data dependency. |
-| Occasional events | A bus arrives or people pause. A distant airplane pass is planned for later, with seeded gaps. | Drones, frequent surprises, notifications, explosions, objectives, or attention demands. |
+| Occasional events | Park visitors pause near the pergola. A distant airplane passes with seeded gaps. | Drones, frequent surprises, notifications, explosions, objectives, or attention demands. |
 | Viewer agency | Manual exploration, original landmark focus, tours, pause, quality and sound controls. | A camera that fights input, sound without permission, hidden controls. |
 
-**Current population:** one bus, three cars, eight walkers, and a few stationary people. The user removed the drone entirely and requested an occasional airplane fly-by in the future plan only. Cyclists, motorcycles, skateboarders, rollerskaters, and balloons remain optional later variety, not a required launch checklist. Reserve enough quiet space to make activity readable.
+**Population policy:** 186 animated people/vehicles: six street buses, thirty other motor vehicles, twelve cyclists, 96 neighborhood walkers, twenty-four park walkers, twelve runners, and six court players. Two sports balls are separate bounded props. The former central bus/car loop is explicitly removed. The park has no motor traffic or cycling. Walkers enter/leave through connected gates; runners have a separate reservoir circuit, faster travel, bent arms and a genuine airborne gait phase. Four neighbors practice on a full-size basketball court beside a two-player full-size pickleball court in Juniper Court's widened recreation parcel; these are ambient choreographed games, not interactive sports or a scoring simulation. Street buses currently circulate without scheduled stops, and neighborhood walkers do not cross roads. Motorcycles, skateboarders, rollerskaters, and balloons remain possible later refinements. No drone or camera-follow action is authorized.
 
 ## Essential experience
 
@@ -58,7 +58,7 @@ Historical commercial discoveries live only in the [excluded-scope archive](../r
 
 M1-M3 use an original garden block named Rainlight Square, an orthographic camera, React/strict TypeScript/Vite/direct Three.js, npm, and a small token-based stylesheet. Authored TypeScript geometry is the reproducible art workflow for this slice, rather than a separate Python/GLB build. The city has a fixed bounded population; runtime artwork and simulation never use source captures. These implementation choices do not change the ambient-only scope.
 
-**Latest art direction:** M8 will replace the initial garden-block presentation with an original NYC-inspired neighborhood and matching desktop UI: denser brick/brownstone street walls, fire escapes, roof tanks, asphalt/concrete, pocket parks, and restrained yellow accents. This is a fictional miniature with NYC character, not literal GIS, famous-building replicas, commercial storefront content, or billboards.
+**Latest art direction:** an elongated, substantially expanded Central Park-inspired landscape with a reservoir and running track, broad lawn, southern meadow, irregular lake and pale arched bridge, tree-lined mall, fountain terrace, woodland and rock outcrops. Original NYC-inspired street walls, fire escapes, roof tanks, protected cycling, transit entrances and public spaces surround it. Two-way cycle tracks run on the park sides of the north and south cross streets; the park itself stays pedestrian-only. Image research informs the composition and street details; the runner stencil remains an original functional choice, not a verified NYC marking. The visible title card is removed, retaining an accessible h1. This is a fictional miniature, not literal GIS, famous-building replicas, company branding or advertising. A broader charcoal/transit-style UI redesign remains separate.
 
 The following table retains later decisions and physical-device gaps. Headless Chromium is not a reference laptop or phone.
 
@@ -67,9 +67,9 @@ The following table retains later decisions and physical-device gaps. Headless C
 | City identity and art direction | Rainlight Square: cream/terracotta/teal forms, copper-roofed pavilion, terrace steps, and reed garden. LivingCity remains the application name. | Chosen for M1-M3. |
 | Projection | Orthographic camera with bounded target, zoom, and rotation. | Chosen for M1-M3. |
 | Performance devices | One named reference desktop/laptop; physical-device results remain unverified. Mobile profiling is no longer a milestone gate. | Before promising frame-rate targets. |
-| Population and event density | One bus, three cars, eight walkers, and static resting figures; deterministic variation, no unbounded spawning. Occasional airplane is future-plan-only. | M3; device tuning remains future work. |
+| Population and event density | 186 animated people/vehicles, two sports balls, static resting figures, and at most one occasional airplane; deterministic variation, no unbounded spawning. | Expanded-park and increased-density follow-ups; device tuning remains future work. |
 | Audio method | Small synthesized ambience initially; original/licensed clips only if they materially improve it. | Audio milestone. |
 | Default time | Fixed afternoon on first visit; optional device clock and accelerated cycle. | First environment implementation. |
-| Package versions and hosting | Exact compatible versions are in the npm lockfile; static hosting only if later requested. | Dependencies chosen; hosting not requested. |
+| Package versions and hosting | Exact versions are in the npm lockfile; existing Vercel static-host configuration is retained. | Pull request authorized; deployment is not part of this slice. |
 
 Rough effort assumptions are in the [roadmap](ROADMAP.md); none are claims about how long the reference took to build.

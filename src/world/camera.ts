@@ -26,9 +26,9 @@ export class CameraController {
   }
 
   private bound(): void {
-    this.pose.x = clamp(this.pose.x, -CITY.bounds, CITY.bounds);
-    this.pose.z = clamp(this.pose.z, -CITY.bounds, CITY.bounds);
-    this.pose.zoom = clamp(this.pose.zoom, 0.65, 2.7);
+    this.pose.x = clamp(this.pose.x, -CITY.bounds.x, CITY.bounds.x);
+    this.pose.z = clamp(this.pose.z, -CITY.bounds.z, CITY.bounds.z);
+    this.pose.zoom = clamp(this.pose.zoom, 0.65, CAMERA_PROJECTION.maxZoom);
     this.pose.pitch = clamp(this.pose.pitch, CAMERA_PROJECTION.minPitch, CAMERA_PROJECTION.maxPitch);
     this.pose.yaw = Math.atan2(Math.sin(this.pose.yaw), Math.cos(this.pose.yaw));
   }
@@ -88,11 +88,12 @@ export class CameraController {
     if (this.tour) {
       const tour = this.tour;
       const duration = 12 + ((2401 + tour.index * 31) % 9);
-      const travel = duration - 5;
+      const destination = tour.views[tour.index].pose;
+      const travel = Math.max(duration - 5, Math.hypot(destination.x - tour.from.x, destination.z - tour.from.z) / 3.6);
       tour.elapsed += dt;
       const t = Math.min(tour.elapsed / travel, 1);
       this.interpolate(tour.from, tour.views[tour.index].pose, t * t * (3 - 2 * t));
-      if (tour.elapsed >= duration) {
+      if (tour.elapsed >= travel + 5) {
         tour.index = (tour.index + 1) % tour.views.length;
         tour.elapsed = 0;
         tour.from = { ...this.pose };

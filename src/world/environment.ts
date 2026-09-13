@@ -54,7 +54,7 @@ function color(hex: number): EnvironmentColor {
 }
 
 const PRESETS = {
-  sunny: { sky: color(0xe9e2d3), clouds: 0.12, fog: 0.0015, sun: 1, temperature: 22, humidity: 0.45, wind: 1.2 },
+  sunny: { sky: color(0xdfe5df), clouds: 0.12, fog: 0.0015, sun: 1, temperature: 22, humidity: 0.45, wind: 1.2 },
   cloudy: { sky: color(0xb8c2c5), clouds: 0.75, fog: 0.003, sun: 0.5, temperature: 16, humidity: 0.65, wind: 2.8 },
   rain: { sky: color(0x889fa9), clouds: 1, fog: 0.007, sun: 0.3, temperature: 10, humidity: 0.94, wind: 3.5 },
   mist: { sky: color(0xc5cecc), clouds: 0.6, fog: 0.016, sun: 0.4, temperature: 8, humidity: 0.98, wind: 0.4 },
@@ -62,11 +62,11 @@ const PRESETS = {
   windy: { sky: color(0xb6c8ce), clouds: 0.4, fog: 0.0025, sun: 0.75, temperature: 18, humidity: 0.5, wind: 7 },
 } satisfies Record<Weather, { sky: EnvironmentColor; clouds: number; fog: number; sun: number; temperature: number; humidity: number; wind: number }>;
 const NIGHT_SKY = color(0x26374d);
-const DAY_AMBIENT = color(0xfff1d8);
+const DAY_AMBIENT = color(0xf2f4ea);
 const NIGHT_AMBIENT = color(0xabc0de);
 const DAY_GROUND = color(0xa99f87);
 const NIGHT_GROUND = color(0x626b82);
-const DAY_SUN = color(0xfff1d6);
+const DAY_SUN = color(0xfff5e8);
 const NIGHT_SUN = color(0x9db7df);
 const CLOUD = color(0xf0f0e8);
 const NIGHT_CLOUD = color(0x61748b);

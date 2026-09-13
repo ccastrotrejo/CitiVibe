@@ -1,12 +1,17 @@
 import { WEATHER_EXTENT } from './weatherPhysics';
 
-export const SURFACE_RESOLUTION = 192;
+export const SURFACE_RESOLUTION = Math.ceil(WEATHER_EXTENT * 2 / 0.5);
 
 /** Static 0.5 m top-envelope collision/exposure grid. No GPU readbacks or per-drop raycasts. */
 export class WeatherSurface {
-  readonly heights = new Float32Array(SURFACE_RESOLUTION ** 2).fill(-0.96);
+  readonly heights: Float32Array;
   readonly retention = new Float32Array(SURFACE_RESOLUTION ** 2);
   readonly cellSize = WEATHER_EXTENT * 2 / SURFACE_RESOLUTION;
+
+  constructor(minimumHeight = -0.96) {
+    if (!Number.isFinite(minimumHeight)) throw new Error('Weather surface floor must be finite.');
+    this.heights = new Float32Array(SURFACE_RESOLUTION ** 2).fill(minimumHeight);
+  }
 
   heightAt = (x: number, z: number): number => {
     const column = Math.floor((x + WEATHER_EXTENT) / this.cellSize);

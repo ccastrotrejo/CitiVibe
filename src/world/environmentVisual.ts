@@ -1,5 +1,7 @@
 import * as THREE from 'three';
-import { LANDMARKS } from '../content/city';
+import { CAMERA_PROJECTION, LANDMARKS } from '../content/city';
+import { CITY_EXTENT } from '../content/streets';
+import { PARK_RESERVOIR } from '../content/park';
 import type { EnvironmentColor, EnvironmentFrame } from './environment';
 import { SurfaceVisual } from './surfaceVisual';
 import { FoliageWind } from './weatherArt';
@@ -17,6 +19,8 @@ export interface EnvironmentVisualOptions {
 const RAIN_LIGHT = 160;
 const SNOW_LIGHT = 120;
 const CLOUD_COUNT = 6;
+const CLOUD_X = CITY_EXTENT.x + 14;
+const CLOUD_Z = CITY_EXTENT.z + 14;
 const RIPPLE_COUNT = 12;
 const RIPPLE_SPEED = waterWaveSpeed(0.3, 0.08);
 
@@ -71,6 +75,15 @@ export class EnvironmentVisual {
     emissive: THREE.Color;
     intensity: number;
   }[] = [];
+  private readonly backdrops: { material: THREE.MeshBasicMaterial; color: THREE.Color }[] = [];
+  private readonly nightLights: {
+    material: THREE.MeshStandardMaterial;
+    emissive: THREE.Color;
+    intensity: number;
+    color: THREE.Color;
+    max: number;
+  }[] = [];
+  private readonly nightPools: { material: THREE.MeshBasicMaterial; opacity: number; max: number }[] = [];
   private disposed = false;
   private lastRevision = -1;
   private lastLightweight = false;
@@ -96,6 +109,22 @@ export class EnvironmentVisual {
       if (!(object instanceof THREE.Mesh)) return;
       const materials = Array.isArray(object.material) ? object.material : [object.material];
       for (const material of materials) {
+        if (material instanceof THREE.MeshBasicMaterial && material.userData.environmentBackdrop === true && !seen.has(material)) {
+          seen.add(material);
+          this.backdrops.push({ material, color: material.color.clone() });
+        }
+        if (material instanceof THREE.MeshBasicMaterial && material.userData.nightPool === true && !seen.has(material)) {
+          seen.add(material);
+          this.nightPools.push({ material, opacity: material.opacity, max: Number(material.userData.nightOpacity ?? 0.4) });
+        }
+        if (material instanceof THREE.MeshStandardMaterial && material.userData.nightLight === true && !seen.has(material)) {
+          seen.add(material);
+          this.nightLights.push({
+            material, emissive: material.emissive.clone(), intensity: material.emissiveIntensity,
+            color: new THREE.Color(material.userData.nightColor ?? '#ffd68f'),
+            max: Number(material.userData.nightIntensity ?? 1),
+          });
+        }
         if (!(material instanceof THREE.MeshStandardMaterial) || material.userData.window !== true || seen.has(material)) continue;
         seen.add(material);
         this.windows.push({ material, emissive: material.emissive.clone(), intensity: material.emissiveIntensity });
@@ -114,7 +143,7 @@ export class EnvironmentVisual {
     this.snowMaterial.map = this.flakeTexture;
     this.rainGeometry.setAttribute('position', new THREE.BufferAttribute(this.rainPositions, 3).setUsage(THREE.DynamicDrawUsage));
     this.snowGeometry.setAttribute('position', new THREE.BufferAttribute(this.snowPositions, 3).setUsage(THREE.DynamicDrawUsage));
-    const bounds = new THREE.Sphere(new THREE.Vector3(0, 26, 0), 75);
+    const bounds = new THREE.Sphere(new THREE.Vector3(0, 26, 0), Math.hypot(CITY_EXTENT.x, CITY_EXTENT.z, 26) + 1);
     this.rainGeometry.boundingSphere = bounds;
     this.snowGeometry.boundingSphere = bounds;
     this.rain.name = 'Environment rain';
@@ -135,7 +164,8 @@ export class EnvironmentVisual {
     for (let index = 0; index < CLOUD_COUNT; index++) {
       const cloud = new THREE.Mesh(this.cloudGeometry, this.cloudMaterial);
       cloud.name = 'Weather cloud';
-      cloud.position.set(index * 19 - 48, 48 + random() * 10, random() * 60 - 30);
+      cloud.position.set((index + 0.5) * CLOUD_X * 2 / CLOUD_COUNT - CLOUD_X,
+        48 + random() * 10, (random() * 2 - 1) * CITY_EXTENT.z);
       cloud.scale.set(7 + random() * 4, 0.7 + random(), 3 + random() * 3);
       this.clouds.push({ mesh: cloud, x: cloud.position.x, z: cloud.position.z });
       this.group.add(cloud);
@@ -150,7 +180,8 @@ export class EnvironmentVisual {
     if (this.disposed) return;
     copyColor(this.sky, frame.palette.sky);
     copyColor(this.fog.color, frame.palette.fog);
-    this.fog.density = frame.fog;
+    for (const { material } of this.backdrops) copyColor(material.color, frame.palette.sky);
+    this.fog.density = frame.fog * 60 / CAMERA_PROJECTION.distance;
     for (const { light } of this.lights) {
       const hemisphere = light instanceof THREE.HemisphereLight;
       light.intensity = hemisphere ? frame.ambientIntensity : frame.sunIntensity;
@@ -160,6 +191,13 @@ export class EnvironmentVisual {
     for (const { material } of this.windows) {
       copyColor(material.emissive, frame.palette.window);
       material.emissiveIntensity = frame.glow;
+    }
+    for (const { material, color, max } of this.nightLights) {
+      material.emissive.copy(color);
+      material.emissiveIntensity = frame.night * max;
+    }
+    for (const { material, max } of this.nightPools) {
+      material.opacity = frame.night * max;
     }
     this.surfaces.update(physics);
     const changed = physics.revision !== this.lastRevision || options.lightweight !== this.lastLightweight ||
@@ -197,8 +235,8 @@ export class EnvironmentVisual {
     this.cloudMaterial.opacity = frame.clouds * 0.23;
     copyColor(this.cloudMaterial.color, frame.palette.cloud);
     for (const cloud of this.clouds) {
-      cloud.mesh.position.x = (cloud.x + 60 + (options.reducedMotion ? 0 : physics.cloudOffset.x)) % 120 - 60;
-      cloud.mesh.position.z = (cloud.z + 60 + (options.reducedMotion ? 0 : physics.cloudOffset.z)) % 120 - 60;
+      cloud.mesh.position.x = (cloud.x + CLOUD_X + (options.reducedMotion ? 0 : physics.cloudOffset.x)) % (CLOUD_X * 2) - CLOUD_X;
+      cloud.mesh.position.z = (cloud.z + CLOUD_Z + (options.reducedMotion ? 0 : physics.cloudOffset.z)) % (CLOUD_Z * 2) - CLOUD_Z;
     }
     this.splashes.visible = !options.reducedMotion && rainStrength > 0.001;
     this.splashMaterial.opacity = Math.min(0.6, rainStrength * 0.35);
@@ -221,8 +259,11 @@ export class EnvironmentVisual {
     if (this.ripples.visible && changed && this.garden) {
       for (let index = 0; index < this.ripples.count; index++) {
         const phase = (physics.time * RIPPLE_SPEED / 0.5 + index / RIPPLE_COUNT) % 1;
-        const radius = 0.03 + phase * 0.42;
-        this.dummy.position.set(this.garden.position.x - 1.6 + index % 4 * 1.02, 0.402, this.garden.position.z - 0.85 + Math.floor(index / 4) * 0.85);
+        const radius = 0.1 + phase * 0.9;
+        const angle = index / RIPPLE_COUNT * Math.PI * 2;
+        const spread = index % 2 ? 0.6 : 0.35;
+        this.dummy.position.set(this.garden.position.x + Math.cos(angle) * PARK_RESERVOIR.radiusX * spread,
+          0.018, this.garden.position.z + Math.sin(angle) * PARK_RESERVOIR.radiusZ * spread);
         this.dummy.scale.set(radius, radius * 0.7, radius);
         this.dummy.updateMatrix();
         this.ripples.setMatrixAt(index, this.dummy.matrix);
@@ -272,8 +313,17 @@ export class EnvironmentVisual {
       material.emissive.copy(emissive);
       material.emissiveIntensity = intensity;
     }
+    for (const { material, emissive, intensity } of this.nightLights) {
+      material.emissive.copy(emissive);
+      material.emissiveIntensity = intensity;
+    }
+    for (const { material, opacity } of this.nightPools) material.opacity = opacity;
+    for (const { material, color } of this.backdrops) material.color.copy(color);
     this.lights.length = 0;
     this.windows.length = 0;
+    this.backdrops.length = 0;
+    this.nightLights.length = 0;
+    this.nightPools.length = 0;
     this.clouds.length = 0;
     this.group.clear();
   }
