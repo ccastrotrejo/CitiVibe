@@ -67,7 +67,7 @@ The solver is exact to machine precision for reachable targets (verified to 1e-1
 
 ## Runner model
 
-The park has eighteen runners, separate from its 36 walkers. They travel around the reservoir at 2.4-2.65 m/s with a 1.55 m skeleton-local stride (scaled by stature), 40% stance and 60% swing. This is original miniature tuning, not measured Central Park behavior. With the legs offset by half a cycle, the shorter stance produces two short flight intervals per cycle; both feet are genuinely above the ground.
+The park has 24 runners, separate from its 48 walkers. They travel around the reservoir at 2.4-2.65 m/s with a 1.55 m skeleton-local stride (scaled by stature), 40% stance and 60% swing. This is original miniature tuning, not measured Central Park behavior. With the legs offset by half a cycle, the shorter stance produces two short flight intervals per cycle; both feet are genuinely above the ground.
 
 Running stance uses `footZ = 0.2 * stride - phase * stride`, retaining exact straight-path ground contact. Swing uses the existing smooth forward arc with 0.22 m lift. A 0.76 m hip height keeps targets inside the same two-bone leg's reachable envelope. Bent-arm geometry, light shoes, exposed shanks, a 0.16 rad trunk lean and larger arm swing distinguish running from accelerated walking. Poses remain deterministic functions of traveled distance.
 
@@ -81,7 +81,7 @@ Court geometry and motion share `src/content/courts.ts`. The existing actor inst
 
 The full-size footprints are 28.6512 x 15.24 m basketball at (-18, 113.5), with +/-12.7254 m hoop offsets, and 13.4112 x 6.096 m pickleball at (15, 113.5), with 2.1336 m kitchens and a net sagging from 0.9144 to 0.8636 m. Basketball rims are 3.048 m above the shared Y=0.04 surface. The population pass changes clothes/appearance, not court skeleton scale or contact offsets.
 
-The active population is 36 motor vehicles, twelve cyclists, 144 street walkers, 36 park walkers, eighteen runners, six court players and eight meadow family figures: **260 rigs plus two balls**, with eight stationary picnic neighbors. Walking/running routes, court choreography, absolute-time meadow play and rare airplane timing remain distinct systems under the same pause/visibility clock. The 36-junction/24-block grid surrounds the car-free 78 x 176 m park in the 220 x 340 m map; the former internal bus/car circuit is not restored.
+The traveling population is 48 motor vehicles, twelve cyclists, 168 street walkers, 48 park walkers and 24 runners: **300 traveling actors**. Six court players, eight meadow family figures, three bike-station users and eight stationary picnic neighbors bring the human total to 277. Thirty station bicycles and two sports balls remain separately posed; twelve parked cars and four sidewalk food carts are static scenery. Walking/running routes, court choreography, absolute-time station/meadow activity and rare airplane timing remain distinct systems under the same pause/visibility clock. The 36-junction/24-block grid surrounds the car-free 78 x 176 m park in the 220 x 340 m map; the former internal bus/car circuit is not restored.
 
 ## Vehicle model
 
@@ -96,6 +96,12 @@ Weather-driven ground height is sampled from nearby retained ground snow, not th
 - **Historical dwell settle** lowers `dwellDrop` at the original garden bus stop. Current street buses have no scheduled dwell stop; retaining the motion parameter does not restore that route or stop.
 
 Smoothing uses `min(1, dt/τ)` with `τ = 0.22 s`; yaw deltas use a shortest-angle wrap. Attitude is the only stateful per-actor memory and is fully bounded.
+
+### Shared bicycles and pedal contact
+
+All twelve road cyclists use the same original step-through bicycle artwork as the station bicycles. Their wheel pivots remain outside the suspension body so body bob does not lift the tires. Wheel roll uses the actual 0.32 m tire radius. Hands meet the handlebar grips; two-bone legs target the tops of the actual rotating pedal platforms rather than approximating pedaling with unrelated limb angles. Counterrotating platforms and ankles keep the soles aligned through the full crank cycle, body pitch/roll and support-height changes.
+
+The three station users walk a persistent bicycle 0.8 m out of its dock, inspect it and redock it on a dephased 48-second retained-time cycle. The other nine bicycles remain docked side by side in each row. Users do not merge onto cycling routes or represent station-to-station trips. Pause, hidden suspension and graphics recovery preserve the sampled activity; reduced motion holds a still. See [people and activity](PEOPLE_AND_ACTIVITY.md) for the inventory and ownership boundaries.
 
 ## Reduced motion
 

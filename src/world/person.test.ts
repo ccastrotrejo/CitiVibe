@@ -65,7 +65,7 @@ describe('varied articulated people', () => {
   });
 
   it('gives every runner shorts, exposed legs, trainers and bent arms', () => {
-    for (let index = 1; index <= 18; index++) {
+    for (let index = 1; index <= 24; index++) {
       const { group, rig } = person(createPersonProfile(`runner-${index}`, 'runner'));
       const named: string[] = [];
       group.traverse((part) => named.push(part.name));
@@ -80,7 +80,7 @@ describe('varied articulated people', () => {
   });
 
   it('fits clothed bodies and moving limbs inside the shared pedestrian safety envelope', () => {
-    for (const context of ['street', 'runner'] as const) for (let index = 1; index <= 144; index++) {
+    for (const context of ['street', 'runner'] as const) for (let index = 1; index <= 168; index++) {
       const profile = createPersonProfile(`city-walker-${index}`, context);
       const { group, rig } = person(profile);
       for (let phase = 0; phase < 1; phase += 0.1) {

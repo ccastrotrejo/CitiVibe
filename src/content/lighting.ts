@@ -41,7 +41,8 @@ export const LAMP_GEOMETRY = {
 } as const;
 
 /** Sidewalk offset from the road centreline: just past the kerb, clear of the traffic lane. */
-const SIDEWALK_LAMP_OFFSET = ROAD_HALF_WIDTH + 1.6;
+const SIDEWALK_LAMP_OFFSET = ROAD_HALF_WIDTH + 0.5;
+const CORNER_LAMP_APPROACH = 9.6;
 /** North-south fill positions so long avenue blocks are not left dark between corners. */
 const AVENUE_FILL_Z = [-63, -31, 0, 31, 63] as const;
 
@@ -50,7 +51,7 @@ function buildStreetLamps(): readonly StreetLamp[] {
   INTERSECTIONS.forEach(({ id, x, z }, index) => {
     const cornerX = index % 2 === 0 ? 1 : -1;
     const cornerZ = Math.floor(index / STREET_X.length) % 2 === 0 ? 1 : -1;
-    lamps.push({ id: `${id}-corner-lamp`, x: x + cornerX * SIDEWALK_LAMP_OFFSET, z: z + cornerZ * SIDEWALK_LAMP_OFFSET, arm: cornerX === 1 ? -1 : 1 });
+    lamps.push({ id: `${id}-corner-lamp`, x: x + cornerX * SIDEWALK_LAMP_OFFSET, z: z + cornerZ * CORNER_LAMP_APPROACH, arm: cornerX === 1 ? -1 : 1 });
   });
   STREET_X.forEach((x, column) => {
     AVENUE_FILL_Z.forEach((z, row) => {

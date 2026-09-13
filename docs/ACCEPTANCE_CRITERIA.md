@@ -1,8 +1,29 @@
 # Acceptance criteria and verification plan
 
-**Status: connected walking trips, street names, population diversity, removed landmark selection and night lighting pass targeted integration checks. Served-browser and physical-device gates remain open.** The current scene retains thirty-six intersections, twenty-four blocks, 94 buildings and a 78 x 176 m park within a 220 x 340 m map. It has 224 active/posable people (260 rigs including vehicles), eight resting neighbors, two balls, full-size courts with six light poles, eight compact subway entrances, unchanged scaffolding and twenty-four street-name blades on twelve existing signal poles. Previous feature and merge records below are historical. Automated coverage does not substitute for physical-device FPS, long-session, cross-combination or assistive-technology verification. Production readiness is not claimed; landmark selection, camera-follow and the drone remain excluded.
+**Status: the street-life expansion and subsequent sidewalk, bike-row and food-cart corrections pass integrated source checks. Served-browser and physical-device gates remain open.** The current scene retains thirty-six intersections, twenty-four blocks, 94 buildings and a 78 x 176 m park within a 220 x 340 m map. It has 277 people including eight resting neighbors, 48 moving motor vehicles, twelve parked cars, four sidewalk food carts, three ten-bike stations and two sports balls. Full-size courts, subway entrances, scaffolding, street names, weather, lighting and existing controls remain. Previous feature and merge records below are historical. Automated coverage does not substitute for physical-device FPS, long-session, cross-combination or assistive-technology verification. Production readiness is not claimed; landmark selection, camera-follow and the drone remain excluded.
 
 Use this matrix when implementing each [roadmap](ROADMAP.md) milestone. Numerical budgets are working targets; name the reference devices and record actual results before declaring them met. The [experience spec](EXPERIENCE_SPEC.md) is authoritative for pause/camera behavior.
+
+## Street-life expansion and corrections - 2026-09-13
+
+The local slice increases the population to 168 street walkers, 48 park walkers, 24 runners and 48 moving motor vehicles, retaining twelve road cyclists and all six buses. Court/meadow/picnic people and three bike-station users bring the total to **277 people**; the traveling simulation contains **300 actors**. The separately planned 464-person target is not implemented.
+
+All three bike stations have ten persistent bicycles docked side by side in parallel rows, with eleven docks per row. Two occupy clear inter-building pockets and the third sits beside Juniper Court. A 0.8 m checkout/check/redock animation preserves each person and bike; the road cyclists remain a separate riding system. The corrected food vendors are four cabless sidewalk carts with counters, open-front food displays, small wheels and striped canopies, not vans in parking bays. Twelve parked cars/bays, four pole-mounted parking signs, six mailboxes and eighteen additional benches remain. Image provenance and approximation boundaries are recorded in [the research study](NYC_CITY_RESEARCH.md#street-life-reference-study---2026-09-13).
+
+Two-way walking uses 6.2/7.2 m lane centers, a retained direction per person, 144 directed crossing links and the unchanged full body envelope, destination cap and landing protection. Local building/stoop reductions, widened paving/zebras, shed supports, retained-ID lamp relocations, eight 0.30 m metro shifts, wind-safe crown headroom and a 0.40 m west court-fence shift provide clearance without removing scenery or shrinking courts. Architecture still contains all 94 buildings; one small annex moves 0.55 m.
+
+**Executed checks:** strict TypeScript, whole-project ESLint and the production build pass. The complete single-worker Vitest run passed **517 tests across 29 files in 354.63 seconds**. Subsequent checks passed all seven person-model tests with expanded fixture coverage, and **62 scene/streetscape tests** including a late-added fence regression that reproduces the old overlap before verifying the correction. The complete suite was not rerun after that test-only addition. Person coverage includes 24 runner fixtures and 168 profile fixtures per walking/running context. Body envelopes, traffic headway and scene-budget limits are unchanged. Coverage includes deterministic initialization, traffic/weather and pedestrian soaks, actual counterflow/pole/shed/metro/canopy clearance, station inventory and parallel layout, cart approaches, pedal contact, pause/recovery and disposal.
+
+| Final base source-scene accounting | Measured | Unchanged ceiling |
+| --- | ---: | ---: |
+| Triangles | 598,374 | <600,000 |
+| Visible mesh submissions | 94 | 110 |
+| Visible materials | 32 | 36 |
+| Visible geometries | 40 | No separate geometry-count ceiling |
+
+These are CPU `traverseVisible` counts, not measured GPU draws or FPS. Weather/snow/effect and shadow passes are separate. The renderer chunk is **477.68 kB / 130.23 kB gzip**; the entry chunk is **530.19 kB / 158.93 kB gzip**, retaining Vite's existing large-chunk warning.
+
+**Browser limitation:** the final production Playwright attempt selected live navigation and deterministic paused-scene checks. Chromium crashed at startup with `SIGSEGV` before any application assertion; the second scenario did not run. Earlier in this slice, a bounded WebKit alternative also timed out. The HTTP-responsive preview and user-supplied screenshots are limited interactive evidence, not a fresh final visual or physical-device sign-off. No stable browser, accessibility-scan, all-angle visual, FPS or long-session pass is claimed. Changes remain local; no commit, push, PR or deployment was performed.
 
 ## Walking-trip and street-sign integration - 2026-09-13
 

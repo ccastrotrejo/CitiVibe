@@ -69,6 +69,27 @@ describe('foot trajectory', () => {
 });
 
 describe('two-bone inverse kinematics', () => {
+  it('keeps shared-bike soles on level pedal platforms through complete crank rotations', () => {
+    const world = scene();
+    const group = world.actors.get('city-cyclist-1')!;
+    const rig = group.userData.rig as VehicleRig;
+    expect(rig.cyclingLegs).toHaveLength(2);
+    group.position.set(7, 0.2, -9);
+    group.rotation.y = 0.8;
+    for (let step = 0; step <= 64; step++) {
+      poseVehicleRig(rig, { distance: step / 64 * Math.PI * 2 * 0.65, pitch: 0.02, roll: -0.015, steer: 0.1, drop: 0 });
+      group.updateMatrixWorld(true);
+      for (const { joints, pedal } of rig.cyclingLegs!) {
+        const sole = joints.ankle.getWorldPosition(new THREE.Vector3());
+        const platform = pedal.localToWorld(new THREE.Vector3(0, 0.5, 0));
+        expect(sole.distanceTo(platform)).toBeLessThan(1e-6);
+        const footUp = new THREE.Vector3(0, 1, 0).transformDirection(joints.ankle.matrixWorld);
+        const platformUp = new THREE.Vector3(0, 1, 0).transformDirection(pedal.matrixWorld);
+        expect(footUp.distanceTo(platformUp)).toBeLessThan(1e-6);
+      }
+    }
+  });
+
   it('places the ankle exactly on its target inside the reachable envelope', () => {
     const l1 = WALKER.thigh;
     const l2 = WALKER.shank;

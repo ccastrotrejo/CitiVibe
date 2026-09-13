@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900" viewBox="0 0 1200 900" role="img" aria-labelledby="title description">
   <title id="title">Rainlight Square and its park</title>
   <desc id="description">Original static illustration of a fictional NYC-inspired miniature city, not a map of New York. Six avenues and six cross streets frame twenty-four blocks and a car-free park with a reservoir running loop, lawns, woodland, lake and pale bridge, fountain terrace and tree-lined mall. Two-way protected cycling tracks follow the park edges. Neighbors fill the sidewalks and play on full-size basketball and pickleball courts south of the park.</desc>
-  <metadata>Original LivingCity vectors, 2026-09-13. Asset rainlight-005. No imported photographs, models, maps or fonts. Simplified companion illustration, not an exact renderer export. Focus points: rainlight-pavilion 533.4,511.635; terrace-steps 585.6,507.36; reed-garden 699,432.975; juniper-court 363,583.075; crosstown-steps 970.4,432.12.</metadata>
+  <metadata>Original LivingCity vectors, 2026-09-13. Asset rainlight-005. No imported photographs, models, maps or fonts. Simplified companion illustration, not an exact renderer export. Focus points: rainlight-pavilion 533.4,511.635; terrace-steps 585.6,507.36; reed-garden 699,432.975; juniper-court 363,583.075; crosstown-steps 969.8,431.835.</metadata>
   <defs>
     <g id="building">
       <path d="M-13 0 0 7 13 0V-37L0-30-13-37Z" fill="currentColor"/>
@@ -78,14 +78,14 @@
       <use href="#world-player" x="11.1" y="113.5"/><use href="#world-player" x="18.9" y="113.5"/>
       <circle cx="-23.7" cy="113.4" r=".12" fill="#db8b57"/><circle cx="15" cy="113.5" r=".037" fill="#e7b94d"/>
     </g>
-    <g id="crosstown-steps"><use data-metro="crosstown-entrance" href="#metro-entry" transform="translate(67.4 -117.8) rotate(0)"/></g>
-    <use data-metro="west-entrance" href="#metro-entry" transform="translate(-54.6 46.244898) rotate(0)"/>
-    <use data-metro="west-north-entrance" href="#metro-entry" transform="translate(-54.6 -45.346939) rotate(0)"/>
-    <use data-metro="west-middle-entrance" href="#metro-entry" transform="translate(-54.6 .448980) rotate(0)"/>
-    <use data-metro="east-north-entrance" href="#metro-entry" transform="translate(67.4 -43.346939) rotate(0)"/>
-    <use data-metro="east-south-entrance" href="#metro-entry" transform="translate(67.4 46.244898) rotate(0)"/>
-    <use data-metro="north-frontage-entrance" href="#metro-entry" transform="translate(-17.5 -103.6) rotate(-90)"/>
-    <use data-metro="south-frontage-entrance" href="#metro-entry" transform="translate(16 123.4) rotate(-90)"/>
+    <g id="crosstown-steps"><use data-metro="crosstown-entrance" href="#metro-entry" transform="translate(67.1 -117.8) rotate(0)"/></g>
+    <use data-metro="west-entrance" href="#metro-entry" transform="translate(-54.9 46.244898) rotate(0)"/>
+    <use data-metro="west-north-entrance" href="#metro-entry" transform="translate(-54.9 -45.346939) rotate(0)"/>
+    <use data-metro="west-middle-entrance" href="#metro-entry" transform="translate(-54.9 .448980) rotate(0)"/>
+    <use data-metro="east-north-entrance" href="#metro-entry" transform="translate(67.1 -43.346939) rotate(0)"/>
+    <use data-metro="east-south-entrance" href="#metro-entry" transform="translate(67.1 46.244898) rotate(0)"/>
+    <use data-metro="north-frontage-entrance" href="#metro-entry" transform="translate(-17.5 -103.9) rotate(-90)"/>
+    <use data-metro="south-frontage-entrance" href="#metro-entry" transform="translate(16 123.1) rotate(-90)"/>
     <use href="#bike" transform="translate(0 -90.55) rotate(90)"/><use href="#bike" transform="translate(0 -91.55) rotate(-90)"/>
     <use href="#bike" transform="translate(0 91.55) rotate(90)"/><use href="#bike" transform="translate(0 90.55) rotate(-90)"/>
     <g color="#b58b6e"><use href="#edge-blocks" y="-147"/><use href="#wide-block" y="-147"/><use href="#edge-blocks" y="147"/><use href="#wide-block" y="147"/></g>
