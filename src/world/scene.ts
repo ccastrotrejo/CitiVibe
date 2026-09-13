@@ -13,6 +13,7 @@ import { buildCentralPark } from './park';
 import { buildPavementMarkings } from './pavement';
 import { MURAL_WALLS, buildStreetscape } from './streetscape';
 import { buildStreetSigns } from './streetSigns';
+import { buildStopSigns } from './stopSigns';
 import { validateFacadeContent } from '../content/facades';
 import { buildMurals } from './murals';
 import { buildStreetFurniture } from './streetFurniture';
@@ -334,12 +335,13 @@ export function buildCityScene(): CityScene {
     }
   }
   district.finish();
-  for (const group of [buildStreetSigns(), buildMurals(MURAL_WALLS)]) {
+  for (const group of [buildStreetSigns(), buildStopSigns(), buildMurals(MURAL_WALLS)]) {
     group.traverse((object) => {
       if (object instanceof THREE.Mesh) {
         geometry(object.geometry);
         const surfaces = Array.isArray(object.material) ? object.material : [object.material];
         surfaces.forEach(material);
+        if (object instanceof THREE.InstancedMesh) instances.add(object);
       }
     });
     scene.add(group);

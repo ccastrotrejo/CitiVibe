@@ -77,7 +77,7 @@ describe('connected pedestrian trips', () => {
 
   it.each([0, 2401])('moves opposing walkers past each other on the same sidewalk in every block for seed %s', (seed) => {
     const pedestrians = new StreetPedestrians(SIDEWALK_WALKING_ROUTES, seed);
-    const signals = INTERSECTIONS.map(({ id }) => ({ id, phase: 'clearance' as const }));
+    const signals = INTERSECTIONS.map(({ id }) => ({ id, control: 'signal' as const, phase: 'clearance' as const, walk: false }));
     const passed = new Set<number>();
     const routes = pedestrians.actors.map((_, index) => {
       const lane = (Math.floor(index / STREET_BLOCKS.length) + (seed & 1)) % 2;
@@ -197,10 +197,15 @@ describe('connected pedestrian trips', () => {
           const along = (actor.position.x - crossing.x) * crossing.dx + (actor.position.z - crossing.z) * crossing.dz;
           blocks[index] = along < crossing.length + PEDESTRIAN_BEHAVIOR.landingClearance ? crossing.from : crossing.to;
           if (blocks[index] === crossing.from) population[crossing.to]++;
-          const phase = traffic.signals[crossing.intersection].phase;
-          if (before.activity !== 'crossing' && phase !== 'pedestrians') throw new Error('Entered against WALK');
-          if (phase !== 'pedestrians' && phase !== 'clearance') throw new Error('Released cars before landing cleared');
-          sawClearance ||= phase === 'clearance' && phases[crossing.intersection] === 'clearance';
+          const state = traffic.signals[crossing.intersection];
+          if (state.control === 'signal') {
+            if (before.activity !== 'crossing' && state.phase !== 'pedestrians') throw new Error('Entered against WALK');
+            if (state.phase !== 'pedestrians' && state.phase !== 'clearance') throw new Error('Released cars before landing cleared');
+            sawClearance ||= state.phase === 'clearance' && phases[crossing.intersection] === 'clearance';
+          } else if (before.activity !== 'crossing' && !state.walk) {
+            // Posted corners have no phase clock: walkers may only step off once the box is free.
+            throw new Error('Entered a posted crossing without right of way');
+          }
           crossingTimes[index] += DT;
           if (crossingTimes[index] > 25) throw new Error(`Stranded in crossing: ${actor.id}`);
           crossed.add(actor.id);
@@ -256,7 +261,7 @@ describe('connected pedestrian trips', () => {
 
   it('walks on after a denied crossing, including corners rounded just below their exact distance', () => {
     const pedestrians = new StreetPedestrians(SIDEWALK_WALKING_ROUTES, 2401);
-    const signals = INTERSECTIONS.map(({ id }) => ({ id, phase: 'clearance' as const }));
+    const signals = INTERSECTIONS.map(({ id }) => ({ id, control: 'signal' as const, phase: 'clearance' as const, walk: false }));
     const waiting = new Float64Array(pedestrians.actors.length);
     const initial = pedestrians.actors.map(({ travelDistance }) => travelDistance!);
     for (let tick = 0; tick < 9000; tick++) {

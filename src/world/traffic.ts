@@ -17,6 +17,8 @@ export const TRAFFIC = {
   greenSeconds: 8,
   clearanceSeconds: 1,
   pedestrianSeconds: 3,
+  /** A posted stop is only satisfied by a full halt held at the painted bar. */
+  stopSeconds: 0.8,
   maxVehicleSpeed: 4.8,
   maxBicycleSpeed: 3.4,
   maxBicycleTurnRate: 1.1,
@@ -73,12 +75,16 @@ interface Motion {
   permit: number;
   releaseRemaining: number;
   requestSince: number;
+  /** Seconds held motionless at a posted stop bar; reset by any movement. */
+  stopHold: number;
 }
 
 interface Junction extends TrafficSignalState {
   owner: Motion | null;
   elapsed: number;
   stage: number;
+  /** All-way stops alternate: after a walker crosses, a waiting driver goes next. */
+  driverTurn: boolean;
 }
 
 const EPSILON = 1e-7;
@@ -339,10 +345,15 @@ export class CityTraffic {
   constructor(seed = 2401) {
     if (!Number.isInteger(seed) || seed < 0 || seed > 0xffffffff) throw new RangeError('Traffic seed must be an unsigned 32-bit integer.');
     const random = sequence(seed);
-    this.junctions = INTERSECTIONS.map(({ id }, index) => ({
-      id, phase: index % 2 === 0 ? 'north-south' : 'east-west',
-      owner: null, elapsed: random() * 3, stage: index % 2 === 0 ? 0 : 2,
-    }));
+    this.junctions = INTERSECTIONS.map(({ id, control }, index) => {
+      const offset = random() * 3;
+      const stop = control === 'all-way-stop';
+      return {
+        id, control, phase: stop ? 'stop' : index % 2 === 0 ? 'north-south' : 'east-west',
+        walk: false, owner: null, elapsed: stop ? 0 : offset,
+        stage: index % 2 === 0 ? 0 : 2, driverTurn: false,
+      };
+    });
     this.signals = Object.freeze(this.junctions);
     let motorIndex = 0;
     let bicycleIndex = 0;
@@ -387,7 +398,7 @@ export class CityTraffic {
         actor: createActor(definition.id, definition.kind, route, distance),
         route, segment, length, bicycle,
         desiredSpeed,
-        advance: 0, permit: -1, releaseRemaining: 0, requestSince: -1,
+        advance: 0, permit: -1, releaseRemaining: 0, requestSince: -1, stopHold: 0,
       };
     });
     this.pedestrians = new StreetPedestrians(SIDEWALK_WALKING_ROUTES, seed);
@@ -422,11 +433,28 @@ export class CityTraffic {
         }
       }
     }
+    this.publishWalkSignals();
     this.pedestrians.step(seconds, this.signals);
+  }
+
+  /** Published after movement so walkers only ever see this tick's occupancy. */
+  private publishWalkSignals(): void {
+    for (let index = 0; index < this.junctions.length; index += 1) {
+      const junction = this.junctions[index];
+      if (junction.control === 'signal') {
+        junction.walk = junction.phase === 'pedestrians';
+        continue;
+      }
+      // Unsignalized: drivers hold at the bar for anyone in the crosswalk, and take the next turn.
+      const occupied = this.pedestrians.isCrossingOccupied(index);
+      if (occupied) junction.driverTurn = true;
+      junction.walk = !occupied && junction.owner === null && !junction.driverTurn;
+    }
   }
 
   private advanceSignals(dt: number): void {
     for (const [index, junction] of this.junctions.entries()) {
+      if (junction.control !== 'signal') continue;
       junction.elapsed += dt;
       const green = junction.stage === 0 || junction.stage === 2;
       const duration = green ? TRAFFIC.greenSeconds : junction.stage === 4 ? TRAFFIC.pedestrianSeconds : TRAFFIC.clearanceSeconds;
@@ -444,25 +472,42 @@ export class CityTraffic {
       const segment = motion.route.segments[motion.segment];
       if (segment.kind !== 'link') continue;
       const remaining = segment.start + segment.length - motion.actor.distance - motion.length / 2 - STOP_APPROACH_BUFFER;
+      if (this.junctions[segment.intersection].control === 'all-way-stop') {
+        // No rolling starts: the queue is joined only after halting at the bar.
+        if (remaining > EPSILON || motion.actor.speed > EPSILON) {
+          motion.stopHold = 0;
+          continue;
+        }
+        motion.stopHold += dt;
+        if (motion.stopHold + EPSILON >= TRAFFIC.stopSeconds && motion.requestSince < 0) motion.requestSince = this.elapsed;
+        continue;
+      }
       const requestDistance = motion.actor.speed ** 2 / (2 * reserveBraking) + motion.actor.speed * dt + 0.5;
       if (remaining <= requestDistance && motion.requestSince < 0) motion.requestSince = this.elapsed;
     }
     for (let index = 0; index < this.junctions.length; index += 1) {
       const junction = this.junctions[index];
-      if (junction.owner || junction.phase === 'clearance' || junction.phase === 'pedestrians') continue;
+      if (junction.owner) continue;
+      const posted = junction.control === 'all-way-stop';
+      if (posted ? this.pedestrians.isCrossingOccupied(index) :
+        junction.phase === 'clearance' || junction.phase === 'pedestrians') continue;
       let chosen: Motion | null = null;
       for (const motion of this.motions) {
         if (motion.permit >= 0 || motion.requestSince < 0) continue;
         const segment = motion.route.segments[motion.segment];
-        if (segment.intersection !== index || segment.axis !== junction.phase) continue;
+        if (segment.intersection !== index || (!posted && segment.axis !== junction.phase)) continue;
         if (!this.exitAvailable(motion, reserveBraking, speedFactor)) continue;
+        // Arrival order settles an all-way stop; a green phase still serves its own axis first.
         if (!chosen || motion.requestSince < chosen.requestSince) chosen = motion;
       }
+      // The turn owed to drivers after a crossing expires once one is served, or none can be.
+      if (posted) junction.driverTurn = false;
       if (!chosen) continue;
       const turn = chosen.route.segments[(chosen.segment + 1) % chosen.route.segments.length];
       junction.owner = chosen;
       chosen.permit = index;
       chosen.requestSince = -1;
+      chosen.stopHold = 0;
       chosen.releaseRemaining = ahead(chosen.actor.distance, turn.start, chosen.route.length) +
         turn.length + chosen.length / 2 + TRAFFIC.stopBuffer;
     }

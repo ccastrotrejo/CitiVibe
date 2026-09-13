@@ -8,8 +8,8 @@ import { METRO_ENTRANCES, METRO_GEOMETRY, METRO_OPENINGS, type MetroEntrance } f
 import type { MuralWall } from './murals';
 import {
   BIKE_OFFSET, CITY_EXTENT, INTERSECTIONS, ROAD_HALF_WIDTH, SIDEWALK_HALF_WIDTH,
-  SIDEWALK_OFFSET, SIGNAL_POLE_OFFSET, STOP_LINE_OFFSET, STREET_X, STREET_Z, TWO_WAY_BIKE_STREETS,
-  TWO_WAY_BIKE_TRACK, VEHICLE_OFFSET, bikeLaneOffset,
+  SIDEWALK_OFFSET, SIGNALED_INTERSECTIONS, SIGNAL_POLE_OFFSET, STOP_LINE_OFFSET, STREET_X, STREET_Z,
+  TWO_WAY_BIKE_STREETS, TWO_WAY_BIKE_TRACK, VEHICLE_OFFSET, bikeLaneOffset,
 } from '../content/streets';
 
 type Triple = readonly [number, number, number];
@@ -35,7 +35,7 @@ export interface StreetscapeBuilder {
 
 export interface StreetscapeSignalState {
   id: string;
-  phase: 'north-south' | 'east-west' | 'clearance' | 'pedestrians';
+  phase: 'north-south' | 'east-west' | 'clearance' | 'pedestrians' | 'stop';
 }
 
 export interface Streetscape {
@@ -1200,7 +1200,8 @@ function buildSignalLights({ block, add, box, cylinder, palette: p }: Streetscap
   const heads: SignalHead[] = [];
   const transform = new THREE.Object3D();
   const approach = STOP_LINE_OFFSET + 0.5;
-  for (const intersection of INTERSECTIONS) {
+  // Posted all-way stops carry no mast arms, vehicle heads or pedestrian signals.
+  for (const intersection of SIGNALED_INTERSECTIONS) {
     for (const vertical of [true, false]) {
       for (const side of [-1, 1]) {
         const px = intersection.x + (vertical ? side * SIGNAL_POLE_OFFSET : side * approach);
@@ -1285,7 +1286,7 @@ function buildSignalLights({ block, add, box, cylinder, palette: p }: Streetscap
       batches[color].instanceMatrix.needsUpdate = true;
     }
   };
-  setSignals(INTERSECTIONS.map(({ id }) => ({ id, phase: 'clearance' })));
+  setSignals(SIGNALED_INTERSECTIONS.map(({ id }) => ({ id, phase: 'clearance' as const })));
   return {
     group,
     setSignals,

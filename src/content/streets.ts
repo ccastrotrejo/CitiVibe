@@ -26,13 +26,48 @@ export function bikeLaneOffset(axis: 'north-south' | 'east-west', road: number, 
     : BIKE_OFFSET;
 }
 
+/** Signalized corners run a fixed cycle; quiet corners are posted all-way stops instead. */
+export type IntersectionControl = 'signal' | 'all-way-stop';
+
 export interface TrafficSignalState {
   id: string;
-  phase: 'north-south' | 'east-west' | 'clearance' | 'pedestrians';
+  control: IntersectionControl;
+  phase: 'north-south' | 'east-west' | 'clearance' | 'pedestrians' | 'stop';
+  /** True while the crosswalks may be entered: a WALK phase, or a clear all-way stop. */
+  walk: boolean;
 }
 
-export const INTERSECTIONS = STREET_Z.flatMap((z, row) =>
-  STREET_X.map((x, column) => ({ id: `intersection-${column}-${row}`, x, z })));
+export interface Intersection {
+  id: string;
+  x: number;
+  z: number;
+  control: IntersectionControl;
+}
+
+/** Seeded so the posted corners are reproducible art, not a per-load surprise. */
+const STOP_SIGN_SEED = 2401;
+const STOP_SIGN_SHARE = 0.45;
+
+/** The park-fronting avenues and cross streets carry the through traffic and keep their signals. */
+function isArterial(x: number, z: number): boolean {
+  return x === STREET_X[2] || x === STREET_X[3] || z === STREET_Z[2] || z === STREET_Z[3];
+}
+
+export const INTERSECTIONS: readonly Intersection[] = (() => {
+  let state = STOP_SIGN_SEED;
+  const random = () => {
+    state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+    return state / 0x100000000;
+  };
+  return STREET_Z.flatMap((z, row) =>
+    STREET_X.map((x, column): Intersection => ({
+      id: `intersection-${column}-${row}`, x, z,
+      control: !isArterial(x, z) && random() < STOP_SIGN_SHARE ? 'all-way-stop' : 'signal',
+    })));
+})();
+
+export const STOP_SIGN_INTERSECTIONS = INTERSECTIONS.filter(({ control }) => control === 'all-way-stop');
+export const SIGNALED_INTERSECTIONS = INTERSECTIONS.filter(({ control }) => control === 'signal');
 
 export const STREET_BLOCKS = STREET_Z.slice(0, -1).flatMap((minZ, row) =>
   STREET_X.slice(0, -1).flatMap((minX, column) => column === 2 && row === 2 ? [] : [{

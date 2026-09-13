@@ -90,5 +90,6 @@ describe('retained vehicle lighting', () => {
     const paused = structuredClone(traffic.actors);
     for (let tick = 0; tick < 30; tick++) traffic.step(0);
     expect(traffic.actors).toEqual(paused);
-  });
+    // Posted-stop dwells lengthen the simulated run needed to observe every indicator case.
+  }, 20_000);
 });

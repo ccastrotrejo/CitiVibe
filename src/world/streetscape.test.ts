@@ -9,7 +9,8 @@ import {
 import { METRO_ENTRANCES, METRO_GEOMETRY, METRO_OPENINGS, type MetroEntrance } from '../content/metro';
 import {
   BIKE_OFFSET, CITY_EXTENT, INTERSECTIONS, ROAD_HALF_WIDTH, SIDEWALK_HALF_WIDTH, SIDEWALK_OFFSET,
-  STOP_LINE_OFFSET, STREET_X, STREET_Z, TWO_WAY_BIKE_STREETS, TWO_WAY_BIKE_TRACK,
+  SIGNAL_POLE_OFFSET, SIGNALED_INTERSECTIONS, STOP_LINE_OFFSET, STOP_SIGN_INTERSECTIONS,
+  STREET_X, STREET_Z, TWO_WAY_BIKE_STREETS, TWO_WAY_BIKE_TRACK,
   VEHICLE_OFFSET, bikeLaneOffset,
 } from '../content/streets';
 import {
@@ -38,7 +39,11 @@ const westX = (STREET_X[centerColumn - 1] + STREET_X[centerColumn]) / 2;
 const parkHalfX = STREET_X[centerColumn + 1] - SIDEWALK_HALF_WIDTH;
 const parkHalfZ = STREET_Z[centerRow + 1] - SIDEWALK_HALF_WIDTH;
 const sideScale = parkHalfZ / 98;
-const approachCount = INTERSECTIONS.length * 4 - 2 * (STREET_X.length + STREET_Z.length);
+// Signalized corners only: posted all-way stops carry painted bars but no mast arms or heads.
+const approachCount = SIGNALED_INTERSECTIONS.reduce((total, { x, z }) => total +
+  [true, false].reduce((axes, vertical) => axes + [-1, 1].filter((side) =>
+    Math.abs(x + (vertical ? side * SIGNAL_POLE_OFFSET : side * (STOP_LINE_OFFSET + 0.5))) <= CITY_EXTENT.x - 0.5 &&
+    Math.abs(z + (vertical ? side * (STOP_LINE_OFFSET + 0.5) : -side * SIGNAL_POLE_OFFSET)) <= CITY_EXTENT.z - 0.5).length, 0), 0);
 
 function metroPoint({ x, z, yaw }: MetroEntrance, lx: number, y: number, lz: number) {
   return new THREE.Vector3(x + lx * Math.cos(yaw) + lz * Math.sin(yaw), METRO_GEOMETRY.surfaceY + y,
@@ -1185,6 +1190,25 @@ describe('original connected-city streetscape', () => {
       art.setSignals(allSignals(phase));
       expect(lamps(art, 'amber').count).toBe(0);
       if (phase === 'clearance') expect(lamps(art, 'green').count).toBe(0);
+    }
+  });
+
+  it('leaves posted all-way stops without signal masts while their painted bars remain', () => {
+    const { parts, builder } = createArt();
+    const masts = parts.filter(({ shape, surface, scale }) => shape === builder.cylinder &&
+      surface === builder.palette.copperEdge && scale[0] === 0.075 && scale[1] === 5);
+    expect(masts).toHaveLength(approachCount);
+    expect(STOP_SIGN_INTERSECTIONS.length).toBeGreaterThan(0);
+    for (const { x, z } of STOP_SIGN_INTERSECTIONS) {
+      expect(masts.some(({ position }) => Math.hypot(position[0] - x, position[2] - z) < 12)).toBe(false);
+      for (const side of [-1, 1]) {
+        const stopZ = z - side * STOP_LINE_OFFSET;
+        if (Math.abs(stopZ) >= CITY_EXTENT.z) continue;
+        expect(parts.some(({ surface, position, scale }) => surface === builder.palette.line &&
+          position[2] === stopZ && position[0] === x - side * VEHICLE_OFFSET &&
+          scale[0] === 2.65 && scale[2] === 0.18),
+        `painted stop bar at ${x},${stopZ}`).toBe(true);
+      }
     }
   });
 
