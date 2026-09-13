@@ -98,6 +98,21 @@ const CORNER_BLOCKS = {
 };
 const TRANSIT = { x: 63, z: -118 } as const;
 
+/** Static entrances; Crosstown uses the existing landmark rather than a new navigation mode. */
+export const SUBWAY_ENTRANCES = [
+  { id: 'crosstown-entrance', x: TRANSIT.x + 2, z: TRANSIT.z + 1.1 },
+  { id: 'west-entrance', x: STREET_X[CENTER_COLUMN] - SIDEWALK_HALF_WIDTH - 2.1, z: 51.5 * SIDE_SCALE },
+] as const;
+
+const SUBWAY_LETTERS = [
+  ['111', '100', '111', '001', '111'],
+  ['101', '101', '101', '101', '111'],
+  ['110', '101', '110', '101', '110'],
+  ['10001', '10001', '10101', '10101', '01010'],
+  ['010', '101', '111', '101', '101'],
+  ['101', '101', '010', '010', '010'],
+] as const;
+
 /** Authored silhouettes repeat architectural vocabulary, not identical towers. */
 export const STREET_BUILDINGS: readonly StreetBuilding[] = (() => {
   const buildings: StreetBuilding[] = [];
@@ -220,6 +235,7 @@ function streetSpans(extent: number, crossings: readonly number[], gap: number) 
 export function buildStreetscape(builder: StreetscapeBuilder): Streetscape {
   validateStreetscape();
   const { block, add, box, cylinder, crown, palette: p } = builder;
+  const [crosstownEntrance, westEntrance] = SUBWAY_ENTRANCES;
   const rod = (surface: THREE.Material, start: Triple, end: Triple, thickness: number) => {
     const direction = new THREE.Vector3(...end).sub(new THREE.Vector3(...start));
     const rotation = new THREE.Euler().setFromQuaternion(new THREE.Quaternion().setFromUnitVectors(
@@ -477,10 +493,10 @@ export function buildStreetscape(builder: StreetscapeBuilder): Streetscape {
     const maxX = x + width / 2;
     const minZ = z - depth / 2;
     const maxZ = z + depth / 2;
-    const west = entranceX - 1.16;
-    const east = entranceX + 1.16;
-    const north = entranceZ - 2.22;
-    const south = entranceZ + 2.22;
+    const west = entranceX - 1.98;
+    const east = entranceX + 1.98;
+    const north = entranceZ - 3.2;
+    const south = entranceZ + 3.2;
     block(p.paving, (minX + west) / 2, -0.025, z, west - minX, 0.1, depth);
     block(p.paving, (east + maxX) / 2, -0.025, z, maxX - east, 0.1, depth);
     block(p.paving, entranceX, -0.025, (minZ + north) / 2, east - west, 0.1, north - minZ);
@@ -488,8 +504,15 @@ export function buildStreetscape(builder: StreetscapeBuilder): Streetscape {
   };
   for (const x of [WEST_X, EAST_X]) for (const position of [-50.5, 0.5, 51.5]) {
     const z = position * SIDE_SCALE;
-    if (x === WEST_X && position === 51.5) subwayPlaza(x, z, 10.8, 9 * SIDE_SCALE, x, z);
-    else block(p.paving, x, -0.025, z, 10.8, 0.1, 9 * SIDE_SCALE);
+    if (x === WEST_X && position === 51.5) {
+      subwayPlaza(x, z, STREET_X[CENTER_COLUMN] - STREET_X[CENTER_COLUMN - 1] - SIDEWALK_HALF_WIDTH * 2,
+        10.6 * SIDE_SCALE, westEntrance.x, westEntrance.z);
+      tree(x - 4.6, z - 3.6, 0.72);
+      tree(x - 1.6, z - 3.6, 0.68);
+      bench(x - 4.6, z + 0.8, Math.PI / 2);
+      continue;
+    }
+    block(p.paving, x, -0.025, z, 10.8, 0.1, 9 * SIDE_SCALE);
     tree(x - 3, z - 2 * SIDE_SCALE, 0.92);
     tree(x + 3, z + 2 * SIDE_SCALE, 0.85);
     bench(x, z - 2.8 * SIDE_SCALE);
@@ -566,9 +589,10 @@ export function buildStreetscape(builder: StreetscapeBuilder): Streetscape {
   const netBottom = pickleball.surfaceY + 0.1;
   const meshHeight = netTop - 0.04 - netBottom;
   block(p.line, pickleball.x, netTop - 0.02, pickleball.z, 0.045, 0.04, pickleball.depth);
-  for (let thread = 0; thread <= 24; thread++) {
+  const netColumns = Math.ceil(pickleball.depth / 0.25);
+  for (let thread = 0; thread <= netColumns; thread++) {
     block(p.rubber, pickleball.x, netBottom + meshHeight / 2,
-      pickleball.z + (thread / 24 - 0.5) * pickleball.depth, 0.02, meshHeight, 0.02);
+      pickleball.z + (thread / netColumns - 0.5) * pickleball.depth, 0.02, meshHeight, 0.02);
   }
   for (let row = 0; row < 4; row++) block(p.rubber, pickleball.x,
     netBottom + meshHeight * row / 4, pickleball.z, 0.02, 0.02, pickleball.depth);
@@ -587,59 +611,70 @@ export function buildStreetscape(builder: StreetscapeBuilder): Streetscape {
 
   const subway = (x: number, z: number) => {
     // The shallow recess stays above the island top (-0.14); paving leaves its mouth open.
-    block(p.rubber, x, -0.1, z, 2.14, 0.035, 4.18);
-    block(p.cream, x, 0.165, z - 2.06, 2.1, 0.57, 0.16);
-    block(p.stone, x, 0.43, z - 2.08, 2.44, 0.18, 0.28);
-    for (let step = 0; step < 6; step++) {
-      block(p.stone, x, 0.31 - step * 0.08, z + 1.49 - step * 0.56, 1.76, 0.08, 0.56);
+    block(p.rubber, x, -0.095, z, 3.55, 0.03, 5.98);
+    block(p.cream, x, 0.225, z - 2.94, 3.5, 0.69, 0.18);
+    block(p.stone, x, 0.53, z - 2.98, 3.9, 0.24, 0.32);
+    for (let step = 0; step < 7; step++) {
+      block(p.stone, x, 0.4275 - step * 0.085, z + 1.99 - step * 0.7, 2.9, 0.085, 0.7);
     }
-    for (let step = 0; step < 3; step++) {
-      const height = (step + 1) * 0.14;
-      block(p.stone, x, height / 2, z + 3.03 - step * 0.36, 2.08, height, 0.36);
+    for (let step = 0; step < 4; step++) {
+      const height = (step + 1) * 0.13;
+      block(p.stone, x, height / 2, z + 4.13 - step * 0.38, 3.2, height, 0.38);
     }
-    block(p.stone, x, 0.215, z + 1.95, 1.86, 0.43, 0.36);
-    block(p.taxi, x, 0.438, z + 1.89, 1.74, 0.012, 0.11);
+    block(p.stone, x, 0.275, z + 2.57, 3, 0.55, 0.46);
+    block(p.taxi, x, 0.558, z + 2.5, 2.9, 0.012, 0.12);
     for (const side of [-1, 1]) {
-      const edgeX = x + side * 1.08;
-      block(p.cream, x + side * 0.975, 0.165, z, 0.16, 0.57, 4.2);
-      block(p.stone, edgeX, 0.43, z, 0.28, 0.18, 4.4);
-      for (const y of [0.1, 0.28]) block(p.paving, x + side * 0.89, y, z, 0.025, 0.025, 4);
-      for (let index = 0; index < 10; index++) {
-        block(p.teal, edgeX, 0.93, z - 1.9 + index * 0.39, 0.035, 0.8, 0.035);
+      const edgeX = x + side * 1.75;
+      block(p.cream, x + side * 1.63, 0.225, z, 0.18, 0.69, 6);
+      block(p.stone, edgeX, 0.53, z, 0.32, 0.24, 6.18);
+      for (const y of [0.12, 0.34]) block(p.paving, x + side * 1.53, y, z, 0.025, 0.025, 5.8);
+      for (let index = 0; index < 13; index++) {
+        block(p.rubber, edgeX, 1, z - 2.8 + index * 0.44, 0.04, 0.75, 0.04);
       }
-      for (const y of [0.62, 1.34]) block(p.teal, edgeX, y, z, 0.065, 0.065, 4.24);
-      for (const end of [-1, 1]) block(p.teal, edgeX, 0.96, z + end * 2.03, 0.12, 0.96, 0.12);
-      const railX = x + side * 0.72;
-      rod(p.stone, [railX, 0.98, z + 1.77], [railX, 0.5, z - 1.59], 0.045);
-      rod(p.stone, [railX, 0.98, z + 2.11], [railX, 0.98, z + 1.77], 0.045);
-      rod(p.stone, [railX, 0.5, z - 1.59], [railX, 0.5, z - 1.84], 0.045);
-      for (const step of [0, 3, 5]) {
-        const treadY = 0.35 - step * 0.08;
-        const treadZ = z + 1.49 - step * 0.56;
-        rod(p.stone, [railX, treadY, treadZ], [railX, treadY + 0.59, treadZ], 0.035);
+      for (const y of [0.75, 1.35]) block(p.rubber, edgeX, y, z, 0.065, 0.065, 5.96);
+      for (const end of [-1, 1]) {
+        block(p.rubber, edgeX, 1.15, z + end * 2.86, 0.16, 1.18, 0.16);
+        if (end < 0) block(p.teal, edgeX, 1.79, z + end * 2.86, 0.2, 0.1, 0.2);
       }
-      block(p.teal, edgeX, 1.28, z + 2.03, 0.105, 2.56, 0.105);
-      add(crown, p.leafLight, [edgeX, 2.63, z + 2.03], [0.26, 0.26, 0.26]);
-      add(cylinder, p.paving, [edgeX, 2.42, z + 2.03], [0.16, 0.12, 0.16]);
+      const railX = x + side * 1.25;
+      rod(p.stone, [railX, 1.18, z + 2.34], [railX, 0.585, z - 2.56], 0.06);
+      rod(p.stone, [railX, 1.18, z + 2.8], [railX, 1.18, z + 2.34], 0.06);
+      rod(p.stone, [railX, 0.585, z - 2.56], [railX, 0.585, z - 2.78], 0.06);
+      for (const step of [0, 3, 6]) {
+        const treadY = 0.47 - step * 0.085;
+        const treadZ = z + 1.99 - step * 0.7;
+        rod(p.stone, [railX, treadY, treadZ], [railX, treadY + 0.6675, treadZ], 0.045);
+      }
+      block(p.rubber, edgeX, 1.77, z + 2.86, 0.16, 3.54, 0.16);
+      block(p.teal, edgeX, 1.67, z + 2.95, 0.1, 3.2, 0.015);
+      add(crown, p.taxi, [edgeX, 3.75, z + 2.86], [0.38, 0.34, 0.38]);
+      add(crown, p.leaf, [edgeX, 3.99, z + 2.86], [0.38, 0.11, 0.38]);
+      add(cylinder, p.paving, [edgeX, 3.46, z + 2.86], [0.18, 0.1, 0.18]);
     }
-    for (const y of [0.62, 1.34]) block(p.teal, x, y, z - 2.08, 2.2, 0.065, 0.065);
-    for (let index = -2; index <= 2; index++) block(p.teal, x + index * 0.36, 0.93, z - 2.08, 0.035, 0.8, 0.035);
-    block(p.rubber, x, 1.21, z - 2.08, 1.62, 0.23, 0.11);
+    for (const y of [0.75, 1.35]) block(p.rubber, x, y, z - 2.98, 3.5, 0.065, 0.065);
+    for (let index = -3; index <= 3; index++) block(p.rubber, x + index * 0.44, 1, z - 2.98, 0.04, 0.75, 0.04);
+    block(p.rubber, x, 2.95, z + 2.86, 3.7, 0.72, 0.14);
+    for (const y of [2.56, 3.34]) block(p.teal, x, y, z + 2.86, 3.7, 0.05, 0.16);
+    // Original block-letter SUBWAY sign, readable from either side without a font asset.
+    let column = 0;
+    for (const letter of SUBWAY_LETTERS) {
+      letter.forEach((row, rowIndex) => [...row].forEach((pixel, cell) => {
+        if (pixel !== '1') return;
+        for (const face of [-1, 1]) block(p.line,
+          x + face * (column + cell - 12) * 0.12, 2.95 + (2 - rowIndex) * 0.12,
+          z + 2.86 + face * 0.095, 0.1, 0.1, 0.025);
+      }));
+      column += letter[0].length + 1;
+    }
   };
-  // Crosstown Steps retains generous circulation beside a small unbranded shelter.
+  // The station canopy is omitted so the entrance and its sign stay open to the city camera.
   const transitX = TRANSIT.x;
   const transitZ = TRANSIT.z;
-  subwayPlaza(transitX, transitZ - 0.5, 11.8, 12.8, transitX + 2, transitZ + 0.2);
-  subway(transitX + 2, transitZ + 0.2);
-  subway(WEST_X, 51.5 * SIDE_SCALE);
-  for (const x of [transitX, transitX + 4]) {
-    add(cylinder, p.copperEdge, [x, 1.4, transitZ + 4.3], [0.065, 2.8, 0.065]);
-  }
-  block(p.teal, transitX + 2, 2.83, transitZ + 4.3, 5.2, 0.18, 2.2);
-  block(p.paving, transitX + 2, 2.95, transitZ + 4.3, 5.45, 0.08, 2.4);
-  bench(transitX + 2, transitZ + 4.2);
-  bench(transitX + 4.5, transitZ - 1.6);
-  tree(transitX - 0.3, transitZ + 2.8, 0.65);
+  subwayPlaza(transitX, transitZ + 2.1, 11.8, 17, crosstownEntrance.x, crosstownEntrance.z);
+  for (const { x, z } of SUBWAY_ENTRANCES) subway(x, z);
+  bench(transitX - 3.3, transitZ + 7.5);
+  bench(transitX + 0.2, transitZ + 8.2);
+  tree(transitX - 8.1, transitZ + 7.6, 0.72);
 
   // A compact construction pocket: open frame, muted safety fencing and a lattice crane.
   const siteX = WEST_X + 1.5;
@@ -721,7 +756,7 @@ export function buildStreetscape(builder: StreetscapeBuilder): Streetscape {
       block(p.copperEdge, px, 0.52, z, 0.5, 0.14, 0.15);
     }
   }
-  for (const [x, z] of [[WEST_X, -50.5 * SIDE_SCALE], [EAST_X, 0.5 * SIDE_SCALE], [transitX + 4.5, transitZ + 2.5], [courtParcel.maxX - 1.05, courtGapZ - 1.05]] as const) {
+  for (const [x, z] of [[WEST_X, -50.5 * SIDE_SCALE], [EAST_X, 0.5 * SIDE_SCALE], [transitX + 4.8, transitZ + 7.1], [courtParcel.maxX - 1.05, courtGapZ - 1.05]] as const) {
     for (let index = 0; index < 3; index++) {
       const pz = z + index * 0.8;
       rod(p.copperEdge, [x - 0.45, 0, pz], [x - 0.45, 0.75, pz], 0.045);
@@ -729,7 +764,7 @@ export function buildStreetscape(builder: StreetscapeBuilder): Streetscape {
       rod(p.copperEdge, [x - 0.45, 0.75, pz], [x + 0.45, 0.75, pz], 0.045);
     }
   }
-  for (const [x, z] of [[courtX - 3.7, courtParcel.minZ + 1.65], [transitX - 0.4, transitZ - 2.25]] as const) {
+  for (const [x, z] of [[courtX - 3.7, courtParcel.minZ + 1.65], [transitX - 7.9, transitZ + 2.5]] as const) {
     block(p.paving, x, 0.68, z, 1.65, 0.8, 0.85);
     block(p.copper, x, 1.11, z, 1.8, 0.1, 1);
     for (const side of [-1, 1]) {

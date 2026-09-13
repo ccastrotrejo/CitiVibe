@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
+import { createHash } from 'node:crypto';
 import { PARK_BOUNDS } from '../content/park';
 import {
   BIKE_OFFSET, bikeLaneOffset, CITY_EXTENT, INTERSECTION_GATE, INTERSECTIONS, ROAD_HALF_WIDTH,
@@ -17,6 +18,19 @@ const SOAK_SECONDS = 1200;
 const MOTOR_COUNT = TRAFFIC_ACTORS.filter(({ kind }) => kind === 'car' || kind === 'bus').length;
 const CYCLIST_COUNT = TRAFFIC_ACTORS.filter(({ kind }) => kind === 'cyclist').length;
 const MOTION_COUNT = MOTOR_COUNT + CYCLIST_COUNT;
+const DRY_FINGERPRINTS: Readonly<Record<number, string>> = {
+  0: 'f89b0d4d914b8d95a34755ba8f4e7d51d22676d05906682fbb117e52537a10e2',
+  2401: '386809661e9091d735742ade05d073f4b21502d033960c8513acc9f494a0e6dd',
+  0xffffffff: 'ab555b5be02dc0f8858f5f6f659b2088af502f76be8148ba328da0e2d22fbb09',
+};
+const GRIP_SOAKS = [
+  ...[0, 1, 4, 14, 42, 91, 2401, 0xffffffff].map((seed) => ({ seed, traction: 1, changing: false })),
+  ...[0, 2401].flatMap((seed) => [
+    { seed, traction: 0.75, changing: false },
+    { seed, traction: 0.3, changing: false },
+    { seed, traction: 0.3, changing: true },
+  ]),
+];
 const PAIRED_TRACKS = [
   { z: -95, side: 1, east: 4.45, west: 3.45 },
   { z: 95, side: -1, east: -3.45, west: -4.45 },
@@ -363,6 +377,124 @@ describe('CityTraffic', () => {
     expect(JSON.stringify(traffic)).toBe(before);
   });
 
+  it.each([NaN, Infinity, -Infinity, 0, 0.299, 1.001, 2])('rejects traction %s without changing state, even on a zero tick', (traction) => {
+    const traffic = new CityTraffic();
+    const before = JSON.stringify(traffic);
+    expect(() => traffic.step(DT, traction)).toThrow(RangeError);
+    expect(() => traffic.step(0, traction)).toThrow(RangeError);
+    expect(JSON.stringify(traffic)).toBe(before);
+  });
+
+  it('retains identical default dry behavior and validates the grip limits', () => {
+    const first = new CityTraffic();
+    const second = new CityTraffic();
+    for (let tick = 0; tick < 600; tick += 1) {
+      first.step(DT);
+      second.step(DT, 1);
+    }
+    expect(first).toEqual(second);
+    const before = JSON.stringify(first);
+    first.step(0, 0.3);
+    expect(JSON.stringify(first)).toBe(before);
+  });
+
+  it.each([0.75, 0.3])('scales road acceleration at grip %s without slowing the signal or sidewalk clocks', (traction) => {
+    const dry = new CityTraffic();
+    const slippery = new CityTraffic();
+    const initialPhases = dry.signals.map(({ phase }) => phase);
+    const dryChanges = new Float64Array(INTERSECTIONS.length);
+    const slipperyChanges = new Float64Array(INTERSECTIONS.length);
+    dry.step(DT);
+    slippery.step(DT, traction);
+    for (let index = 0; index < MOTION_COUNT; index += 1) {
+      expect(slippery.actors[index].speed).toBeCloseTo(TRAFFIC.acceleration * traction * DT, 10);
+    }
+    for (let tick = 1; tick < 240; tick += 1) {
+      dry.step(DT);
+      slippery.step(DT, traction);
+      for (let index = 0; index < initialPhases.length; index += 1) {
+        if (dryChanges[index] === 0 && dry.signals[index].phase !== initialPhases[index]) dryChanges[index] = dry.elapsed;
+        if (slipperyChanges[index] === 0 && slippery.signals[index].phase !== initialPhases[index]) slipperyChanges[index] = slippery.elapsed;
+      }
+    }
+    expect(dryChanges.every((time) => time > 0)).toBe(true);
+    expect(slipperyChanges).toEqual(dryChanges);
+    expect(slippery.elapsed).toBe(dry.elapsed);
+    expect(slippery.actors.slice(MOTION_COUNT)).toEqual(dry.actors.slice(MOTION_COUNT));
+  });
+
+  it.each([0, 2401])('retains footprint and stop-line safety during abrupt grip changes for seed %s', (seed) => {
+    const traffic = new CityTraffic(seed);
+    const reference = new CityTraffic(seed);
+    const previous = traffic.actors.map(({ distance }) => distance);
+    const totals = new Float64Array(MOTION_COUNT);
+    const idle = new Float64Array(MOTION_COUNT);
+    const longestIdle = new Float64Array(MOTION_COUNT);
+    const grips = [1, 0.3, 0.75, 1];
+    for (let tick = 0; tick < 240 / DT; tick += 1) {
+      traffic.step(DT, grips[Math.floor(tick * DT / 30) % grips.length]);
+      reference.step(DT);
+      for (let index = 0; index < MOTION_COUNT; index += 1) {
+        const actor = traffic.actors[index];
+        const movement = travel(previous[index], actor.distance, actor.routeLength);
+        const maximumSpeed = index < MOTOR_COUNT ? TRAFFIC.maxVehicleSpeed : TRAFFIC.maxBicycleSpeed;
+        if (movement > maximumSpeed * DT + 1e-7) throw new Error(`Grip change jumped ${actor.id}`);
+        totals[index] += movement;
+        idle[index] = movement > 0.0001 ? 0 : idle[index] + DT;
+        longestIdle[index] = Math.max(longestIdle[index], idle[index]);
+        previous[index] = actor.distance;
+        if (overlap(actor.position.x, actor.position.z, actor.heading, halfLength(index), halfWidth(index),
+          0, 0, 0, PARK_BOUNDS.z, PARK_BOUNDS.x)) throw new Error(`Grip change moved ${actor.id} into the park`);
+        if (actor.state === 'waiting') {
+          const segment = actorSegment(actor, actorRoute(index));
+          if (segment.kind !== 'link') throw new Error(`${actor.id} stopped in a reserved junction`);
+          const front = actor.distance - segment.start + halfLength(index);
+          if (front > segment.length - (STOP_LINE_OFFSET - INTERSECTION_GATE) - TRAFFIC.stopBuffer + 1e-6) {
+            throw new Error(`${actor.id} stopped beyond the painted bar`);
+          }
+        }
+      }
+      for (let index = 0; index < INTERSECTIONS.length; index += 1) {
+        const center = INTERSECTIONS[index];
+        let occupied = false;
+        for (let actorIndex = 0; actorIndex < MOTION_COUNT; actorIndex += 1) {
+          const actor = traffic.actors[actorIndex];
+          if (Math.abs(actor.position.x - center.x) > 11 || Math.abs(actor.position.z - center.z) > 11) continue;
+          if (!overlap(actor.position.x, actor.position.z, actor.heading, halfLength(actorIndex), halfWidth(actorIndex),
+            center.x, center.z, 0, INTERSECTION_GATE, INTERSECTION_GATE)) continue;
+          if (occupied || traffic.signals[index].phase === 'pedestrians') throw new Error(`Grip-change conflict at ${center.id}`);
+          occupied = true;
+        }
+      }
+      for (let first = 0; first < traffic.actors.length; first += 1) {
+        const a = traffic.actors[first];
+        for (let second = first + 1; second < traffic.actors.length; second += 1) {
+          const b = traffic.actors[second];
+          if (Math.abs(a.position.x - b.position.x) > 7 || Math.abs(a.position.z - b.position.z) > 7) continue;
+          if (overlap(a.position.x, a.position.z, a.heading, halfLength(first), halfWidth(first),
+            b.position.x, b.position.z, b.heading, halfLength(second), halfWidth(second))) {
+            throw new Error(`Grip-change overlap ${a.id}/${b.id}, seed ${seed}, tick ${tick}`);
+          }
+          if (first < MOTION_COUNT && second < MOTION_COUNT) {
+            const sa = actorSegment(a, actorRoute(first));
+            const sb = actorSegment(b, actorRoute(second));
+            if (sa.kind === 'link' && sb.kind === 'link' && sa.lane === sb.lane) {
+              const gap = Math.abs((a.distance - sa.start) - (b.distance - sb.start)) - halfLength(first) - halfLength(second);
+              const required = first < MOTOR_COUNT ? TRAFFIC.vehicleGap : TRAFFIC.bicycleGap;
+              if (gap < required - 1e-6) throw new Error(`Grip-change headway violation ${a.id}/${b.id}`);
+            }
+          }
+        }
+      }
+    }
+    expect(traffic.elapsed).toBe(reference.elapsed);
+    expect(traffic.actors.slice(MOTION_COUNT)).toEqual(reference.actors.slice(MOTION_COUNT));
+    for (let index = 0; index < MOTION_COUNT; index += 1) {
+      expect(totals[index], traffic.actors[index].id).toBeGreaterThan(50);
+      expect(longestIdle[index], traffic.actors[index].id).toBeLessThan(100);
+    }
+  });
+
   it('clamps long deltas and freezes every timer on zero delta', () => {
     const first = new CityTraffic();
     const second = new CityTraffic();
@@ -459,7 +591,7 @@ describe('CityTraffic', () => {
     expect(passed).toEqual(new Set([0, 1]));
   });
 
-  it.each([0, 1, 4, 14, 42, 91, 2401, 0xffffffff])('keeps seed %s safe and live for twenty simulated minutes', (seed) => {
+  it.each(GRIP_SOAKS)('keeps seed $seed safe and live for twenty minutes at grip $traction (changing=$changing)', ({ seed, traction: initialTraction, changing }) => {
     const traffic = new CityTraffic(seed);
     const actors = traffic.actors;
     const routes = actors.map((_, index) => actorRoute(index));
@@ -477,13 +609,16 @@ describe('CityTraffic', () => {
     let maxAcceleration = 0;
     let maxBraking = 0;
     for (let tick = 0; tick < SOAK_SECONDS / DT; tick += 1) {
-      traffic.step(DT);
+      const traction = changing ? 0.65 + 0.35 * Math.cos(tick * DT * Math.PI * 2 / 180) : initialTraction;
+      traffic.step(DT, traction);
       for (let index = 0; index < actors.length; index += 1) {
         const actor = actors[index];
         const before = previous[index];
         const movement = travel(before.distance, actor.distance, actor.routeLength);
         const displacement = Math.hypot(actor.position.x - before.x, actor.position.z - before.z);
-        const topSpeed = index < MOTOR_COUNT ? TRAFFIC.maxVehicleSpeed : index < MOTION_COUNT ? TRAFFIC.maxBicycleSpeed : 1.1;
+        const speedFactor = changing ? 1 : Math.sqrt(traction);
+        const topSpeed = index < MOTOR_COUNT ? TRAFFIC.maxVehicleSpeed * speedFactor :
+          index < MOTION_COUNT ? TRAFFIC.maxBicycleSpeed * speedFactor : 1.1;
         if (!Number.isFinite(actor.position.x + actor.position.z + actor.distance + actor.heading + actor.speed) ||
           actor.distance < 0 || actor.distance >= actor.routeLength || actor.position.y !== 0 ||
           displacement > topSpeed * DT + 1e-7 || movement > topSpeed * DT + 1e-7 ||
@@ -528,8 +663,8 @@ describe('CityTraffic', () => {
             0, 0, 0, PARK_BOUNDS.z, PARK_BOUNDS.x)) {
             throw new Error(`Vehicle footprint entered park: ${actor.id}, seed ${seed}, tick ${tick}`);
           }
-          maxAcceleration = Math.max(maxAcceleration, (actor.speed - before.speed) / DT);
-          maxBraking = Math.max(maxBraking, (before.speed - actor.speed) / DT);
+          maxAcceleration = Math.max(maxAcceleration, (actor.speed - before.speed) / DT / traction);
+          maxBraking = Math.max(maxBraking, (before.speed - actor.speed) / DT / traction);
           if (actor.state === 'waiting') {
             waits[index] += 1;
             const segment = segments[index];
@@ -609,6 +744,10 @@ describe('CityTraffic', () => {
     for (let index = 0; index < streetTravel.length; index += 1) {
       const name = index < STREET_X.length ? `Avenue X=${STREET_X[index]}` : `Cross-street Z=${STREET_Z[index - STREET_X.length]}`;
       expect(streetTravel[index], `${name} must carry actual moving motor traffic`).toBeGreaterThan(100);
+    }
+    if (!changing && initialTraction === 1 && DRY_FINGERPRINTS[seed]) {
+      const snapshot = { actors: traffic.actors, signals: traffic.signals.map(({ id, phase }) => ({ id, phase })), elapsed: traffic.elapsed };
+      expect(createHash('sha256').update(JSON.stringify(snapshot)).digest('hex')).toBe(DRY_FINGERPRINTS[seed]);
     }
   }, 30_000);
 });

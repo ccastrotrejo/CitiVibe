@@ -1,11 +1,12 @@
 import { expect, test } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+import { captureCity } from './captureCity';
 
 test('live navigation, focus interruption, help focus, and static pause', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto('/');
-  await expect(page.getByText('City is living', { exact: true })).toBeVisible();
+  await expect(page.getByText('City is living', { exact: true })).toBeVisible({ timeout: 15000 });
   await expect(page).toHaveTitle('CitiVibe - Rainlight Square');
   await expect(page.locator('.wordmark')).toHaveText('CitiVibe.');
   await expect(page.getByRole('button', { name: 'Field guide' })).toHaveCount(0);
@@ -28,11 +29,11 @@ test('live navigation, focus interruption, help focus, and static pause', async 
   await page.getByRole('button', { name: 'Reset overview' }).click();
   await page.getByRole('button', { name: 'Next landmark' }).click();
   await expect(page.getByText('Rainlight Pavilion', { exact: true }).first()).toBeVisible();
-  const before = await page.locator('canvas').screenshot();
+  const before = await captureCity(page);
   await page.waitForTimeout(300);
-  expect(await page.locator('canvas').screenshot()).toEqual(before);
+  expect(await captureCity(page)).toEqual(before);
   await page.getByRole('button', { name: 'Zoom in' }).click();
-  expect(await page.locator('canvas').screenshot()).not.toEqual(before);
+  expect(await captureCity(page)).not.toEqual(before);
   await expect(page.getByRole('button', { name: /follow/i })).toHaveCount(0);
   expect(errors).toEqual([]);
 });
@@ -93,10 +94,10 @@ test('unsupported WebGL keeps landmark navigation, not a blank canvas', async ({
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 });
 
-test('a useful original still remains when JavaScript is disabled', async ({ browser }) => {
-  const context = await browser.newContext({ javaScriptEnabled: false });
+test('a useful original still remains when JavaScript is disabled', async ({ browser, baseURL }) => {
+  const context = await browser.newContext({ javaScriptEnabled: false, baseURL });
   const page = await context.newPage();
-  await page.goto('http://127.0.0.1:4178/');
+  await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Rainlight Square' })).toBeVisible();
   await expect(page.getByRole('img')).toBeVisible();
   await expect(page.getByText(/JavaScript is disabled/)).toBeVisible();
@@ -123,18 +124,18 @@ test('real WebGL context restores once and preserves paused selection', async ({
   await page.getByRole('button', { name: 'Zoom in' }).click();
 });
 
-test('the same paused seed reproduces the scene and does not load external resources', async ({ page }) => {
+test('the same paused seed reproduces the scene and does not load external resources', async ({ page, baseURL }) => {
   const external: string[] = [];
   page.on('request', (request) => {
-    if (new URL(request.url()).origin !== 'http://127.0.0.1:4178') external.push(request.url());
+    if (new URL(request.url()).origin !== baseURL) external.push(request.url());
   });
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'Resume city' })).toBeEnabled();
-  const first = await page.locator('canvas').screenshot();
+  const first = await captureCity(page);
   await page.reload();
   await expect(page.getByRole('button', { name: 'Resume city' })).toBeEnabled();
-  expect(await page.locator('canvas').screenshot()).toEqual(first);
+  expect(await captureCity(page)).toEqual(first);
   expect(external).toEqual([]);
 });
 

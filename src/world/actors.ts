@@ -78,12 +78,13 @@ export class ActorSimulation {
     return this.actors.find((actor) => actor.id === id);
   }
 
-  step(delta: number): void {
+  step(delta: number, traction = 1): void {
     if (!Number.isFinite(delta) || delta < 0) throw new RangeError('Actor delta must be finite and nonnegative.');
+    if (!Number.isFinite(traction) || traction < 0.3 || traction > 1) throw new RangeError('Road traction must be between 0.3 and 1.');
     if (delta === 0) return;
     const dt = Math.min(delta, ACTIVITY.maxStep);
     this.elapsed += dt;
-    this.traffic.step(dt);
+    this.traffic.step(dt, traction);
     for (const walker of this.walkers) {
       walker.advance = 0;
       if (walker.rest > 0) {

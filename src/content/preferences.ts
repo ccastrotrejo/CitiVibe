@@ -1,16 +1,22 @@
 export const QUALITY_MODES = ['automatic', 'high', 'lightweight'] as const;
 export const MOTION_MODES = ['system', 'reduced', 'full'] as const;
-export const WEATHER_MODES = ['sunny', 'cloudy', 'rain', 'mist'] as const;
+export const WEATHER_MODES = ['sunny', 'cloudy', 'rain', 'mist', 'snow', 'windy'] as const;
 export const TIME_MODES = ['afternoon', 'night', 'local', 'cycle'] as const;
 export type QualityMode = typeof QUALITY_MODES[number];
 export type MotionMode = typeof MOTION_MODES[number];
+export type Weather = typeof WEATHER_MODES[number];
+
+export const WEATHER_LABELS: Record<Weather, string> = {
+  sunny: 'Sunny', cloudy: 'Cloudy', rain: 'Rain', mist: 'Mist', snow: 'Snow', windy: 'Windy',
+};
 
 export interface Preferences {
   version: 1;
   motion: MotionMode;
   guide: boolean;
   quality: QualityMode;
-  weather: typeof WEATHER_MODES[number];
+  weather: Weather;
+  rainIntensityMmH: number;
   timeMode: typeof TIME_MODES[number];
   natural: boolean;
   volume: number;
@@ -20,6 +26,7 @@ export interface Preferences {
 export const DEFAULT_PREFERENCES: Readonly<Preferences> = {
   version: 1, motion: 'system', guide: true, quality: 'automatic',
   weather: 'sunny', timeMode: 'afternoon', natural: false, volume: 0.35, muted: true,
+  rainIntensityMmH: 8,
 };
 export const PREFERENCE_KEY = 'livingcity.preferences';
 const keys = Object.keys(DEFAULT_PREFERENCES);
@@ -33,15 +40,19 @@ export function optionValue<T extends string>(value: string, options: readonly T
 function parse(value: unknown): Preferences {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new Error('Invalid preferences.');
   const record: Record<string, unknown> = Object.fromEntries(Object.entries(value));
+  if (!('rainIntensityMmH' in record)) record.rainIntensityMmH = DEFAULT_PREFERENCES.rainIntensityMmH;
   if (Object.keys(record).some((key) => !keys.includes(key)) || keys.some((key) => !(key in record)) ||
     record.version !== 1 || typeof record.motion !== 'string' || typeof record.quality !== 'string' ||
     typeof record.weather !== 'string' || typeof record.timeMode !== 'string' ||
     typeof record.guide !== 'boolean' || typeof record.natural !== 'boolean' ||
     typeof record.muted !== 'boolean' || typeof record.volume !== 'number' ||
+    typeof record.rainIntensityMmH !== 'number' || !Number.isFinite(record.rainIntensityMmH) ||
+    record.rainIntensityMmH < 0 || record.rainIntensityMmH > 30 ||
     !Number.isFinite(record.volume) || record.volume < 0 || record.volume > 1) throw new Error('Invalid preferences.');
   return {
     version: 1, motion: optionValue(record.motion, MOTION_MODES), guide: record.guide,
     quality: optionValue(record.quality, QUALITY_MODES), weather: optionValue(record.weather, WEATHER_MODES),
+    rainIntensityMmH: record.rainIntensityMmH,
     timeMode: optionValue(record.timeMode, TIME_MODES), natural: record.natural, volume: record.volume, muted: record.muted,
   };
 }

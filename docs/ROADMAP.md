@@ -4,6 +4,8 @@
 
 **Historical main-branch checkpoint (M5 reached; M1-M4 implemented).** Main at `a0dcac3` provided the original district, 1-bus/3-car/8-walker garden simulation, complete camera/control surface, environment/audio, quality presets and occasional airplane. It also configured Vercel static hosting. The connected-city slice below replaces its central vehicle loop and supersedes its geometry/population counts while preserving the control, environment and lifecycle contracts. Unchecked hardening items remain outstanding; this is not a completed M1-M8 product claim.
 
+**Current merge gate:** feature commit `eabf072` is being reconciled with main `22ec513`, retaining weather physics/compact settings (#3) and Vercel cache/security-header configuration (#4) alongside the expanded city. The feature's 248 tests and incoming-main weather checkpoints are separate pre-merge records, not a final merged result. Finish integrated checks and update the existing PR #2; do not create a duplicate or deploy.
+
 **Platform update:** desktop/laptop-first. The user explicitly excluded mobile edge-case work; phone-specific acceptance/profiling is no longer required. Current layout verification targets 1024x768, 1440x900, and 1920x1080.
 
 Dependencies favor working vertical slices. Accessibility, cleanup, failure handling, and basic profiling start in milestone 1; the later hardening milestones broaden coverage rather than postponing those responsibilities.
@@ -15,6 +17,16 @@ On 2026-09-12 the user explicitly resumed implementation from the latest main an
 The first expansion delivered a four-by-four grid, 32 buildings and 68 moving actors around a **car-free park**. Subsequent feedback requests a larger, photograph-informed Central Park-inspired landscape with real runners, then a slightly smaller park and more streets/buildings. The current follow-up uses a six-by-six grid, thirty-six intersections, twenty-four surrounding blocks, 94 buildings and a 78 x 176 m pedestrian park within a 220 x 340 m map. The latest density request raises the bounded population to 132 people/vehicles: 36 motor vehicles, twelve cyclists, 48 neighborhood walkers, eighteen park walkers, twelve runners and six court players. Juniper Court adds basketball play and an adjacent pickleball court with a two-player rally. Two-way cycling, reservoir, lawn/meadow, lake/bridge, woodland and formal mall retain pause, focus/tour and fallback contracts. The title card and Field guide header button are removed; keyboard help remains available. Photo-informed subway entrances remain surface scenery, not working underground transit. See [verified research and image observations](NYC_CITY_RESEARCH.md). Street bus dwell, walking road crossings, operational subways, active construction and broader waterfront/seasonal simulations remain follow-on work.
 
 The original M1-M5 checkpoint below remains a historical baseline. The connected-city verification record in [acceptance criteria](ACCEPTANCE_CRITERIA.md) supersedes its old geometry and population counts. M6/M7 physical-device and long-session sign-off remain separate.
+
+**Latest court correction:** enlarge basketball to 14 x 7.5 m and scale pickleball to 6.7 x 3.05 m, below one quarter of basketball's area, using the shared manifest. Six players must move through basketball drives/rebounds/repositioning and pickleball rally coverage rather than remain fixed. Keep readable footwork, moving contact points, deterministic pause/recovery and reduced-motion stills. This is an additional bounded correction after the pre-merge 248-test record, not a population increase or interactive sports engine.
+
+### Retained incoming-main weather and interface work
+
+Keep source-backed rain/snow/wind, retained snow/water and visible snow depth, three rain-fed ground pools, 0-30 mm/h rain intensity, cautious wet/snowy traffic, and smooth retained transitions. Weather sampling, pool placement and snow batches must be reconciled with the enlarged map and shared park/court/traffic contracts rather than retaining old small-district bounds. Pause, reduced motion, consent-gated sound and graphics recovery remain mandatory.
+
+Keep one lower-left Settings trigger and compact non-modal dock, with landmark navigation in the bottom toolbar and Help still modal. Preserve CitiVibe naming, removal of the title overlay and Field guide button, and help through Settings/`?`. This is not the broader charcoal/transit UI redesign. Vercel's immutable hashed-asset cache, shorter illustration cache, revalidated app shell and response headers remain configuration only; no deployment is part of this work.
+
+**Implemented merge adaptations, awaiting final checks:** rectangular city-wide precipitation, a 680x680 half-meter height grid, wind on shared tree/reed batches, lawn/path snow shells, relocated Great Lawn basins with holes through lawn/base geometry, aligned reservoir ripples and weather-revision shadow refresh. The compact dock and bottom-only landmark controls are reconciled with the CitiVibe/help changes. Final test totals, scene/effect budgets and browser acceptance are still pending; see [acceptance criteria](ACCEPTANCE_CRITERIA.md).
 
 ## Milestones
 
@@ -82,13 +94,19 @@ The original M1-M5 checkpoint below remains a historical baseline. The connected
 
 ### M5 - Weather, light, and optional sound
 
-- [x] Add Sunny/Cloudy/Rain/Mist with explicit presets and optional seeded natural changes.
+The checked weather/dock work below reflects its incoming-main implementation checkpoint. Expanded-city integration and final browser/GPU verification are separate gates; pre-merge CPU coverage must not be presented as a merged passing suite.
+
+- [x] Add Sunny/Cloudy/Rain/Mist/Snow/Windy with explicit presets and optional seeded natural changes.
 - [x] Add Afternoon/Night/Local clock/Day-night cycle with clear fictional-weather labeling.
 - [x] Implement pause-safe environment clocks and local-time lighting resynchronization.
 - [x] Add a small original audio design, master volume/mute, explicit enable, and visible failure/retry state.
 - [x] Tie effects to quality and reduced-motion settings without removing essential control.
+- [x] Extend weather with source-backed terminal rain, slower advected snow, coherent wind/foliage, roof interception, retained water/SWE and melt, wet/snow materials, garden ripples, and cautious traffic. See the [17-source research and implementation report](WEATHER_PHYSICS_RESEARCH.md). Surface time compression, empirical coefficients, and omitted spatial hydrology/CFD are explicit.
+- [x] Add bounded snow-shell depth on roofs, streets and canopies, matching shadow displacement and ground-contact height, three rain-fed ground depressions, and a physical rainfall-intensity contract. Incoming-main CPU/render-adapter coverage was recorded; merged-map coverage and the browser verification gate remain open.
+- [x] Replace the lower-left landmark card with one standalone Settings trigger and a compact non-modal dock above it; move landmark navigation into the bottom toolbar. Preserve Help modality, focus return, city input and pause access.
+- [ ] Complete the final integrated Chromium run and visual review of accumulated depth/pools and the latest intensity UI. Current local browser launch failures occur before any page loads; do not count older screenshots as validation of the new geometry.
 
-**Done when:** every weather/time combination remains legible, no environment effect catches up through hidden time, sound is silent until explicitly enabled each load, and audio suspends/disposes correctly. Applicable AC-06 through AC-11, AC-15, AC-17, AC-18. _Integrated and unit-verified; final cross-combination legibility sign-off rides with M6/M7 after the M8 artwork._
+**Done when:** every weather/time combination remains legible, no environment effect catches up through hidden time, sound is silent until explicitly enabled each load, and audio suspends/disposes correctly. Applicable AC-06 through AC-11, AC-15, AC-17, AC-18. _Implemented and unit-verified on incoming main; merged validation is pending. Final cross-combination legibility sign-off rides with M6/M7 after the M8 artwork._
 
 ### M6 - Desktop and accessibility hardening
 
@@ -120,7 +138,7 @@ Replace the initial garden-village feel with an **original fictional NYC-like ne
 - [ ] Replace the soft garden palette and decorative UI voice with an understated urban/transit-inspired desktop control system: clear typography, charcoal/stone surfaces, warm brick, and limited yellow accents. Keep the world dominant, not a marketing page.
 - [x] Update landmark descriptions/forms and camera compositions coherently; preserve the three original IDs and add Juniper Court/Crosstown Steps across focus, tour and fallback.
 - [ ] Regenerate the original static illustration, revise asset provenance/versioning, and inspect overview, focused, night, rain, and mist views. _Version 004 is the new six-by-six companion illustration; final integrated visual verification remains pending. Version 003's final screenshot pass was blocked by browser startup failures._
-- [ ] Re-run scene budgets, desktop accessibility, deterministic visuals, and resource-lifetime checks after the art change. _Final unit/resource/budget checks pass. The fresh browser run fails before loading the app; do not substitute the earlier 12 passing scenarios for final artwork verification._
+- [ ] Re-run scene budgets, desktop accessibility, deterministic visuals, and resource-lifetime checks after the art change. _Feature-branch pre-merge unit/resource/budget checks passed. Rerun after weather/settings integration. Browser startup/navigation remains blocked; do not substitute earlier passing scenarios for final artwork verification._
 
 **Done when:** the scene and chrome read as one NYC-inspired experience at supported desktop sizes, not just a color swap; no exact real-city layout, source artwork, branded billboard, directory, or commercial feature has been introduced; camera/actor/fallback behavior remains correct. _Requested world/detail implementation complete; final browser/visual verification is blocked as recorded in acceptance criteria. Existing light desktop controls are retained; a broader charcoal/transit UI redesign is not part of this slice. Full M6/M7 sign-off remains separate._
 

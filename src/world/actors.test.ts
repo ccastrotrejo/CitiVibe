@@ -75,6 +75,21 @@ describe('connected car-free park', () => {
     expect(JSON.stringify(first)).toBe(before);
   });
 
+  it('reduces vehicle speed in low grip without slowing the park clock', () => {
+    const dry = new ActorSimulation();
+    const snowy = new ActorSimulation();
+    for (let tick = 0; tick < 90; tick++) {
+      dry.step(DT);
+      snowy.step(DT, 0.3);
+    }
+    const totalSpeed = (simulation: ActorSimulation) => simulation.actors
+      .filter(({ kind }) => kind === 'car' || kind === 'bus').reduce((sum, actor) => sum + actor.speed, 0);
+    expect(totalSpeed(snowy)).toBeLessThan(totalSpeed(dry));
+    expect(snowy.getActor('walker-3')).toEqual(dry.getActor('walker-3'));
+    expect(snowy.elapsed).toBe(dry.elapsed);
+    for (const traction of [NaN, Infinity, 0.2, 1.1]) expect(() => snowy.step(DT, traction)).toThrow(RangeError);
+  });
+
   it('reproduces seed and ticks without ambient randomness or wall time', () => {
     const random = vi.spyOn(Math, 'random').mockImplementation(() => { throw new Error('Unseeded randomness'); });
     const clock = vi.spyOn(Date, 'now').mockImplementation(() => { throw new Error('Wall clock'); });

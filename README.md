@@ -2,13 +2,17 @@
 
 An original, interactive miniature city for exploring or leaving on a second screen: traffic, pedestrians, aerial activity, distinctive architecture, changing light and weather, optional ambient sound, and controls that put the viewer in charge.
 
-**Current work: a larger NYC-inspired city and park.** Rainlight Square spans a 220 x 340 m map with six avenues, six cross streets, thirty-six intersections, twenty-four surrounding blocks and 94 buildings. The park is trimmed to 78 x 176 m, about 10% smaller per dimension than the first expanded layout, making more room for city streets and buildings. It retains a reservoir running loop, lawns, woodland, a lake and pale bridge, and a tree-lined mall leading to a fountain terrace. Eighteen visitors walk through real gates to the surrounding sidewalks; twelve runners circulate around the reservoir. The busier streets have 36 motor vehicles, twelve cyclists and 48 sidewalk walkers. Park-side two-way tracks carry opposing riders, paired arrows and a direction divider. At Juniper Court, four basketball players dribble, pass and shoot beside a pickleball court with two players and a rallying ball. The games are bounded ambient animation, not interactive sports. The title overlay is removed so it no longer covers the city.
+**Current work: a larger NYC-inspired city and park with retained weather physics and compact settings.** Rainlight Square spans a 220 x 340 m map with six avenues, six cross streets, thirty-six intersections, twenty-four surrounding blocks and 94 buildings. The park is trimmed to 78 x 176 m, about 10% smaller per dimension than the first expanded layout, making more room for city streets and buildings. It retains a reservoir running loop, lawns, woodland, a lake and pale bridge, and a tree-lined mall leading to a fountain terrace. Eighteen visitors walk through real gates to the surrounding sidewalks; twelve runners circulate around the reservoir. The busier streets have 36 motor vehicles, twelve cyclists and 48 sidewalk walkers. Park-side two-way tracks carry opposing riders, paired arrows and a direction divider. At Juniper Court, four basketball players move through drives, passes, shots and rebounds beside a distinctly smaller pickleball court, where two players reposition to meet the rally. The games are bounded ambient animation, not interactive sports. The total is 132 people/vehicle rigs plus two sports balls. The title overlay is removed so it no longer covers the city.
 
 React, strict TypeScript, Vite, and direct Three.js remain the stack. Camera controls, tours, pause, weather/time, optional sound, quality settings, fullscreen, and the occasional airplane remain intact. Camera-follow features and drones remain excluded. See the [NYC research and image references](docs/NYC_CITY_RESEARCH.md), [roadmap](docs/ROADMAP.md), and [verification record](docs/ACCEPTANCE_CRITERIA.md). Reference photographs inform original geometry only; no source-site model, photo, map or branded artwork is shipped.
 
+The incoming weather extension adds Snow and Windy alongside existing presets, wind-driven precipitation and foliage, rooftop impacts, growing snow depth on roofs/streets/canopies, rain-fed ground pools, a 0-30 mm/h rain-intensity control, wet surfaces, garden ripples, and cautious wet/snowy traffic. Its compact non-modal Settings dock preserves access to the city. See the [physics research and limitations](docs/WEATHER_PHYSICS_RESEARCH.md).
+
+**Verification boundary:** the feature checkpoint's 248 tests and main's weather checkpoints were recorded before this merge. They are not a combined passing result. Final merged checks and browser/visual acceptance remain pending; the browser-startup/navigation failures are recorded explicitly in [acceptance criteria](docs/ACCEPTANCE_CRITERIA.md).
+
 ## GitHub destination
 
-The canonical GitHub destination is [ccastrotrejo/CitiVibe](https://github.com/ccastrotrejo/CitiVibe). The latest user request authorizes publishing the connected-city work as a pull request when finished. Deployment is separate.
+The canonical GitHub destination is [ccastrotrejo/CitiVibe](https://github.com/ccastrotrejo/CitiVibe). The latest user request authorizes finishing the work, merging latest main, resolving conflicts and updating the existing [PR #2](https://github.com/ccastrotrejo/CitiVibe/pull/2), not creating a duplicate. Deployment is separate and is not requested.
 
 The local checkout remains `/Users/carloscastro/Desktop/LivingCity`; do not rename the Desktop folder or project. The ambient-only product scope below is unchanged.
 
@@ -42,6 +46,8 @@ npm run dev
 
 Open the local URL printed by Vite. Drag to pan; Command/Control-drag or right-drag to rotate and tilt; scroll to zoom. All map edges are reachable, with safe outer bounds. The visible camera buttons offer the same controls. Focus the navigation region for shortcuts, including Q/E for rotation, W/S for tilt, and R for reset. Keyboard shortcuts are available in Settings; `?` opens full control help from the navigation region. The header and browser title use CitiVibe, without a Field guide header button. Reduced motion starts paused. Ambient sound stays off until you enable it from Settings (a deliberate user gesture); mute and volume then persist locally.
 
+Settings has its own lower-left button inside the city. Its compact dock opens above it without dimming or blocking the world; landmark navigation now lives in the bottom toolbar. Choose **Weather → Snow** and keep the city running to accumulate depth. Snow melts in warmer weather; rainfall and runoff fill the shallow ground pools, which drain and dry gradually. Rain intensity is available for Rain and natural weather. Sound still requires explicit permission each visit.
+
 The supported priority is **desktop and laptop computers**. Browser layout checks target 1024, 1440, and 1920 px widths. Basic responsive styles remain, but mobile edge cases and physical-phone testing are outside the current request.
 
 ```sh
@@ -52,9 +58,9 @@ npm run build
 npm run test:e2e
 ```
 
-If Playwright reports a missing browser, run `npx playwright install chromium` and retry. The browser suite builds and serves the production bundle on port 4178, so development hot reloads cannot reset an interaction midway through a test. `npm run preview` serves a production build.
+If Playwright reports a missing browser, run `npx playwright install chromium` and retry. The browser suite builds and serves the production bundle on port 4178, so development hot reloads cannot reset an interaction midway through a test. If another worktree owns that port, choose an unused one with `PLAYWRIGHT_PORT=4186 npm run test:e2e`; never stop another session's server. `npm run preview` serves a production build.
 
-## Deploy to Vercel
+## Vercel configuration (deployment separate)
 
 The app is a static single-page Vite build with no backend, so any static host works; `vercel.json` configures Vercel directly:
 
@@ -62,8 +68,10 @@ The app is a static single-page Vite build with no backend, so any static host w
 - **Build command:** `npm run build` (runs `tsc -b && vite build`)
 - **Output directory:** `dist`
 - **Rewrites:** all paths fall back to the app shell
+- **Caching:** hashed `/assets/*` files use one-year immutable caching; `/city/*` illustrations use a one-day cache; `/index.html` must revalidate.
+- **Response headers:** `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, and `X-Frame-Options: SAMEORIGIN`.
 
-Import the repository at [vercel.com/new](https://vercel.com/new) and deploy — no environment variables or settings changes are needed. Vercel reads the Node version from the `engines` field in `package.json`. For a one-off deploy from a local checkout, run `npx vercel` (preview) or `npx vercel --prod` (production).
+For a future explicitly authorized deployment, import the repository at [vercel.com/new](https://vercel.com/new); no environment variables or settings changes are needed. Vercel reads the Node version from the `engines` field in `package.json`. A one-off preview can use `npx vercel`, or production can use `npx vercel --prod`, only when that deployment is requested. Retaining this configuration or pushing the PR is not a deployment claim.
 
 ## Repository map
 
@@ -86,6 +94,8 @@ All **11 supplied artifacts** are preserved: three JSON files and eight screensh
 
 ## Implementation boundary
 
-The connected-city slice expands the live M1-M5 foundation; it does not claim to simulate everything in NYC. The research separates this pass from future possibilities such as richer transit, service schedules, and waterfront activity. First-visit appearance is Sunny/Afternoon with sound off and DPR capped at 1.5. Physical-device FPS, automatic-quality calibration, assistive-technology checks, and long-session hardening remain outstanding. No production-readiness claim is made.
+The connected-city slice expands the M1-M5 foundation; it does not claim to simulate everything in NYC. Richer transit, service schedules, and waterfront activity remain future possibilities. Weather physics is a local, deterministic approximation: surface accumulation/melting advances at 60 times ordinary simulation time so changes are visible during a visit; particle travel uses ordinary simulation seconds. Snow/water persist through preset changes and graphics recovery, not page reloads. Weather is fictional, never fetched from a live service.
+
+First-visit appearance remains Sunny/Afternoon with sound off and DPR capped at 1.5. Quality selection is implemented, but Automatic runtime calibration, final merged/browser verification, physical-device FPS, assistive-technology checks, and long-session hardening remain outstanding. The requested original world/detail pass does not imply completion of a broader desktop UI redesign. No meteorological-accuracy or production-readiness claim is made.
 
 Screenshots are attributed research references from Opportunity.city, associated with creator Leonardo Gomes Cardoso / @leocardz. No license to reuse the source artwork, branding, fonts, model, or code is established. Never ship research captures as runtime assets or trace the original city. See [provenance and limitations](docs/SOURCES.md).

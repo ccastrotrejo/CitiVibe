@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import poster from '../../public/city/rainlight-004.svg?raw';
 import shell from '../../index.html?raw';
 import { CAMERA_ANCHORS, CAMERA_PROJECTION, CITY, LANDMARKS } from '../content/city';
+import { BASKETBALL_COURT, PICKLEBALL_COURT } from '../content/courts';
 import { PARK_ACTORS, PARK_BOUNDS, PARK_PATHS } from '../content/park';
 import { STOP_LINE_OFFSET, STREET_X, STREET_Z, TRAFFIC_ACTORS } from '../content/streets';
 import { BIKE_MARKINGS, WALK_MARKINGS } from './pavement';
@@ -310,6 +311,11 @@ describe('original car-free park district', () => {
     expect(document.documentElement.getAttribute('viewBox')).toBe('0 0 1200 900');
     expect(document.querySelector('title')?.textContent).toContain('Rainlight Square');
     expect(document.querySelector('script, image, foreignObject, style')).toBeNull();
+    const courtSurfaces = document.querySelectorAll('#juniper-court > rect');
+    for (const [index, court] of [[0, BASKETBALL_COURT], [1, PICKLEBALL_COURT]] as const) {
+      expect(Number(courtSurfaces[index].getAttribute('width'))).toBe(court.width);
+      expect(Number(courtSurfaces[index].getAttribute('height'))).toBe(court.depth);
+    }
     document.querySelectorAll('[href]').forEach((element) => {
       expect(element.getAttribute('href')).toMatch(/^#/);
       expect(document.querySelector(element.getAttribute('href')!)).not.toBeNull();

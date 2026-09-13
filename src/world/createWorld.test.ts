@@ -1,7 +1,9 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { OrthographicCamera, Scene, Vector3 } from 'three';
 import { CAMERA_PROJECTION, CITY, LANDMARKS } from '../content/city';
 import { CITY_EXTENT } from '../content/streets';
+import { COURT_PLAYERS } from '../content/courts';
+import { MAX_SNOW_SWE_MM } from './weatherPhysics';
 import { createWorld } from './createWorld';
 import { WorldModel } from './model';
 
@@ -10,6 +12,7 @@ const gpu = vi.hoisted(() => ({
   dispose: vi.fn(),
   forceContextLoss: vi.fn(),
   disconnected: vi.fn(),
+  shadowMap: { enabled: false, needsUpdate: false, autoUpdate: false },
 }));
 
 vi.mock('three', async (importOriginal) => {
@@ -17,7 +20,8 @@ vi.mock('three', async (importOriginal) => {
   return {
     ...original,
     WebGLRenderer: class {
-      shadowMap = { enabled: false };
+      shadowMap = gpu.shadowMap;
+      debug = { onShaderError: null };
       setPixelRatio = vi.fn();
       setSize = vi.fn();
       render = gpu.render;
@@ -33,6 +37,7 @@ let id = 0;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  Object.assign(gpu.shadowMap, { enabled: false, needsUpdate: false, autoUpdate: false });
   frames = new Map();
   hidden = false;
   vi.spyOn(document, 'hidden', 'get').mockImplementation(() => hidden);
@@ -59,6 +64,46 @@ function mount(model: WorldModel) {
 }
 
 describe('runtime ownership and suspension', () => {
+  it('refreshes weather shadows on simulation and motion changes but not camera-only redraws', () => {
+    const model = new WorldModel(false);
+    const { world } = mount(model);
+    onTestFinished(() => world.dispose());
+    expect(gpu.shadowMap.needsUpdate).toBe(true);
+    gpu.shadowMap.needsUpdate = false;
+    world.command({ type: 'navigate', zoom: 0.1 });
+    tick(0);
+    expect(gpu.shadowMap.needsUpdate).toBe(false);
+    tick(34);
+    expect(gpu.shadowMap.needsUpdate).toBe(true);
+    gpu.shadowMap.needsUpdate = false;
+    world.command({ type: 'set-reduced-motion', reduced: true });
+    expect(gpu.shadowMap.needsUpdate).toBe(true);
+    world.dispose();
+  });
+
+  it('preserves court support above retained snow through paused redraw and graphics recovery', () => {
+    const model = new WorldModel(true);
+    const { canvas, world } = mount(model);
+    onTestFinished(() => world.dispose());
+    const scene: unknown = gpu.render.mock.lastCall?.[0];
+    if (!(scene instanceof Scene)) throw new Error('Missing rendered scene');
+    const player = scene.getObjectByName(COURT_PLAYERS[0].id)!;
+    const groundY = player.position.y;
+    model.environment.physics.surface.snowSweMm = MAX_SNOW_SWE_MM;
+    model.environment.physics.revision++;
+    world.command({ type: 'navigate', zoom: 0.1 });
+    tick(0);
+    expect(player.position.y - groundY).toBeCloseTo(model.environment.physics.snowDepth);
+    const snowyPosition = player.position.clone();
+    canvas.dispatchEvent(new Event('webglcontextlost', { cancelable: true }));
+    canvas.dispatchEvent(new Event('webglcontextrestored'));
+    const restored: unknown = gpu.render.mock.lastCall?.[0];
+    if (!(restored instanceof Scene)) throw new Error('Missing restored scene');
+    expect(restored.getObjectByName(COURT_PLAYERS[0].id)!.position).toEqual(snowyPosition);
+    expect(model.simulation.elapsed).toBe(0);
+    world.dispose();
+  });
+
   it('fits all expanded ground corners in the overview and keeps new landmarks focusable', () => {
     const model = new WorldModel(true);
     const { world } = mount(model);
@@ -222,6 +267,54 @@ describe('runtime ownership and suspension', () => {
     expect(model.camera.pose).toEqual(pose);
     expect(model.paused).toBe(true);
     expect(frames.size).toBe(0);
+    world.dispose();
+  });
+
+  it('retains weather mass and particles through pause, hidden time, restore and a renderer retry', () => {
+    const model = new WorldModel(false, { weather: 'snow' });
+    const { canvas, world } = mount(model);
+    tick(0);
+    for (let step = 1; step <= 90; step++) tick(step * 1000 / 30);
+    world.command({ type: 'set-paused', paused: true });
+    const physics = model.environment.physics;
+    const particles = physics.snow.positions.slice();
+    const surface = { ...physics.surface };
+    const time = physics.time;
+    expect(surface.snowSweMm).toBeGreaterThan(0);
+    hidden = true;
+    document.dispatchEvent(new Event('visibilitychange'));
+    tick(300000);
+    hidden = false;
+    document.dispatchEvent(new Event('visibilitychange'));
+    canvas.dispatchEvent(new Event('webglcontextlost', { cancelable: true }));
+    canvas.dispatchEvent(new Event('webglcontextrestored'));
+    expect(physics.surface).toEqual(surface);
+    expect(physics.snow.positions).toEqual(particles);
+    expect(physics.time).toBe(time);
+    world.command({ type: 'set-weather', weather: 'sunny' });
+    expect(physics.surface).toEqual(surface);
+    world.dispose();
+    const retry = mount(model);
+    expect(physics.snow.positions).toEqual(particles);
+    expect(physics.surface).toEqual(surface);
+    retry.world.command({ type: 'set-paused', paused: false });
+    tick(600000);
+    expect(physics.time).toBe(time);
+    tick(600034);
+    expect(physics.time).toBeCloseTo(time + 1 / 30);
+    expect(physics.surface.snowSweMm).toBeLessThan(surface.snowSweMm);
+    retry.world.dispose();
+  });
+
+  it('publishes environment status at most once per simulated second without an active camera', () => {
+    const canvas = document.createElement('canvas');
+    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 1000, 600));
+    const onChange = vi.fn();
+    const world = createWorld({ canvas, model: new WorldModel(false), onChange, onLifecycle: vi.fn() });
+    tick(0);
+    for (let frame = 1; frame <= 180; frame++) tick(frame * 1000 / 60);
+    expect(onChange.mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(onChange.mock.calls.length).toBeLessThanOrEqual(3);
     world.dispose();
   });
 

@@ -1,6 +1,6 @@
 # Physics and motion
 
-**Status: M2/M3 implemented locomotion model plus reference notes.** This document describes the deterministic procedural locomotion that drives walkers and vehicles in `src/world/locomotion.ts`, and records the biomechanics reference it is derived from. Nothing here is recovered from the source city; it is an original model built for this project. The airplane section is reference-only until the occasional-airplane slice is integrated.
+**Status: implemented walking/running and court motion, with incoming weather coupling under merge verification.** This document describes the deterministic procedural locomotion in `src/world/locomotion.ts`, shared court choreography, and the biomechanics references informing them. Nothing here is recovered from the source city; these are original models built for this project. The occasional airplane is implemented, but the coordinated-turn formula below remains reference-only. Historical unit results do not establish final merged weather/motion validation.
 
 ## Goals and constraints
 
@@ -71,17 +71,25 @@ Runners share fixed-step timing, spacing, pause and visibility with other actors
 
 ## Court activity
 
-`CourtActivity` samples two bounded original choreographies from `ActorSimulation.elapsed`: a twelve-second basketball sequence and a 4.8-second two-way pickleball rally. Six planted player rigs articulate their arms, with two visible paddles. Basketball follows continuous dribble/pass/shot/rebound segments through the shared hoop position; pickleball clears the shared net and bounces before the receiving paddle. Ball centers stay above their radius and inside the authored courts. These are illustrative trajectories, not rigid-body simulation, sports AI or regulation-play claims.
+`CourtActivity` samples two bounded original choreographies from `ActorSimulation.elapsed`: a basketball sequence and a two-way pickleball rally. Six moving player rigs use readable footwork and articulated arms, with two visible paddles. Basketball includes drives, passes, shots, rebound pursuit and repositioning around the shared hoop; pickleball players move to meet the ball after it clears the net and bounces. Ball/paddle/hand contact must follow the moving players, not an obsolete fixed stance. Ball centers stay above their radius and inside the authored courts. These are illustrative trajectories, not rigid-body simulation, sports AI or regulation-play claims.
 
 Court geometry and motion share `src/content/courts.ts`. The existing actor instance batches also submit players and balls, borrowing scene-owned resources. No extra timer, animation-frame chain or per-frame React state is created. Pause/visibility retain the sample time, reconstruction samples the current retained time, and reduced motion uses a fixed still.
 
+The corrected footprints are 14 x 7.5 m basketball at (-61, 119), with +/-5.8 m hoop offsets, and 6.7 x 3.05 m pickleball at (-61, 108.5), with 1.065 m kitchens and a 0.91 m net. Basketball rim height remains 2.5 m above the shared Y=0.04 surface. Pickleball is about 19.5% of basketball's area; these are coherent miniature proportions, not regulation court dimensions. The correction follows the historical 248-test checkpoint and requires its own motion/contact verification.
+
+The fixed population is 36 motor vehicles, twelve cyclists, 48 street walkers, eighteen park walkers, twelve runners and six court players: **132 people/vehicle rigs plus two balls**. Walking/running routes, court choreography and rare airplane timing remain distinct systems under the same pause/visibility clock. The 36-junction/24-block grid surrounds the car-free 78 x 176 m park in the 220 x 340 m map; the former internal bus/car circuit is not restored by weather integration.
+
 ## Vehicle model
+
+The incoming weather extension scales route vehicle acceleration/braking by a bounded traction factor and cruising speed by its square root. Applying it to the expanded grid must preserve dry behavior, the 8.5 m painted stop bars, 7 m turn boundary, full-body reservation clearance, park exclusion and same-side counterflow geometry. This is cautious route following, not a tire contact, skid or collision-damage simulator. The surface/wind/precipitation models and source-verified research are documented in [Weather physics research](WEATHER_PHYSICS_RESEARCH.md). Rerun density/traction and clearance regressions on the merged code; neither branch's earlier results establish their combination.
+
+Weather-driven ground height is sampled from nearby retained ground snow, not the canopy above an actor, and is applied without cumulatively adding elevation each frame. Rebuilding graphics must not reset travel, court time, precipitation or reservoirs. Particle travel and actor motion use ordinary simulation seconds; accumulation/melt/drainage/evaporation alone use the declared 60x surface-time compression. Snow/grounding changes must retain shared court ball/rim/net contact alignment; final integrated checks remain pending.
 
 - **Wheel roll** `spin.rotation.x = distance / wheelRadius` — frame-rate independent, monotonic, and zero when stopped (asserted in tests).
 - **Front-wheel steer** `steer.rotation.y = clamp(steerGain · yawRate, ±maxSteer)`, front wheels only.
 - **Pitch** (dive/squat) low-pass of `−pitchGain · acceleration`, capped `±maxPitch`.
 - **Roll** (body lean in turns) `−rollGain · speed · yawRate`, capped `±maxRoll`.
-- **Dwell settle** the bus lowers `dwellDrop` while stopped at its stop.
+- **Historical dwell settle** lowers `dwellDrop` at the original garden bus stop. Current street buses have no scheduled dwell stop; retaining the motion parameter does not restore that route or stop.
 
 Smoothing uses `min(1, dt/τ)` with `τ = 0.22 s`; yaw deltas use a shortest-angle wrap. Attitude is the only stateful per-actor memory and is fully bounded.
 
@@ -101,13 +109,13 @@ Reduced motion zeroes bob, sway and list, reduces arm swing and trunk lean to 40
 | Wheel angular rate | `v / r` | `measured` (rolling without slipping) |
 | Pitch gradient | `pitchGain` low-pass, cap ±0.026 rad | `proposed` (measured ≈0.4°/(m/s²)) |
 | Roll in turn | `rollGain·v·yawRate`, cap ±0.030 rad | `proposed` (measured ≈4°/g) |
-| Bus dwell settle | 0.02 m | `proposed` |
+| Historical bus dwell settle | 0.02 m | `proposed`; not an active street-bus stop |
 
 Values labelled `measured` come from the gait/vehicle-dynamics literature below; `proposed` values are original tunings for this stylized miniature, scaled from measured behavior and not recovered from any source implementation.
 
-## Aircraft note (reference-only)
+## Aircraft reference and implementation boundary
 
-For the future occasional airplane, a coordinated-turn bank angle `φ = arctan(v² / (R·g))` gives a physically plausible lean; reduced motion suppresses it. This is documented here for the airplane slice and is not yet wired into the runtime.
+A coordinated-turn bank angle `φ = arctan(v² / (R·g))` gives a physically plausible lean, but this formula remains reference-only. The implemented occasional fly-by instead uses a bounded original flight corridor and seeded 90-180-second quiet gaps, with at most one aircraft and no camera-follow target. Pause/hidden time does not advance it, and reduced motion suppresses passes. Do not infer an aerodynamic simulation from the presence of airplane artwork.
 
 ## References
 

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { PARK_BOUNDS, PARK_PATHS, PARK_RESERVOIR } from '../content/park';
 import type { StreetscapeBuilder } from './streetscape';
+import { GROUND_PUDDLES } from './groundWater';
 
 type Point = readonly [number, number];
 
@@ -13,6 +14,7 @@ export function buildCentralPark({ block, add, box, cylinder, crown, palette: p 
   const meadow = new THREE.MeshStandardMaterial({ color: '#a0b782', roughness: 1 });
   const gravel = new THREE.MeshStandardMaterial({ color: '#cdbd9e', roughness: 1 });
   const track = new THREE.MeshStandardMaterial({ color: '#bc9b79', roughness: 1 });
+  for (const material of [grass, meadow, gravel, track]) material.userData.weatherSurface = true;
   gravel.name = 'Park gravel paths';
   track.name = 'Reservoir running surface';
   const mesh = (name: string, geometry: THREE.BufferGeometry, material: THREE.Material, y = 0) => {
@@ -35,6 +37,13 @@ export function buildCentralPark({ block, add, box, cylinder, crown, palette: p 
         .getPoints(100).map(({ x, z }) => [x, z] as const)
       : points;
     const shape = new THREE.Shape(outline.map(([x, z]) => new THREE.Vector2(x, -z)));
+    if (name === 'Park lawn' || name === 'Great lawn') {
+      for (const basin of GROUND_PUDDLES) {
+        const hole = new THREE.Path();
+        hole.absellipse(basin.x, -basin.z, basin.radiusX, basin.radiusZ, 0, Math.PI * 2, true);
+        shape.holes.push(hole);
+      }
+    }
     return mesh(name, new THREE.ShapeGeometry(shape).rotateX(-Math.PI / 2), material, y);
   };
   const rod = (material: THREE.Material, from: THREE.Vector3, to: THREE.Vector3, width: number) => {

@@ -49,16 +49,16 @@
       <g id="terrace-steps"><path d="M7 18H17M7 19H17M7 20H17M7 21H17" stroke="#e6d6b7" stroke-width=".65"/></g>
     </g>
     <g id="juniper-court">
-      <rect x="-67" y="115" width="12" height="8" fill="#568581" stroke="#eee3cb" stroke-width=".15"/>
-      <path d="M-61 115V123M-67 117H-64V121H-67M-55 117H-58V121H-55" fill="none" stroke="#eee3cb" stroke-width=".12"/>
+      <rect x="-68" y="115.25" width="14" height="7.5" fill="#568581" stroke="#eee3cb" stroke-width=".15"/>
+      <path d="M-61 115.25V122.75M-68 117H-65V121H-68M-54 117H-57V121H-54" fill="none" stroke="#eee3cb" stroke-width=".12"/>
       <circle cx="-61" cy="119" r="1.2" fill="none" stroke="#eee3cb" stroke-width=".12"/>
-      <rect x="-67.7" y="105.45" width="13.4" height="6.1" fill="#626c67" stroke="#eee3cb" stroke-width=".15"/>
-      <rect x="-63.13" y="105.45" width="4.26" height="6.1" fill="#739d98"/>
-      <path d="M-63.13 105.45V111.55M-58.87 105.45V111.55M-67.7 108.5H-63.13M-58.87 108.5H-54.3" stroke="#eee3cb" stroke-width=".12"/>
-      <path d="M-61 105.25V111.75" stroke="#354f53" stroke-width=".3"/>
+      <rect x="-64.35" y="106.975" width="6.7" height="3.05" fill="#626c67" stroke="#eee3cb" stroke-width=".15"/>
+      <rect x="-62.065" y="106.975" width="2.13" height="3.05" fill="#739d98"/>
+      <path d="M-62.065 106.975V110.025M-59.935 106.975V110.025M-64.35 108.5H-62.065M-59.935 108.5H-57.65" stroke="#eee3cb" stroke-width=".12"/>
+      <path d="M-61 106.775V110.225" stroke="#354f53" stroke-width=".3"/>
       <use href="#world-player" x="-59.7" y="119"/><use href="#world-player" x="-58" y="120.6"/>
       <use href="#world-player" x="-61.3" y="117.5"/><use href="#world-player" x="-64" y="119"/>
-      <use href="#world-player" x="-65.65" y="108.5"/><use href="#world-player" x="-56.35" y="108.5"/>
+      <use href="#world-player" x="-63.3" y="108.5"/><use href="#world-player" x="-58.7" y="108.5"/>
       <circle cx="-63.6" cy="119.25" r=".22" fill="#db8b57"/><circle cx="-61" cy="108.5" r=".15" fill="#e7b94d"/>
     </g>
     <g id="crosstown-steps"><rect x="58" y="-122" width="10" height="8" fill="#deddd0"/><rect x="60" y="-120" width="6" height="3" fill="#354f53"/><path d="M60-119H66M60-118H66" stroke="#b9bdac" stroke-width=".4"/><circle cx="59" cy="-121" r=".5" fill="#77a56c"/><circle cx="67" cy="-121" r=".5" fill="#77a56c"/></g>

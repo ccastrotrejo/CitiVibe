@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CityAudio } from './audio';
 import type { AudioStatus } from './audio';
+import { WEATHER_MODES } from '../content/preferences';
+import type { Weather } from '../content/preferences';
 
 class MockParam {
   value = 1;
@@ -110,11 +112,12 @@ afterEach(() => {
 });
 
 describe('consent-gated original city audio', () => {
-  it('never creates or resumes a context from saved volume, unmute, weather, or lifecycle changes', async () => {
+  it.each(WEATHER_MODES)('never creates or resumes a context from saved volume, unmute, %s weather, or lifecycle changes', async (weather) => {
     const { audio, context, factory } = fixture();
     expect(audio.status.state).toBe('off');
     audio.setVolume(0.8);
-    audio.setWeather('rain');
+    audio.setWeather(weather);
+    audio.setRainIntensity(30);
     audio.setRunning(false);
     audio.setRunning(true);
     await audio.setMuted(false);
@@ -131,6 +134,98 @@ describe('consent-gated original city audio', () => {
     expect(context.sources[0].start).toHaveBeenCalledTimes(1);
     expect(context.gains[0].gain.setValueAtTime).toHaveBeenCalledWith(0, 10);
     expect(context.gains[0].gain.linearRampToValueAtTime).toHaveBeenCalledWith(0.8 ** 2 * 0.12, 10.15);
+  });
+
+  it.each([
+    { weather: 'snow', air: 0.1 },
+    { weather: 'windy', air: 0.24 },
+  ] as const)('initializes $weather with a soft filtered air bed and no rain after consent', async ({ weather, air }) => {
+    const { audio, context } = fixture();
+    audio.setWeather(weather);
+    expect(context.gains).toHaveLength(0);
+    await audio.enable();
+    expect(context.gains[1].gain.value).toBe(air);
+    expect(context.gains[2].gain.value).toBe(0);
+    expect(context.filters[0].type).toBe('lowpass');
+    expect(context.filters[0].frequency.value).toBe(320);
+    expect(context.sources).toHaveLength(1);
+  });
+
+  it.each(['storm', 'Snow', ''])('rejects an unsupported sound weather preset: %s', (weather) => {
+    const { audio, factory } = fixture();
+    expect(() => audio.setWeather(weather as Weather)).toThrow('Unknown sound weather preset.');
+    expect(factory).not.toHaveBeenCalled();
+    expect(audio.status.state).toBe('off');
+  });
+
+  it.each([
+    { intensity: 0, gain: 0 }, { intensity: 4, gain: 0.1 }, { intensity: 8, gain: 0.2 },
+    { intensity: 19, gain: 0.25 }, { intensity: 30, gain: 0.3 },
+  ])('initializes rain intensity $intensity with gain $gain only after consent', async ({ intensity, gain }) => {
+    const { audio, context, factory } = fixture();
+    audio.setWeather('rain');
+    audio.setRainIntensity(intensity);
+    expect(factory).not.toHaveBeenCalled();
+    await audio.enable();
+    expect(context.gains[2].gain.value).toBeCloseTo(gain);
+    expect(context.gains[1].gain.value).toBe(0.18);
+    expect(context.sources).toHaveLength(1);
+  });
+
+  it('fades live rain intensity, silences it at zero and reuses the existing sound graph', async () => {
+    const { audio, context } = fixture();
+    audio.setWeather('rain');
+    await audio.enable();
+    const rain = context.gains[2].gain;
+    for (const [intensity, gain] of [[0, 0], [4, 0.1], [8, 0.2], [19, 0.25], [30, 0.3]]) {
+      audio.setRainIntensity(intensity);
+      expect(rain.cancelAndHoldAtTime).toHaveBeenLastCalledWith(10);
+      expect(rain.linearRampToValueAtTime.mock.lastCall?.[0]).toBeCloseTo(gain);
+      expect(rain.linearRampToValueAtTime.mock.lastCall?.[1]).toBe(10.15);
+    }
+    audio.setRainIntensity(30);
+    expect(rain.linearRampToValueAtTime).toHaveBeenCalledTimes(5);
+    expect(context.gains[0].gain.linearRampToValueAtTime).toHaveBeenCalledTimes(1);
+    expect(context.gains[1].gain.linearRampToValueAtTime).not.toHaveBeenCalled();
+    expect(context.gains).toHaveLength(3);
+    expect(context.filters).toHaveLength(2);
+    expect(context.sources).toHaveLength(1);
+    expect(context.buffers).toHaveLength(1);
+  });
+
+  it.each(WEATHER_MODES.filter((weather) => weather !== 'rain'))('keeps the rain layer silent under %s regardless of intensity', async (weather) => {
+    const { audio, context } = fixture();
+    audio.setWeather(weather);
+    await audio.enable();
+    audio.setRainIntensity(30);
+    expect(context.gains[2].gain.linearRampToValueAtTime).toHaveBeenLastCalledWith(0, 10.15);
+    audio.setRainIntensity(0);
+    expect(context.gains[2].gain.linearRampToValueAtTime).toHaveBeenLastCalledWith(0, 10.15);
+    expect(context.sources).toHaveLength(1);
+  });
+
+  it.each([-1, 31, NaN, Infinity])('rejects invalid sound rain intensity %s without creating audio', (intensity) => {
+    const { audio, factory } = fixture();
+    expect(() => audio.setRainIntensity(intensity)).toThrow(RangeError);
+    expect(factory).not.toHaveBeenCalled();
+  });
+
+  it.each(['paused', 'muted'])('does not resume sound when rain intensity changes while %s', async (state) => {
+    const { audio, context } = fixture();
+    audio.setWeather('rain');
+    await audio.enable();
+    if (state === 'paused') audio.setRunning(false);
+    else void audio.setMuted(true);
+    await vi.advanceTimersByTimeAsync(150);
+    audio.setRainIntensity(0);
+    audio.setRainIntensity(30);
+    await flush();
+    expect(audio.status.state).toBe('muted');
+    expect(context.state).toBe('suspended');
+    expect(context.resume).toHaveBeenCalledTimes(1);
+    expect(context.sources).toHaveLength(1);
+    expect(context.gains[0].gain.linearRampToValueAtTime).toHaveBeenLastCalledWith(0, 10.15);
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it('reports unsupported Web Audio without pretending it enabled', async () => {
@@ -170,6 +265,9 @@ describe('consent-gated original city audio', () => {
     await flush();
     audio.setRunning(true);
     audio.setVolume(0.7);
+    audio.setWeather('snow');
+    audio.setWeather('windy');
+    audio.setRainIntensity(30);
     await audio.setMuted(false);
     expect(context.resume).toHaveBeenCalledTimes(1);
     expect(factory).toHaveBeenCalledTimes(1);
@@ -365,7 +463,7 @@ describe('consent-gated original city audio', () => {
     expect(fresh.factory).not.toHaveBeenCalled();
   });
 
-  it('synthesizes reproducible noise once per context and crossfades the rain bed without new sources', async () => {
+  it('synthesizes reproducible noise once per context and crossfades weather beds without new sources', async () => {
     const first = fixture();
     const second = fixture();
     await first.audio.enable();
@@ -374,12 +472,52 @@ describe('consent-gated original city audio', () => {
     expect(first.context.buffers[0].data).toHaveLength(16000);
     expect(first.context.buffers[0].data.every((value) => value >= -1 && value <= 1)).toBe(true);
     expect(first.context.filters.map((filter) => filter.type)).toEqual(['lowpass', 'highpass']);
-    first.audio.setWeather('rain');
-    expect(first.context.gains[2].gain.linearRampToValueAtTime).toHaveBeenLastCalledWith(0.2, 10.15);
-    first.audio.setWeather('mist');
-    expect(first.context.gains[2].gain.linearRampToValueAtTime).toHaveBeenLastCalledWith(0, 10.15);
+    for (const { weather, air, rain } of [
+      { weather: 'rain', air: 0.18, rain: 0.2 },
+      { weather: 'snow', air: 0.1, rain: 0 },
+      { weather: 'windy', air: 0.24, rain: 0 },
+      { weather: 'mist', air: 0.18, rain: 0 },
+      { weather: 'cloudy', air: 0.18, rain: 0 },
+      { weather: 'sunny', air: 0.18, rain: 0 },
+    ] as const) {
+      first.audio.setWeather(weather);
+      expect(first.context.gains[1].gain.cancelAndHoldAtTime).toHaveBeenLastCalledWith(10);
+      expect(first.context.gains[1].gain.linearRampToValueAtTime).toHaveBeenLastCalledWith(air, 10.15);
+      expect(first.context.gains[2].gain.linearRampToValueAtTime).toHaveBeenLastCalledWith(rain, 10.15);
+    }
+    expect(first.context.gains[0].gain.linearRampToValueAtTime).toHaveBeenCalledTimes(1);
     expect(first.context.sources).toHaveLength(1);
     expect(first.context.buffers).toHaveLength(1);
+    expect(first.context.gains).toHaveLength(3);
+    expect(first.context.filters).toHaveLength(2);
+  });
+
+  it.each(['paused', 'muted'])('changes snow/windy while %s without resuming audio or starting sources', async (state) => {
+    const { audio, context } = fixture();
+    audio.setWeather('rain');
+    await audio.enable();
+    if (state === 'paused') audio.setRunning(false);
+    else void audio.setMuted(true);
+    await vi.advanceTimersByTimeAsync(150);
+    for (const weather of ['snow', 'windy'] as const) {
+      audio.setWeather(weather);
+      await flush();
+      expect(audio.status.state).toBe('muted');
+      expect(context.state).toBe('suspended');
+      expect(context.resume).toHaveBeenCalledTimes(1);
+      expect(context.sources).toHaveLength(1);
+      expect(context.sources[0].disconnect).toHaveBeenCalledTimes(1);
+      expect(context.gains[0].gain.linearRampToValueAtTime).toHaveBeenLastCalledWith(0, 10.15);
+      expect(context.gains[2].gain.linearRampToValueAtTime).toHaveBeenLastCalledWith(0, 10.15);
+      expect(vi.getTimerCount()).toBe(0);
+    }
+    if (state === 'paused') audio.setRunning(true);
+    else void audio.setMuted(false);
+    await flush();
+    expect(context.resume).toHaveBeenCalledTimes(2);
+    expect(context.sources).toHaveLength(2);
+    expect(context.gains[1].gain.linearRampToValueAtTime).toHaveBeenLastCalledWith(0.24, 10.15);
+    expect(audio.status.state).toBe('on');
   });
 
   it('keeps one graph and no active sources or timers between repeated pause/resume cycles', async () => {
@@ -404,6 +542,9 @@ describe('consent-gated original city audio', () => {
     const { audio, context, callback } = fixture();
     const removeListener = vi.spyOn(context, 'removeEventListener');
     await audio.enable();
+    audio.setWeather('snow');
+    audio.setWeather('windy');
+    audio.setRainIntensity(30);
     const mute = audio.setMuted(true);
     expect(vi.getTimerCount()).toBe(1);
     audio.dispose();

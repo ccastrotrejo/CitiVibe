@@ -372,15 +372,21 @@ export class CityTraffic {
     this.actors = Object.freeze([...this.motions.map(({ actor }) => actor), ...this.walkers.map(({ actor }) => actor)]);
   }
 
-  /** Invalid time is rejected; an oversized delta is discarded, not caught up. */
-  step(dt: number): void {
+  /** Grip affects road motion only; time is never slowed or caught up. */
+  step(dt: number, traction = 1): void {
     if (!Number.isFinite(dt) || dt < 0) throw new RangeError('Traffic delta must be finite and nonnegative.');
+    if (!Number.isFinite(traction) || traction < 0.3 || traction > 1) throw new RangeError('Traffic traction must be between 0.3 and 1.');
     if (dt === 0) return;
     const seconds = Math.min(dt, TRAFFIC.maxStep);
+    const speedFactor = Math.sqrt(traction);
+    const acceleration = TRAFFIC.acceleration * traction;
+    const braking = TRAFFIC.braking * traction;
+    // Wet-road stopping space anticipates worsening grip; dry spacing stays unchanged.
+    const reserveBraking = traction === 1 ? braking : TRAFFIC.braking * 0.3;
     this.elapsed += seconds;
     this.advanceSignals(seconds);
-    this.reserveIntersections(seconds);
-    this.planMovement(seconds);
+    this.reserveIntersections(seconds, reserveBraking, speedFactor);
+    this.planMovement(seconds, acceleration, braking, reserveBraking, speedFactor);
     for (const motion of this.motions) {
       this.move(motion);
       if (motion.permit >= 0) {
@@ -407,13 +413,13 @@ export class CityTraffic {
     }
   }
 
-  private reserveIntersections(dt: number): void {
+  private reserveIntersections(dt: number, reserveBraking: number, speedFactor: number): void {
     for (const motion of this.motions) {
       if (motion.permit >= 0) continue;
       const segment = motion.route.segments[motion.segment];
       if (segment.kind !== 'link') continue;
       const remaining = segment.start + segment.length - motion.actor.distance - motion.length / 2 - STOP_APPROACH_BUFFER;
-      const requestDistance = motion.actor.speed ** 2 / (2 * TRAFFIC.braking) + motion.actor.speed * dt + 0.5;
+      const requestDistance = motion.actor.speed ** 2 / (2 * reserveBraking) + motion.actor.speed * dt + 0.5;
       if (remaining <= requestDistance && motion.requestSince < 0) motion.requestSince = this.elapsed;
     }
     for (let index = 0; index < this.junctions.length; index += 1) {
@@ -424,7 +430,7 @@ export class CityTraffic {
         if (motion.permit >= 0 || motion.requestSince < 0) continue;
         const segment = motion.route.segments[motion.segment];
         if (segment.intersection !== index || segment.axis !== junction.phase) continue;
-        if (!this.exitAvailable(motion)) continue;
+        if (!this.exitAvailable(motion, reserveBraking, speedFactor)) continue;
         if (!chosen || motion.requestSince < chosen.requestSince) chosen = motion;
       }
       if (!chosen) continue;
@@ -437,13 +443,14 @@ export class CityTraffic {
     }
   }
 
-  private exitAvailable(motion: Motion): boolean {
+  private exitAvailable(motion: Motion, reserveBraking: number, speedFactor: number): boolean {
     const route = motion.route;
     const incoming = route.segments[motion.segment];
     const outgoing = route.segments[(motion.segment + 2) % route.segments.length];
     // Reserve a body, a gap, and stopping room so the junction never becomes a queue.
+    const exitSpeed = Math.max(motion.actor.speed, motion.desiredSpeed * speedFactor);
     const needed = motion.length / 2 + TRAFFIC.stopBuffer +
-      motion.desiredSpeed ** 2 / (2 * TRAFFIC.braking) + motion.desiredSpeed * TRAFFIC.maxStep;
+      exitSpeed ** 2 / (2 * reserveBraking) + exitSpeed * TRAFFIC.maxStep;
     for (const other of this.motions) {
       if (other === motion) continue;
       const segment = other.route.segments[other.segment];
@@ -461,7 +468,7 @@ export class CityTraffic {
     return motion.bicycle ? TRAFFIC.bicycleGap : TRAFFIC.vehicleGap;
   }
 
-  private planMovement(dt: number): void {
+  private planMovement(dt: number, acceleration: number, braking: number, reserveBraking: number, speedFactor: number): void {
     for (const motion of this.motions) {
       const actor = motion.actor;
       const segment = motion.route.segments[motion.segment];
@@ -480,21 +487,22 @@ export class CityTraffic {
             (motion.length + leader.length) / 2 - this.gap(motion)));
         }
       }
-      const brakeTick = TRAFFIC.braking * dt;
-      const safeSpeed = Math.sqrt(brakeTick ** 2 + 2 * TRAFFIC.braking * available) - brakeTick;
-      let desired = Math.min(motion.desiredSpeed, safeSpeed);
+      const brakeTick = braking * dt;
+      const reserveTick = reserveBraking * dt;
+      const safeSpeed = Math.sqrt(reserveTick ** 2 + 2 * reserveBraking * available) - reserveTick;
+      let desired = Math.min(motion.desiredSpeed * speedFactor, safeSpeed);
       if (motion.bicycle) {
         if (segment.speedLimit !== undefined) desired = Math.min(desired, segment.speedLimit);
         if (segment.kind === 'link') {
           const turn = motion.route.segments[(motion.segment + 1) % motion.route.segments.length];
           if (turn.speedLimit !== undefined) {
             const remaining = segment.start + segment.length - actor.distance;
-            const turnApproach = Math.sqrt(brakeTick ** 2 + turn.speedLimit ** 2 + 2 * TRAFFIC.braking * remaining) - brakeTick;
+            const turnApproach = Math.sqrt(reserveTick ** 2 + turn.speedLimit ** 2 + 2 * reserveBraking * remaining) - reserveTick;
             desired = Math.min(desired, turnApproach);
           }
         }
       }
-      actor.speed = Math.max(0, Math.min(actor.speed + TRAFFIC.acceleration * dt, Math.max(actor.speed - brakeTick, desired)));
+      actor.speed = Math.max(0, Math.min(actor.speed + acceleration * dt, Math.max(actor.speed - brakeTick, desired)));
       motion.advance = Math.min(available, actor.speed * dt);
       if (available < EPSILON) {
         motion.advance = available;

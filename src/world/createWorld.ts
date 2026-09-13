@@ -23,6 +23,9 @@ export function createWorld({ canvas, model, onChange, onLifecycle }: WorldOptio
   const context = canvas.getContext('webgl2', { antialias: true, alpha: false });
   if (!context) throw new Error('WebGL2 is unavailable. This browser can’t render the live city.');
   const renderer = new WebGLRenderer({ canvas, context, antialias: true });
+  renderer.debug.onShaderError = () => {
+    throw new Error('City graphics shaders could not compile. Retry the live city.');
+  };
   function buildArt(): CityScene {
     const next = buildCityScene();
     if (next.actors.size !== model.simulation.actors.length ||
@@ -58,9 +61,12 @@ export function createWorld({ canvas, model, onChange, onLifecycle }: WorldOptio
   const locomotion = new Locomotion();
   let environment: EnvironmentVisual;
   let plane: AirplaneVisual;
-  let envElapsed = 0;
+  let statusElapsed = 0;
+  let shadowWeatherRevision = -1;
+  let shadowReducedMotion = model.reducedMotion;
   function attachEffects(): void {
-    environment = new EnvironmentVisual(art.scene);
+    model.environment.physics.bindSurface(art.weatherSurface.heightAt, art.weatherSurface.snowRetentionAt);
+    environment = new EnvironmentVisual(art.scene, art.weatherSurface, art.foliage, art.snowMeshes);
     plane = createAirplaneVisual();
     art.scene.add(plane.group);
   }
@@ -101,17 +107,22 @@ export function createWorld({ canvas, model, onChange, onLifecycle }: WorldOptio
       mesh.rotation.y = actor.heading;
     }
     art.setTrafficSignals?.(model.simulation.traffic.signals);
-    art.updateCourtActivity?.(model.simulation.elapsed, model.reducedMotion);
+    art.updateCourtActivity?.(model.simulation.elapsed, model.reducedMotion, model.environment.physics.snowDepth);
     art.updateActors?.();
     const selected = LANDMARKS.find(({ id }) => id === model.selectedId);
     art.marker.visible = Boolean(selected);
-    if (selected) art.marker.position.set(selected.position.x, 0.12, selected.position.z);
+    if (selected) art.marker.position.set(selected.position.x, 0.12 + model.environment.physics.snowDepth, selected.position.z);
     const radius = CAMERA_PROJECTION.distance * Math.cos(pose.pitch);
     camera.position.set(pose.x + Math.sin(pose.yaw) * radius, CAMERA_PROJECTION.distance * Math.sin(pose.pitch), pose.z + Math.cos(pose.yaw) * radius);
     camera.lookAt(pose.x, 0, pose.z);
     camera.zoom = pose.zoom;
     camera.updateProjectionMatrix();
-    environment.update(model.environment.frame, { reducedMotion: model.reducedMotion, lightweight }, envElapsed);
+    environment.update(model.environment.frame, { reducedMotion: model.reducedMotion, lightweight }, model.environment.physics);
+    if (!lightweight && (model.environment.physics.revision !== shadowWeatherRevision || model.reducedMotion !== shadowReducedMotion)) {
+      renderer.shadowMap.needsUpdate = true;
+      shadowWeatherRevision = model.environment.physics.revision;
+      shadowReducedMotion = model.reducedMotion;
+    }
     const flight = model.airplane.state;
     plane.group.visible = flight.active;
     if (flight.active) {
@@ -139,8 +150,11 @@ export function createWorld({ canvas, model, onChange, onLifecycle }: WorldOptio
       }
       if (simulated > 0) {
         locomotion.update(model.simulation.actors, art.actors, simulated, model.reducedMotion);
-        envElapsed += simulated;
-        if (model.camera.revision !== cameraRevision) onChange();
+        statusElapsed += simulated;
+        if (model.camera.revision !== cameraRevision || statusElapsed >= 1) {
+          statusElapsed %= 1;
+          onChange();
+        }
       }
       if (simulated > 0 || viewDirty) draw();
       schedule();

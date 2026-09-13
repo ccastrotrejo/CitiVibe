@@ -23,6 +23,7 @@ export type WorldCommand =
   | { type: 'start-tour' }
   | { type: 'guided-step'; direction: -1 | 1 }
   | { type: 'set-weather'; weather: Weather }
+  | { type: 'set-rain-intensity'; millimetersPerHour: number }
   | { type: 'set-time'; time: TimeMode }
   | { type: 'set-natural'; natural: boolean }
   | { type: 'set-quality'; quality: QualityMode }
@@ -44,6 +45,7 @@ export interface WorldStatus {
   view: ViewStatus | null;
   message: string;
   weather: Weather;
+  rainIntensityMmH: number;
   timeMode: TimeMode;
   natural: boolean;
   quality: QualityMode;

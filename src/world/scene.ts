@@ -10,6 +10,9 @@ import { buildPavementMarkings } from './pavement';
 import { buildStreetscape } from './streetscape';
 import { WALKER, poseNeutral } from './locomotion';
 import type { LegRig, VehicleRig, WalkerRig, WheelRig } from './locomotion';
+import { captureWeatherSurface, type FoliageBatch } from './weatherArt';
+import type { WeatherSurface } from './weatherSurface';
+import { GROUND_LEVEL, GROUND_PUDDLES } from './groundWater';
 
 export interface CityScene {
   scene: THREE.Scene;
@@ -17,9 +20,12 @@ export interface CityScene {
   actors: Map<string, THREE.Group>;
   hitTargets: THREE.Object3D[];
   marker: THREE.Object3D;
+  weatherSurface: WeatherSurface;
+  snowMeshes: THREE.Mesh[];
+  foliage: FoliageBatch[];
   setTrafficSignals?(signals: readonly TrafficSignalState[]): void;
   updateActors?(): void;
-  updateCourtActivity?(elapsedSeconds: number, reducedMotion: boolean): void;
+  updateCourtActivity?(elapsedSeconds: number, reducedMotion: boolean, groundLift?: number): void;
   dispose(): void;
 }
 
@@ -27,6 +33,7 @@ interface Batch {
   geometry: THREE.BufferGeometry;
   material: THREE.Material;
   transforms: THREE.Matrix4[];
+  flexible: boolean;
 }
 
 export interface ArtInputs {
@@ -66,6 +73,7 @@ export function buildCityScene(): CityScene {
   const geometries = new Set<THREE.BufferGeometry>();
   const materials = new Set<THREE.Material>();
   const instances = new Set<THREE.InstancedMesh>();
+  const foliage: FoliageBatch[] = [];
   const geometry = <T extends THREE.BufferGeometry>(value: T): T => {
     geometries.add(value);
     return value;
@@ -101,6 +109,12 @@ export function buildCityScene(): CityScene {
   };
   // Tag glazing so the environment layer can light windows warmly after dark.
   palette.glass.userData.window = true;
+  for (const surface of [palette.stone, palette.paving, palette.road, palette.line, palette.cream, palette.clay,
+    palette.teal, palette.roof, palette.copper, palette.copperEdge, palette.wood, palette.leaf, palette.leafLight]) {
+    surface.userData.weatherSurface = true;
+  }
+  palette.road.userData.snowRetention = 0.45;
+  palette.line.userData.snowRetention = 0.45;
   const box = geometry(new THREE.BoxGeometry());
   const cylinder = geometry(new THREE.CylinderGeometry(1, 1, 1, 10));
   const crown = geometry(new THREE.DodecahedronGeometry(1));
@@ -113,11 +127,12 @@ export function buildCityScene(): CityScene {
         shape: THREE.BufferGeometry, surface: THREE.Material,
         position: readonly [number, number, number], scale: readonly [number, number, number],
         rotation: readonly [number, number, number] = [0, 0, 0],
+        flexible = (shape === crown || shape === cylinder) && (surface === palette.leaf || surface === palette.leafLight),
       ) {
-        const key = `${shape.uuid}:${surface.uuid}`;
+        const key = `${shape.uuid}:${surface.uuid}:${flexible}`;
         let batch = batches.get(key);
         if (!batch) {
-          batch = { geometry: shape, material: surface, transforms: [] };
+          batch = { geometry: shape, material: surface, transforms: [], flexible };
           batches.set(key, batch);
         }
         dummy.position.set(...position);
@@ -134,6 +149,11 @@ export function buildCityScene(): CityScene {
           mesh.castShadow = true;
           mesh.receiveShadow = true;
           mesh.computeBoundingSphere();
+          if (batch.flexible) {
+            mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+            if (mesh.boundingSphere) mesh.boundingSphere.radius += 1;
+            foliage.push({ mesh, transforms: batch.transforms });
+          }
           instances.add(mesh);
           parent.add(mesh);
         }
@@ -161,6 +181,32 @@ export function buildCityScene(): CityScene {
   groundOutline.lineTo(CITY_EXTENT.x, CITY_EXTENT.z);
   groundOutline.lineTo(-CITY_EXTENT.x, CITY_EXTENT.z);
   groundOutline.closePath();
+  for (const basin of GROUND_PUDDLES) {
+    const hole = new THREE.Path();
+    hole.absellipse(basin.x, -basin.z, basin.radiusX, basin.radiusZ, 0, Math.PI * 2, true);
+    groundOutline.holes.push(hole);
+    const positions = [basin.x, GROUND_LEVEL - basin.maxDepth, basin.z];
+    const indices: number[] = [];
+    const segments = 32;
+    for (let ring = 1; ring <= 4; ring++) {
+      const radius = ring / 4;
+      for (let index = 0; index < segments; index++) {
+        const angle = index / segments * Math.PI * 2;
+        positions.push(basin.x + Math.cos(angle) * basin.radiusX * radius,
+          GROUND_LEVEL - basin.maxDepth + basin.maxDepth * radius ** 2,
+          basin.z + Math.sin(angle) * basin.radiusZ * radius);
+        const current = 1 + (ring - 1) * segments + index;
+        const next = 1 + (ring - 1) * segments + (index + 1) % segments;
+        if (ring === 1) indices.push(0, next, current);
+        else indices.push(current - segments, next, current, current - segments, next - segments, next);
+      }
+    }
+    const shape = geometry(new THREE.BufferGeometry());
+    shape.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    shape.setIndex(indices);
+    shape.computeVertexNormals();
+    mesh(shape, palette.stone, `${basin.id} rain depression`);
+  }
   const ground = mesh(geometry(new THREE.ExtrudeGeometry(groundOutline, {
     depth: 0.8, bevelEnabled: false, steps: 1, curveSegments: 8,
   })), palette.stone, 'Miniature ground');
@@ -178,6 +224,13 @@ export function buildCityScene(): CityScene {
   scene.add(streetscape.group);
   const pavement = buildPavementMarkings({ block, add: district.add, box, cylinder, crown, palette });
   district.finish();
+  const weatherSurface = captureWeatherSurface(scene);
+  const snowMeshes: THREE.Mesh[] = [];
+  scene.traverse((object) => {
+    if (object instanceof THREE.Mesh && !Array.isArray(object.material) && object.material.userData.weatherSurface === true) {
+      snowMeshes.push(object);
+    }
+  });
 
   const actors = new Map<string, THREE.Group>();
   function actorGroup(id: string, name: string) {
@@ -451,11 +504,11 @@ export function buildCityScene(): CityScene {
 
   let disposed = false;
   return {
-    scene, bus, actors, hitTargets, marker,
+    scene, bus, actors, hitTargets, marker, weatherSurface, snowMeshes, foliage,
     setTrafficSignals: (signals) => streetscape.setSignals(signals),
     updateActors: () => actorInstances.update(),
-    updateCourtActivity: (elapsedSeconds, reducedMotion) => {
-      if (!disposed) courtActivity.update(elapsedSeconds, reducedMotion);
+    updateCourtActivity: (elapsedSeconds, reducedMotion, groundLift = 0) => {
+      if (!disposed) courtActivity.update(elapsedSeconds, reducedMotion, groundLift);
     },
     dispose() {
       if (disposed) return;
@@ -469,6 +522,7 @@ export function buildCityScene(): CityScene {
       materials.forEach((surface) => surface.dispose());
       sun.shadow.dispose();
       instances.clear();
+      foliage.length = 0;
       geometries.clear();
       materials.clear();
       hitTargets.length = 0;
