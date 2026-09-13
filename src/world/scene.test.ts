@@ -387,6 +387,32 @@ describe('original car-free park district', () => {
     }
   });
 
+  it('builds tinted masonry and painted party walls into the finished world', () => {
+    const { scene } = createScene();
+    const tinted = [...scene.children].filter((object): object is THREE.InstancedMesh =>
+      object instanceof THREE.InstancedMesh && object.instanceColor !== null);
+    expect(tinted.length).toBeGreaterThan(0);
+    const shades = new Set<string>();
+    const shade = new THREE.Color();
+    for (const mesh of tinted) {
+      for (let index = 0; index < mesh.count; index++) {
+        mesh.getColorAt(index, shade);
+        shades.add(shade.getHexString());
+      }
+    }
+    // A single white material carries the whole widened palette through instance colours.
+    expect(shades.size).toBeGreaterThan(16);
+    const murals = scene.getObjectByName('Party wall murals');
+    expect(murals).toBeDefined();
+    expect(murals!.children.length).toBeGreaterThan(0);
+    // Mural paint is vertical, so it wets in the rain but never accumulates snow.
+    for (const child of murals!.children) {
+      const paint = (child as THREE.Mesh).material as THREE.Material;
+      expect(paint.userData.weatherSurface).toBe(true);
+      expect(paint.userData.snowRetention).toBe(0);
+    }
+  });
+
   it('stays within the expanded scene budgets', () => {
     const { scene } = createScene();
     let calls = 0;

@@ -1,6 +1,11 @@
 import * as THREE from 'three';
 import { BASKETBALL_COURT, PICKLEBALL_COURT, RECREATION_AREA, netHeightAt } from '../content/courts';
+import {
+  WINDOW_UNIT, WINDOW_UNIT_GRILLE, WINDOW_UNIT_TONES, facadeSample, facadeToneFor,
+  type FacadeFamily,
+} from '../content/facades';
 import { METRO_ENTRANCES, METRO_GEOMETRY, METRO_OPENINGS, type MetroEntrance } from '../content/metro';
+import type { MuralWall } from './murals';
 import {
   BIKE_OFFSET, CITY_EXTENT, INTERSECTIONS, ROAD_HALF_WIDTH, SIDEWALK_HALF_WIDTH,
   SIDEWALK_OFFSET, SIGNAL_POLE_OFFSET, STOP_LINE_OFFSET, STREET_X, STREET_Z, TWO_WAY_BIKE_STREETS,
@@ -10,17 +15,17 @@ import {
 type Triple = readonly [number, number, number];
 type SurfaceName = 'sand' | 'stone' | 'paving' | 'road' | 'line' | 'cream' | 'clay' |
   'teal' | 'roof' | 'copper' | 'copperEdge' | 'glass' | 'wood' | 'leaf' | 'leafLight' |
-  'water' | 'bus' | 'rubber' | 'taxi';
+  'water' | 'bus' | 'rubber' | 'taxi' | 'facade';
 
 /** Borrowed primitives and static batches; the scene, not this module, owns them. */
 export interface StreetscapeBuilder {
   block(
     surface: THREE.Material, x: number, y: number, z: number,
-    width: number, height: number, depth: number, yaw?: number,
+    width: number, height: number, depth: number, yaw?: number, tint?: string,
   ): void;
   add(
     shape: THREE.BufferGeometry, surface: THREE.Material, position: Triple,
-    scale: Triple, rotation?: Triple,
+    scale: Triple, rotation?: Triple, tint?: string,
   ): void;
   box: THREE.BufferGeometry;
   cylinder: THREE.BufferGeometry;
@@ -59,12 +64,18 @@ export interface StreetBuilding {
   width: number;
   depth: number;
   floors: number;
-  skin: 'clay' | 'cream' | 'teal' | 'stone';
+  /** Masonry family and the concrete tint painted on the shared facade material. */
+  family: FacadeFamily;
+  tone: string;
   roof: 'tank' | 'garden' | 'chimneys' | 'plant';
   setbackFloors: number;
   fireEscape: boolean;
   stoop: boolean;
   brownstone: boolean;
+  /** True when the building carries window air conditioners above the ground floor. */
+  windowUnits: boolean;
+  /** Blank lot-line wall exposed by a lower neighbour; carries no windows. */
+  partyWall: { axis: 'x' | 'z'; side: 1 | -1; baseY: number } | null;
 }
 
 const CENTER_COLUMN = Math.floor((STREET_X.length - 1) / 2);
@@ -114,21 +125,29 @@ const SUBWAY_LETTERS = [
 /** Authored silhouettes repeat architectural vocabulary, not identical towers. */
 export const STREET_BUILDINGS: readonly StreetBuilding[] = (() => {
   const buildings: StreetBuilding[] = [];
-  const skins = ['clay', 'cream', 'teal', 'stone'] as const;
   const roofs = ['tank', 'chimneys', 'garden', 'plant'] as const;
+  const blockCounts = new Map<string, number>();
   const add = (
     blockId: string, x: number, z: number, width: number, depth: number,
     floors: number, accent = false,
   ) => {
     const index = buildings.length;
     const brownstone = [0, 4, 10, 14, 24, 40].includes(index);
+    const id = `street-building-${index + 1}`;
+    // Developer-built streets read as runs of like fronts, so the family is keyed to the run.
+    const position = blockCounts.get(blockId) ?? 0;
+    blockCounts.set(blockId, position + 1);
+    const tone = facadeToneFor(id, `${blockId}-run-${Math.floor(position / 7)}`,
+      brownstone ? 'brownstone' : undefined);
     buildings.push({
-      id: `street-building-${index + 1}`, blockId, x, z,
+      id, blockId, x, z,
       width: brownstone ? Math.min(width, 8.15) : width, depth,
       floors: brownstone ? Math.min(floors, 5) : floors,
-      skin: brownstone ? 'clay' : skins[index % skins.length], roof: roofs[index % roofs.length],
+      family: tone.family, tone: tone.hex, roof: roofs[index % roofs.length],
       setbackFloors: accent ? 2 : 0, fireEscape: index % 3 === 0,
       stoop: width > 4 && index % 2 === 0, brownstone,
+      windowUnits: facadeSample(id, 'window-units') < WINDOW_UNIT.buildingShare,
+      partyWall: null,
     });
   };
   const frontageStep = (PARK_HALF_X * 2 - 1) / 10;
@@ -213,8 +232,58 @@ export const STREET_BUILDINGS: readonly StreetBuilding[] = (() => {
       cursor += building.width + 0.8;
     }
   }
+  assignPartyWalls(buildings);
   return buildings;
 })();
+
+/** Top of a building's main volume; setbacks sit inside this footprint and do not extend it. */
+function mainVolumeTop(building: StreetBuilding): number {
+  return 0.3 + building.floors * 2.4;
+}
+
+/**
+ * Lot-line walls are built blank because a neighbour is expected to abut them. One becomes
+ * visible when that neighbour is lower, or when the row simply ends at a corner, and those
+ * are the walls that carry murals. Records where the blank masonry starts so the renderer
+ * leaves it windowless.
+ */
+function assignPartyWalls(buildings: readonly StreetBuilding[]): void {
+  // The entry, stoop and door always face +Z, so that elevation is never a blank lot line.
+  const faces = [
+    { axis: 'x', side: -1 }, { axis: 'x', side: 1 }, { axis: 'z', side: -1 },
+  ] as const;
+  for (const building of buildings) {
+    const top = mainVolumeTop(building);
+    let best: { axis: 'x' | 'z'; side: 1 | -1; baseY: number } | null = null;
+    for (const { axis, side } of faces) {
+      // Fire escapes hang off the +X flank, so that wall is neither blank nor paintable.
+      if (axis === 'x' && side === 1 && building.fireEscape) continue;
+      const alongX = axis === 'x';
+      const reach = (alongX ? building.width : building.depth) / 2;
+      const span = (alongX ? building.depth : building.width) / 2;
+      const face = (alongX ? building.x : building.z) + side * reach;
+      // Only a row mate sharing the block band can ever abut this wall.
+      const band = buildings.filter((other) => {
+        if (other === building || other.blockId !== building.blockId) return false;
+        const otherSpan = (alongX ? other.depth : other.width) / 2;
+        return Math.abs((alongX ? other.z : other.x) - (alongX ? building.z : building.x)) <
+          Math.min(span, otherSpan);
+      });
+      if (!band.length) continue;
+      const abutting = band.filter((other) => {
+        const otherReach = (alongX ? other.width : other.depth) / 2;
+        const gap = side * ((alongX ? other.x : other.z) - side * otherReach - face);
+        return gap >= -0.2 && gap <= 3;
+      });
+      // An end-of-row wall is blank above the shopfront; otherwise only the band clearing the
+      // neighbour's parapet is ever seen from the street.
+      const baseY = abutting.length ? Math.max(...abutting.map(mainVolumeTop)) : 2.7;
+      if (top - baseY < 4 || (alongX ? building.depth : building.width) < 4.5) continue;
+      if (!best || baseY < best.baseY) best = { axis, side, baseY };
+    }
+    if (best) building.partyWall = best;
+  }
+}
 
 /** Protective sheds on occupied buildings; four also carry open upper-facade scaffolding. */
 export const SIDEWALK_SHEDS = [
@@ -228,6 +297,41 @@ export const SIDEWALK_SHEDS = [
 ].map(({ building: number, x, scaffold }) => {
   const building = STREET_BUILDINGS.find(({ id }) => id === `street-building-${number}`)!;
   return { id: `sidewalk-shed-${number}`, buildingId: building.id, x, z: building.z, length: building.depth + 0.8, scaffold };
+});
+
+/** Blocks where donated walls cluster, the way legal-wall corners concentrate in one district. */
+const MURAL_DISTRICTS: readonly string[] = [
+  `block-${CENTER_COLUMN - 1}-${CENTER_ROW}`, `block-${CENTER_COLUMN + 1}-${CENTER_ROW}`,
+  `block-${CENTER_COLUMN}-${CENTER_ROW - 1}`,
+];
+
+/**
+ * Painted party walls. Murals cluster where owners donate walls rather than spreading evenly,
+ * so a few blocks carry most of them and the rest of the city keeps its raw brick.
+ */
+export const MURAL_WALLS: readonly MuralWall[] = STREET_BUILDINGS.flatMap((building) => {
+  const { partyWall } = building;
+  if (!partyWall) return [];
+  // A shed and its scaffold cover the wall it hangs on, so nothing would be seen.
+  if (SIDEWALK_SHEDS.some(({ buildingId }) => buildingId === building.id)) return [];
+  const density = MURAL_DISTRICTS.includes(building.blockId) ? 0.78 : 0.2;
+  if (facadeSample(building.id, 'mural-wall') >= density) return [];
+  const alongX = partyWall.axis === 'x';
+  const top = mainVolumeTop(building);
+  return [{
+    id: `mural-${building.id}-${partyWall.axis}${partyWall.side > 0 ? 'plus' : 'minus'}`,
+    buildingId: building.id,
+    axis: partyWall.axis,
+    side: partyWall.side,
+    plane: (alongX ? building.x : building.z) +
+      partyWall.side * (alongX ? building.width : building.depth) / 2,
+    center: alongX ? building.z : building.x,
+    width: alongX ? building.depth : building.width,
+    baseY: partyWall.baseY,
+    height: top - partyWall.baseY,
+    // A wall exposed to the pavement takes a full composition; a high band takes a frieze.
+    regime: partyWall.baseY <= 2.7 ? 'full' : 'upper',
+  }];
 });
 
 /** Fail before resource allocation if facades, cornices or stoops invade sidewalks. */
@@ -374,14 +478,52 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
     }
   }
 
+  /**
+   * Window air conditioner on a sill. Units are omitted from the ground floor because a
+   * projection over the public way may not exceed 0.102 m below 3.05 m above grade.
+   */
+  const airConditioner = (
+    building: StreetBuilding, floor: number, sill: readonly [number, number, number],
+    axis: 'x' | 'z', side: number,
+  ) => {
+    if (!building.windowUnits || floor < WINDOW_UNIT.lowestFloor) return;
+    const key = `ac-${axis}${side > 0 ? '+' : '-'}-${floor}-${sill[0].toFixed(2)}-${sill[2].toFixed(2)}`;
+    const roll = facadeSample(building.id, key);
+    if (roll >= WINDOW_UNIT.windowShare) return;
+    const { width, height, projection, tilt, grilleDepth } = WINDOW_UNIT;
+    // A little of the case stays inside the reveal so the box never floats off the wall.
+    const cased = projection + 0.08;
+    const near = side * (cased / 2 - 0.04);
+    const far = cased / 2 - grilleDepth / 2;
+    const lean = Math.sin(tilt);
+    const centre: Triple = axis === 'z'
+      ? [sill[0], sill[1] + height / 2, sill[2] + near]
+      : [sill[0] + near, sill[1] + height / 2, sill[2]];
+    const spin: Triple = axis === 'z' ? [side * tilt, 0, 0] : [0, 0, -side * tilt];
+    const size: Triple = axis === 'z' ? [width, height, cased] : [cased, height, width];
+    const grilleSize: Triple = axis === 'z'
+      ? [width - 0.08, height - 0.07, grilleDepth]
+      : [grilleDepth, height - 0.07, width - 0.08];
+    const drop = -side * far * lean;
+    const grille: Triple = axis === 'z'
+      ? [centre[0], centre[1] + drop, centre[2] + side * far * Math.cos(tilt)]
+      : [centre[0] + side * far * Math.cos(tilt), centre[1] + drop, centre[2]];
+    const tone = WINDOW_UNIT_TONES[Math.floor(roll / WINDOW_UNIT.windowShare * WINDOW_UNIT_TONES.length) % WINDOW_UNIT_TONES.length];
+    add(box, p.facade, centre, size, spin, tone);
+    add(box, p.facade, grille, grilleSize, spin, WINDOW_UNIT_GRILLE);
+  };
+
   const facade = (building: StreetBuilding, width: number, depth: number, base: number, floors: number) => {
     const { x, z } = building;
     const height = floors * 2.4;
     const brownstone = isBrownstone(building);
-    const masonry = brownstone ? p.wood : p[building.skin];
+    const masonry = p.facade;
+    const tone = building.tone;
     const baySpacing = brownstone ? 1.8 : 2.2;
     const windowWidth = brownstone ? 0.79 : 0.96;
-    block(masonry, x, base + height / 2, z, width, height, depth);
+    // A lot-line wall is only exposed on the main volume, so setbacks keep their windows.
+    const party = base < 1 ? building.partyWall : null;
+    block(masonry, x, base + height / 2, z, width, height, depth, 0, tone);
     for (let floor = 0; floor < floors; floor++) {
       const principal = brownstone && floor === 0;
       const y = base + floor * 2.4 + (principal ? 1.6 : 1.25);
@@ -391,7 +533,9 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
         const flank = x + side * (width / 2 + 0.025);
         const columns = Math.max(1, Math.floor(width / baySpacing));
         const bays = Math.max(1, Math.floor(depth / baySpacing));
-        for (let column = 0; column < columns; column++) {
+        const blankFront = party?.axis === 'z' && party.side === side;
+        const blankFlank = party?.axis === 'x' && party.side === side;
+        for (let column = 0; !blankFront && column < columns; column++) {
           const wx = x + (column - (columns - 1) / 2) * (width - 1.25) / columns;
           if (principal && side > 0 && Math.abs(wx - (x - width * 0.26)) < 0.7) continue;
           block(p.glass, wx, y, front, windowWidth, windowHeight, 0.045);
@@ -405,14 +549,17 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
             }
           } else if (brownstone || side > 0 || floor === 0) {
             block(brownstone ? p.rubber : masonry, wx, y + 0.05, front + side * 0.03,
-              brownstone ? 0.79 : 0.07, brownstone ? 0.065 : windowHeight, 0.075);
+              brownstone ? 0.79 : 0.07, brownstone ? 0.065 : windowHeight, 0.075,
+              0, brownstone ? undefined : tone);
           }
+          airConditioner(building, floor, [wx, y - windowHeight / 2, front], 'z', side);
         }
-        for (let bay = 0; bay < bays; bay++) {
+        for (let bay = 0; !blankFlank && bay < bays; bay++) {
           const wz = z + (bay - (bays - 1) / 2) * (depth - 1.25) / bays;
           block(p.glass, flank, y, wz, 0.045, windowHeight, windowWidth);
           block(brownstone ? p.copperEdge : p.paving, flank + side * 0.07,
             y - windowHeight / 2 - 0.08, wz, 0.2, brownstone ? 0.16 : 0.1, windowWidth + 0.23);
+          airConditioner(building, floor, [flank, y - windowHeight / 2, wz], 'x', side);
         }
       }
       block(brownstone ? p.copperEdge : p.stone, x, base + floor * 2.4 + 0.12, z,
@@ -420,7 +567,7 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
     }
     block(brownstone ? p.copperEdge : p.paving, x, base + height + 0.03, z,
       width + (brownstone ? 0.65 : 0.45), brownstone ? 0.26 : 0.18, depth + 0.45);
-    block(masonry, x, base + height + 0.2, z, width + 0.12, 0.2, depth + 0.12);
+    block(masonry, x, base + height + 0.2, z, width + 0.12, 0.2, depth + 0.12, 0, tone);
     if (brownstone) {
       for (const offset of [-0.36, -0.12, 0.12, 0.36]) {
         block(p.copperEdge, x + width * offset, base + height - 0.22, z + depth / 2 + 0.16,
