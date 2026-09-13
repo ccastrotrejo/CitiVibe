@@ -79,6 +79,7 @@ export interface LegRig {
 
 export interface WalkerRig {
   kind: 'walker';
+  scale?: number;
   pelvis: Object3D;
   torso: Object3D;
   legs: [LegRig, LegRig];
@@ -165,7 +166,10 @@ interface WalkerPose {
 
 /** Pose an articulated pedestrian rig from its travelled distance. */
 export function poseWalkerRig(rig: WalkerRig, pose: WalkerPose): void {
-  const { distance, speed, blend, reducedMotion } = pose;
+  const { blend, reducedMotion } = pose;
+  // Solve in rig-local metres so shorter legs take shorter steps, without skating.
+  const distance = pose.distance / (rig.scale ?? 1);
+  const speed = pose.speed / (rig.scale ?? 1);
   const running = pose.running && !reducedMotion;
   const stride = running ? RUNNER.stride : strideLength(speed);
   const cyclePhase = gaitPhase(distance, stride);
@@ -176,8 +180,8 @@ export function poseWalkerRig(rig: WalkerRig, pose: WalkerPose): void {
   rig.pelvis.position.y = pelvisY;
 
   rig.torso.rotation.x = (running ? RUNNER.trunkLean : WALKER.trunkLean) * blend * (reducedMotion ? 0.4 : 1);
-  rig.torso.rotation.z = reducedMotion ? 0 : WALKER.listAmp * Math.sin(TAU * cyclePhase) * blend;
-  rig.torso.position.x = reducedMotion ? 0 : WALKER.swayAmp * Math.sin(TAU * cyclePhase) * blend;
+  rig.torso.rotation.z = reducedMotion || blend === 0 ? 0 : WALKER.listAmp * Math.sin(TAU * cyclePhase) * blend;
+  rig.torso.position.x = reducedMotion || blend === 0 ? 0 : WALKER.swayAmp * Math.sin(TAU * cyclePhase) * blend;
 
   for (let leg = 0; leg < 2; leg += 1) {
     const phase = gaitPhase(distance, stride, leg === 1 ? 0.5 : 0);

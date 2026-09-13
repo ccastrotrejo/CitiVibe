@@ -24,6 +24,8 @@ phase   = frac(distance / stride + offset)     // trailing leg offset = 0.5
 
 A duty factor of `DUTY = 0.6` splits the cycle into ~60% stance and ~40% swing, matching the measured stance/swing ratio of normal walking.
 
+For the diversified on-foot population, `WalkerRig.scale` is stature / 1.7. Divide world travel distance and speed by that scale before evaluating the local gait/IK, then let the rig root scale the result back into world space. Scaling only the visible body would make children's feet slide. Build varies laterally without changing forward stride length. The authored stature ranges and walking-purpose biases are described in [people and activity](PEOPLE_AND_ACTIVITY.md); they are not biological predictions or measured occupational walking speeds.
+
 ### No-slip stance (the core guarantee)
 
 During stance (`phase < DUTY`) the foot's forward position relative to the hips is:
@@ -63,7 +65,7 @@ The solver is exact to machine precision for reachable targets (verified to 1e-1
 
 ## Runner model
 
-The expanded park has twelve runners, separate from its eighteen walkers. They travel around the reservoir at 2.4-2.65 m/s with a 1.55 m stride, 40% stance and 60% swing. This is original miniature tuning, not measured Central Park behavior. With the legs offset by half a cycle, the shorter stance produces two short flight intervals per cycle; both feet are genuinely above the ground.
+The park has eighteen runners, separate from its 36 walkers. They travel around the reservoir at 2.4-2.65 m/s with a 1.55 m skeleton-local stride (scaled by stature), 40% stance and 60% swing. This is original miniature tuning, not measured Central Park behavior. With the legs offset by half a cycle, the shorter stance produces two short flight intervals per cycle; both feet are genuinely above the ground.
 
 Running stance uses `footZ = 0.2 * stride - phase * stride`, retaining exact straight-path ground contact. Swing uses the existing smooth forward arc with 0.22 m lift. A 0.76 m hip height keeps targets inside the same two-bone leg's reachable envelope. Bent-arm geometry, light shoes, exposed shanks, a 0.16 rad trunk lean and larger arm swing distinguish running from accelerated walking. Poses remain deterministic functions of traveled distance.
 
@@ -75,9 +77,9 @@ Runners share fixed-step timing, spacing, pause and visibility with other actors
 
 Court geometry and motion share `src/content/courts.ts`. The existing actor instance batches also submit players and balls, borrowing scene-owned resources. No extra timer, animation-frame chain or per-frame React state is created. Pause/visibility retain the sample time, reconstruction samples the current retained time, and reduced motion uses a fixed still.
 
-The corrected footprints are 14 x 7.5 m basketball at (-61, 119), with +/-5.8 m hoop offsets, and 6.7 x 3.05 m pickleball at (-61, 108.5), with 1.065 m kitchens and a 0.91 m net. Basketball rim height remains 2.5 m above the shared Y=0.04 surface. Pickleball is about 19.5% of basketball's area; these are coherent miniature proportions, not regulation court dimensions. The correction follows the historical 248-test checkpoint and requires its own motion/contact verification.
+The full-size footprints are 28.6512 x 15.24 m basketball at (-18, 113.5), with +/-12.7254 m hoop offsets, and 13.4112 x 6.096 m pickleball at (15, 113.5), with 2.1336 m kitchens and a net sagging from 0.9144 to 0.8636 m. Basketball rims are 3.048 m above the shared Y=0.04 surface. The population pass changes clothes/appearance, not court skeleton scale or contact offsets.
 
-The fixed population is 36 motor vehicles, twelve cyclists, 48 street walkers, eighteen park walkers, twelve runners and six court players: **132 people/vehicle rigs plus two balls**. Walking/running routes, court choreography and rare airplane timing remain distinct systems under the same pause/visibility clock. The 36-junction/24-block grid surrounds the car-free 78 x 176 m park in the 220 x 340 m map; the former internal bus/car circuit is not restored by weather integration.
+The active population is 36 motor vehicles, twelve cyclists, 144 street walkers, 36 park walkers, eighteen runners, six court players and eight meadow family figures: **260 rigs plus two balls**, with eight stationary picnic neighbors. Walking/running routes, court choreography, absolute-time meadow play and rare airplane timing remain distinct systems under the same pause/visibility clock. The 36-junction/24-block grid surrounds the car-free 78 x 176 m park in the 220 x 340 m map; the former internal bus/car circuit is not restored.
 
 ## Vehicle model
 

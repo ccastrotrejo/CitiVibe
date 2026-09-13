@@ -27,7 +27,7 @@ export const CITY = {
   landmark: {
     id: 'rainlight-pavilion',
     name: 'Rainlight Pavilion',
-    description: 'An open limestone pergola beside a lakeside fountain terrace. A long, tree-lined mall leads here from the south gate.',
+    description: 'An open limestone pergola beside a lakeside fountain terrace. A tree-lined mall leads from the south gate, with children playing near guardians in the neighboring meadow.',
     position: { x: 0, y: 0, z: 33.3 },
     hitRadius: 5,
     focusAnchorId: 'pavilion-view',
@@ -47,7 +47,7 @@ export const LANDMARKS: readonly Landmark[] = [
   {
     id: 'reed-garden',
     name: 'Reservoir Walk',
-    description: 'An open reservoir with dark shoreline fencing and a dedicated running loop. Joggers pass in bright shirts and running shoes.',
+    description: 'An open reservoir with dark shoreline fencing and a dedicated running loop. Varied-age joggers pass in bright sports shirts, shorts and running shoes.',
     position: { x: 0, y: 0, z: -49.5 },
     hitRadius: 12,
     focusAnchorId: 'garden-view',

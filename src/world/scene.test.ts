@@ -8,6 +8,8 @@ import { BASKETBALL_COURT, COURT_PLAYERS, PICKLEBALL_COURT } from '../content/co
 import { METRO_ENTRANCES, METRO_GEOMETRY } from '../content/metro';
 import { PARK_LAMPS, STREET_LAMPS } from '../content/lighting';
 import { PARK_ACTORS, PARK_BOUNDS, PARK_PATHS } from '../content/park';
+import { PLAY_AREA, PLAY_PEOPLE } from '../content/play';
+import type { PersonProfile } from '../content/people';
 import { STOP_LINE_OFFSET, STREET_X, STREET_Z, TRAFFIC_ACTORS } from '../content/streets';
 import { BIKE_MARKINGS, WALK_MARKINGS } from './pavement';
 import { ART_INPUTS, buildCityScene, validateArtInputs, type CityScene } from './scene';
@@ -43,16 +45,16 @@ describe('original car-free park district', () => {
     expect(world.marker.position).toEqual(new THREE.Vector3());
   });
 
-  it('has 180 traveling actors, twenty-four park walkers and twelve runner rigs', () => {
+  it('has 246 traveling actors, thirty-six park walkers and eighteen runner rigs', () => {
     const { actors, bus } = createScene();
     expect([...actors.keys()]).toEqual([
       ...PARK_ACTORS.map(({ id }) => id),
       ...TRAFFIC_ACTORS.map(({ id }) => id),
     ]);
     expect(bus).toBe(actors.get(CITY.busId));
-    expect(actors.size).toBe(180);
-    expect(PARK_ACTORS.filter(({ gait }) => gait === 'walk')).toHaveLength(24);
-    expect(PARK_ACTORS.filter(({ gait }) => gait === 'run')).toHaveLength(12);
+    expect(actors.size).toBe(246);
+    expect(PARK_ACTORS.filter(({ gait }) => gait === 'walk')).toHaveLength(36);
+    expect(PARK_ACTORS.filter(({ gait }) => gait === 'run')).toHaveLength(18);
     expect(actors.has('square-bus')).toBe(false);
     actors.forEach((actor) => {
       expect(actor.position).toEqual(new THREE.Vector3());
@@ -76,6 +78,39 @@ describe('original car-free park district', () => {
     for (const z of [95, 125.8, 132]) {
       ray.set(new THREE.Vector3(-5, 20, z), new THREE.Vector3(0, -1, 0));
       expect(ray.intersectObjects(world.hitTargets)).toHaveLength(0);
+    }
+  });
+
+  it('integrates all diverse people and keeps the meadow family envelope clear of paths and props', () => {
+    const { scene, actors } = createScene();
+    const people: PersonProfile[] = [];
+    scene.traverse((object) => {
+      if (object.userData.person) people.push(object.userData.person);
+    });
+    expect(people).toHaveLength(232);
+    expect(people.filter(({ context }) => context === 'resting')).toHaveLength(8);
+    expect(people.filter(({ context }) => context === 'play-child')).toHaveLength(6);
+    expect(people.filter(({ context }) => context === 'play-guardian')).toHaveLength(2);
+    for (const { id } of PLAY_PEOPLE) {
+      expect(scene.getObjectByName(id)).toBeDefined();
+      expect(actors.has(id)).toBe(false);
+    }
+    const area = new THREE.Box3(new THREE.Vector3(PLAY_AREA.minX, 0.3, PLAY_AREA.minZ),
+      new THREE.Vector3(PLAY_AREA.maxX, 2.3, PLAY_AREA.maxZ));
+    const nearest = new THREE.Vector3();
+    for (const path of PARK_PATHS) for (const point of path.curve.getSpacedPoints(512)) {
+      nearest.copy(point).setY(0.3).clamp(area.min, area.max);
+      expect(Math.hypot(nearest.x - point.x, nearest.z - point.z), path.id).toBeGreaterThan(path.width / 2 + 0.4);
+    }
+    const matrix = new THREE.Matrix4();
+    for (const instance of resources(scene).instances) {
+      if (!instance.castShadow) continue;
+      instance.geometry.computeBoundingBox();
+      for (let index = 0; index < instance.count; index++) {
+        instance.getMatrixAt(index, matrix);
+        const bounds = instance.geometry.boundingBox!.clone().applyMatrix4(matrix);
+        expect(bounds.intersectsBox(area), `Meadow obstruction at ${bounds.getCenter(nearest).toArray()}`).toBe(false);
+      }
     }
   });
 
@@ -383,7 +418,7 @@ describe('original car-free park district', () => {
         (object instanceof THREE.InstancedMesh ? object.count : 1);
     });
     expect(calls).toBeLessThanOrEqual(110);
-    expect(triangles).toBeLessThan(550_000);
+    expect(triangles).toBeLessThan(600_000);
     expect(resources(scene).materials.size).toBeLessThanOrEqual(36);
   });
 
