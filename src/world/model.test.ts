@@ -33,6 +33,25 @@ describe('bounded simulation clock', () => {
 });
 
 describe('single camera owner', () => {
+  it('keeps all walkers and vehicles on accumulated snow without accumulating their vertical offset', () => {
+    const model = new WorldModel(false, { weather: 'snow', rainIntensityMmH: 20 });
+    model.environment.physics.bindSurface(() => 0, () => 1);
+    model.environment.physics.surface.snowSweMm = 6;
+    for (let tick = 0; tick < 600; tick++) model.step(STEP);
+    for (const actor of model.simulation.actors) {
+      expect(actor.position.y).toBeGreaterThan(0.15);
+      expect(actor.position.y).toBeLessThan(0.2);
+    }
+    model.command({ type: 'set-rain-intensity', millimetersPerHour: 0 });
+    expect(model.snapshot().rainIntensityMmH).toBe(0);
+    model.command({ type: 'set-paused', paused: true });
+    const positions = model.simulation.actors.map(({ position }) => ({ ...position }));
+    const water = structuredClone(model.environment.physics.groundWater.states);
+    for (let tick = 0; tick < 900; tick++) model.step(STEP);
+    expect(model.simulation.actors.map(({ position }) => position)).toEqual(positions);
+    expect(model.environment.physics.groundWater.states).toEqual(water);
+  });
+
   it('orbits through every azimuth with bounded tilt and resets the full pose', () => {
     const model = new WorldModel(true);
     model.command({ type: 'focus-landmark', id: CITY.landmark.id });
@@ -164,6 +183,40 @@ describe('single camera owner', () => {
     model.command({ type: 'focus-landmark', id: CITY.landmark.id });
     model.step(STEP);
     expect(model.camera.pose.x).toBe(CITY.landmark.position.x);
+  });
+
+  it('freezes an interrupted weather blend while paused and resumes without catching up', () => {
+    const model = new WorldModel(false);
+    const reference = new WorldModel(false);
+    for (const world of [model, reference]) {
+      world.command({ type: 'set-weather', weather: 'rain' });
+      for (let tick = 0; tick < 30; tick++) world.step(STEP);
+      world.command({ type: 'set-weather', weather: 'snow' });
+    }
+    model.command({ type: 'set-paused', paused: true });
+    const held = structuredClone(model.environment.frame);
+    const physicsTime = model.environment.physics.time;
+    for (let tick = 0; tick < 1800; tick++) model.step(STEP);
+    model.resync();
+    expect(model.environment.frame).toEqual(held);
+    expect(model.environment.physics.time).toBe(physicsTime);
+    model.command({ type: 'set-paused', paused: false });
+    model.step(STEP);
+    reference.step(STEP);
+    expect(model.environment.frame).toEqual(reference.environment.frame);
+  });
+
+  it('keeps explicit paused and reduced-motion weather selections immediate without clearing snow', () => {
+    const model = new WorldModel(true, { weather: 'snow' });
+    model.environment.physics.surface.snowSweMm = 1;
+    model.command({ type: 'set-weather', weather: 'rain' });
+    expect(model.environment.frame).toMatchObject({ rain: 1, snow: 0 });
+    model.command({ type: 'set-paused', paused: false });
+    model.command({ type: 'set-weather', weather: 'sunny' });
+    expect(model.environment.frame).toMatchObject({ rain: 0, snow: 0 });
+    expect(model.environment.physics.surface.snowSweMm).toBe(1);
+    model.step(STEP);
+    expect(model.environment.frame).toMatchObject({ rain: 0, snow: 0 });
   });
 });
 

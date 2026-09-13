@@ -184,6 +184,18 @@ Use original optimized GLB assets with versioned filenames/content hashes and ma
 
 Lighting maps a normalized day phase to key/ambient light, sky/background, and selective lit-window appearance. Weather changes cloud density, fog and modest rain effects; keep weather state separate from the time mode. Fixed presets remain testable under every quality tier.
 
+The weather extension keeps `WeatherPhysics` inside the retained `EnvironmentController`. Fixed CPU pools hold 600 rain particles, 420 snow particles, and 48 recycled impact slots; only active precipitation pools advance. A bounded coherent wind field, cloud offsets, and two surface reservoirs share the fixed-step clock. `WorldModel` passes reduced-motion policy into the physics step and derives a bounded road-traction factor from retained wetness/snow before advancing vehicles. Simulation never depends on render quality or visible particle counts.
+
+`scene.ts` captures static geometry before moving actors/semantic hit volumes into a 192x192, 0.5 m `WeatherSurface` height/retention grid. The retained physics uses it plus current snow/water height for sampled 2.5D collisions; it is not an exact wall/overhang solver. `SurfaceVisual` borrows tagged standard-material shader hooks for exposure, wetness, roughness and snow coverage. One shared float texture supplies the exposure heights.
+
+`SnowVolumeVisual` adds 33 source-geometry-sharing shell batches for roofs, terrain, paving and vegetation. Its color and depth/shadow shaders displace exposed vertices using retained SWE-derived depth. Instanced shells own their copied buffers and update them only when the source version changes; tree snow therefore follows foliage instead of floating at the rest pose. It borrows source geometry and the exposure texture, owns its materials/instance buffers, and disposes before the exposure adapter and original art.
+
+`GroundWater` keeps three fixed volume/depth/radius states, fed by direct rain/melt and representative runoff. `scene.ts` cuts matching openings and authors paraboloid beds. `GroundWaterVisual` draws three shared-geometry water surfaces and at most six ripple instances. Combined conservation tests distinguish internal drainage/melt transfers from true evaporation, drainage and overflow leaving the modeled domain. These are small explicit catchments, not terrain-wide hydrology.
+
+`EnvironmentVisual` projects CPU particle pools into shared rain-line/snow-point buffers, uses six shared cloud meshes, and draws bounded impact/ripple instances. Lightweight caps rain/snow/impacts/garden rings at 160/120/16/4, versus 600/420/48/12 at High; it does not change physical input. Rain count scales with `sqrt(intensity/30)` inside those caps, while the controller's independent 0-30 mm/h forcing drives water volume. `FoliageWind` bends the tagged instance batches from their immutable rest matrices rather than accumulating transforms. Repeated draws without a simulation revision do not upload particle/foliage buffers again.
+
+GPU restoration rebinds the rebuilt surface sampler without reseeding precipitation or resetting reservoirs. Effect disposal restores borrowed lights, material hooks and foliage before disposing owned geometries, textures, materials and instance buffers. The renderer's separate environment elapsed timer has been removed; all progression now lives in retained CPU state. The mathematical basis and deliberate simplifications are in [weather physics research](WEATHER_PHYSICS_RESEARCH.md).
+
 Audio is owned by one graph with a master gain. Require an explicit user gesture before audible output; saved preferences do not authorize autoplay. Suspend/fade on pause/hidden/context loss and close/disconnect on dispose. Use original synthesis initially or clearly licensed audio if needed; Web Audio usage in the source does not prove its whole sound design was synthesized.
 
 Quality controls DPR, render cadence, shadows, particle budgets, and population/detail tiers. Proposed initial ceilings: High DPR 1.75, Automatic no higher than 1.5 until profiled, Lightweight 1.0 and a 30 FPS render target. Do not couple simulation speed to frame rate.
@@ -197,6 +209,8 @@ Store a small versioned preferences object in localStorage: time/weather modes, 
 Parse as unknown, validate an allowlisted schema, and bound numeric values. Migrate known versions or reset invalid preferences with a visible nonblocking notice. If storage is unavailable/quota-limited, continue in memory and explain that settings will not be saved. A new visit always requires explicit audio enable, regardless of saved mute preference. Session camera pose, user pause, and tour progress need not persist across reloads.
 
 Input routing checks overlay ownership before world hit testing. Use one command path for pointer, buttons, and keyboard. Scope shortcuts to the named scene navigation region, ignore composing/editable targets, clear key state on blur, and keep reduced-motion and modal policies centralized.
+
+Settings has one standalone lower-left trigger inside the scene, with a non-modal dock stacked above it, internal scrolling and no backdrop. Opening sends `stop-camera` once, not `open-panel`; only Help uses the world's modal `open-panel`/`close-panel` commands. Settings owns focus entry and Escape within its boundary, without containing Tab or disabling city controls. Landmark cycling and concise selection status live in the bottom toolbar, including the unsupported-WebGL fallback.
 
 ## Test seams
 

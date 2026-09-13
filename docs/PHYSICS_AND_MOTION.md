@@ -63,6 +63,8 @@ The solver is exact to machine precision for reachable targets (verified to 1e-1
 
 ## Vehicle model
 
+The weather extension scales route vehicle acceleration/braking by a bounded traction factor and cruising speed by its square root, preserving the existing stopping-distance and signal-clearance logic. Dry behavior is unchanged. This is cautious route following, not a tire contact, skid or collision-damage simulator. The surface/wind/precipitation models and source-verified research are documented in [Weather physics research](WEATHER_PHYSICS_RESEARCH.md).
+
 - **Wheel roll** `spin.rotation.x = distance / wheelRadius` — frame-rate independent, monotonic, and zero when stopped (asserted in tests).
 - **Front-wheel steer** `steer.rotation.y = clamp(steerGain · yawRate, ±maxSteer)`, front wheels only.
 - **Pitch** (dive/squat) low-pass of `−pitchGain · acceleration`, capped `±maxPitch`.

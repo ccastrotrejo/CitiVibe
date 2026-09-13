@@ -7,10 +7,11 @@ interface UseCityAudioOptions {
   paused: boolean;
   live: boolean;
   weather: Weather;
+  rainIntensityMmH: number;
   volume: number;
 }
 
-export function useCityAudio({ paused, live, weather, volume }: UseCityAudioOptions) {
+export function useCityAudio({ paused, live, weather, rainIntensityMmH, volume }: UseCityAudioOptions) {
   const [status, setStatus] = useState<AudioStatus>({ state: 'off', message: 'Sound off. Enable sound to listen.' });
   const audio = useRef<CityAudio | null>(null);
 
@@ -21,6 +22,10 @@ export function useCityAudio({ paused, live, weather, volume }: UseCityAudioOpti
   useEffect(() => {
     audio.current?.setRunning(live && !paused);
   }, [live, paused]);
+
+  useEffect(() => {
+    audio.current?.setRainIntensity(rainIntensityMmH);
+  }, [rainIntensityMmH]);
 
   useEffect(() => {
     audio.current?.setWeather(weather);

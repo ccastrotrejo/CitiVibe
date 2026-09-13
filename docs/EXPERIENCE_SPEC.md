@@ -2,7 +2,7 @@
 
 **This document is the LivingCity behavior contract**, not recovered source algorithms. The current checkpoint implements core navigation/orbit, focus, tours/guided views, pause, reduced motion, help/settings, fullscreen/expanded view, visibility, and an honest loading/error still. Camera-follow features and the drone were explicitly removed by the user on 2026-09-12. The environment (weather/time/quality), ambient audio, and occasional airplane modules are now integrated into the live runtime, and the world was enlarged around the tuned core. The app is always full-live: the earlier user-facing "static view" opt-out was removed, though the original still remains as a loading and WebGL-failure backdrop with landmark navigation. Remaining unfinished work: complete M4 tours/preferences, the NYC-inspired visual pass, and final M6/M7 accessibility and performance sign-off. [Product scope](PRODUCT_BRIEF.md) takes precedence; the [reference analysis](REFERENCE_ANALYSIS.md) records what was actually observed.
 
-For the current live slice, Afternoon/Sunny and sound-off are explicit fixed status, not nonfunctional controls. Versioned motion and guide preferences are persisted locally with visible storage-error notices; saved audio consent never enables sound. Native modal help/settings interrupt camera movement without restarting it on close. The fallback uses original landmark markers and concise descriptions, not a catalog.
+Afternoon/Sunny and sound-off are first-visit defaults, with live weather/time and optional sound controls. Versioned preferences are persisted locally with visible storage-error notices; saved audio consent never enables sound. Help remains modal; Settings is a compact non-modal dock. Both interrupt existing camera automation on opening without restarting it on close. The fallback uses original landmark markers and concise descriptions, not a catalog.
 
 **Platform scope:** the latest user direction prioritizes desktop/laptop computers and excludes mobile edge-case work. Mouse/trackpad and keyboard are the supported verification priority. Touch and mobile-sheet guidance below is retained as future reference, not a current implementation gate.
 
@@ -12,7 +12,7 @@ Show an original lightweight still with a readable loading state while the rende
 
 First-visit defaults: overview camera, fixed Afternoon, Sunny, natural weather off, Automatic quality, sound muted. World motion starts normally unless reduced motion is requested; in that case start paused. A compact dismissible guide explains pan, zoom, rotate, focus, and pause. It must not cover the majority of the mobile scene or resemble a marketing hero.
 
-Keep pause, camera navigation, and an entry to settings/help discoverable. Less frequent controls may live in a popover or mobile sheet. The world remains the dominant surface. No directory, advertising panel, commercial CTA, or engagement/presence counter.
+Keep pause, camera navigation, and an entry to settings/help discoverable. Settings has its own lower-left button inside the city, removed from the bottom-right Pause/Tour/Fullscreen row. Its compact, internally scrolling dock opens above that button in the former "Around the square" position, without a dimming backdrop. Landmark Previous/Next, selection description, and Clear selection belong in the bottom control strip instead. The world remains the dominant surface. No directory, advertising panel, commercial CTA, or engagement/presence counter.
 
 ## State boundaries
 
@@ -59,9 +59,11 @@ Starting tour with a selected landmark uses a slow bounded orbit of that landmar
 
 Starting new automation or resuming camera intent canceled by modal interaction requires an explicit action. Temporary user pause, hidden-page suspension, and context loss follow the preservation/resume rules below; they do not require starting a new tour.
 
-### Modal and input interruption
+### Modal and dock input interruption
 
-Opening settings/help suspends camera automation and disables scene input while the panel is modal; world actors continue unless separately paused. Closing the panel leaves the camera stationary in `free` mode. A future Resume tour action starts from the current pose and revalidates its anchor. There is no unsolicited camera movement after dismissing UI.
+Opening Help suspends camera automation and disables scene input while its native dialog is modal; world actors continue unless separately paused. Closing Help leaves the camera stationary in `free` mode. Opening Settings stops the current camera automation once, but does not hold the world in a modal state. Pointer, keyboard, camera buttons, landmark navigation, and Pause remain available outside the dock. Closing Settings does not restart automation or cancel a subsequent explicit city action.
+
+The Settings trigger reports expansion and its controlled panel. Opening focuses Close settings. Tab is not trapped; Escape from within the dock closes it and returns focus to the trigger. Escape while navigating the city follows the city's ordinary selection/tour/fullscreen contract, not an unrelated dock-close shortcut. Scrolling or editing within the dock must not reach scene navigation. Help keeps modal containment and focus return.
 
 Selecting a new mode or using manual navigation discards that resumable camera intent. User pause, page hiding, and context loss instead retain valid camera intent for the resume rules below. A modal-open event must not overwrite an existing user pause.
 
@@ -96,7 +98,8 @@ Context loss uses the same suspension rules. Restoration must rebuild GPU resour
 
 | Control | Proposed behavior |
 | --- | --- |
-| Weather | Sunny, Cloudy, Rain, Mist. User selection is explicit; transitions are subdued, with immediate static changes under reduced motion or pause. Never show a temperature as live local weather. |
+| Weather | Sunny, Cloudy, Rain, Mist, Snow, Windy. User selection is explicit and disables natural changes, including the saved preference. Transitions are subdued, with immediate static changes under reduced motion or pause. Never show simulated temperature as live local weather. |
+| Rain intensity | 0-30 mm/h, default 8, stored locally. Visible for Rain or natural weather. Changes water input, bounded visible rain density/opacity, impacts, ground-pool filling, and consent-gated rain sound. Zero stops falling rain without deleting stored snow/water or changing the selected cloud/time setting. |
 | Natural weather | Off initially. Seeded changes every 3-6 simulated minutes, crossfading over about 20 simulated seconds. Manual preset selection turns natural changes off; the viewer can re-enable them. |
 | Time | Afternoon, Night, Local clock, Day/night cycle. Proposed accelerated cycle: 12 simulated minutes for 24 hours, with continuous light interpolation. |
 | Sound | Initially muted on every page load, even if a volume/mute preference was saved. Require a fresh intentional enable action to create/resume audible audio. Give a master volume and mute control; sound is never essential feedback. |
@@ -105,6 +108,22 @@ Context loss uses the same suspension rules. Restoration must rebuild GPU resour
 | Fullscreen | Use the standard API where available and permitted. Reflect actual `fullscreenchange`, handle rejection visibly, and offer a clearly labeled in-page expanded view if unsupported. Never claim browser fullscreen succeeded when it did not. |
 
 Audio should be low-level ambience, not a notification channel. Use original synthesis or licensed recordings. Stop scheduling hidden/paused audio; dispose nodes on teardown. Quality measurement is local and ephemeral, not transmitted analytics.
+
+### Weather physics extension
+
+Rain falls at diameter-dependent terminal speeds; snow settles more slowly with small flutter. Both respond to the same coherent synthetic wind that moves clouds and bends foliage. A static half-meter top-envelope of the original geometry stops precipitation at ground/canopy/roof height, rather than drawing it through roofs. Rain impacts and small garden-water ripples are bounded cosmetic effects.
+
+Exposed roofs, streets, ground and tree canopies gradually gain actual snow-shell depth as well as coverage. Snow shells follow canopy movement and have matching displaced shadows; roads carry a thinner layer. Depth derives from SWE with a declared fresh-snow density, 2x visual exaggeration, and a 0.45 m maximum. Route actors stay on nearby ground snow rather than being buried or lifted onto a canopy, and selection rings remain visible.
+
+Water-equivalent bookkeeping tracks accumulation, positive-temperature melt, surface water, drainage, evaporation, and overflow. Three original shallow ground depressions collect direct precipitation/melt and runoff from bounded contributing areas. Water rises from the bed and spreads as the volume increases; these are not surface decals. Wet surfaces darken and become less rough. Selecting Sunny does not instantly erase snow, empty the pools or dry the streets. Surface processes use an explicitly artistic 60x physical-time scale; particle motion and traffic retain the normal simulation clock. Internal temperature and humidity are preset parameters, not a weather measurement.
+
+Vehicles reduce their speed and acceleration/braking budget as retained wetness/snow lowers grip, keeping the existing signal, clearance, stop and spacing rules. Walkers are not forced to slide or fall, and there are no crashes, road closures, flooding or destructive weather. Windy is a stronger breeze, not a severe-storm simulation.
+
+Pause/hidden/context loss freeze every weather timer, particle, impact, and reservoir. Explicit preset changes while paused alter atmospheric appearance once but do not advance accumulation or melt. Reduced motion keeps stationary precipitation cues and disables foliage sway, cloud travel, splashes and ripples, including if conservative actor movement is resumed. CPU weather state survives renderer restoration/retry; only preferences survive page reloads. A once-per-simulated-second status publication updates natural-weather/time labels and audio without per-frame React state.
+
+While running, manual weather changes ease through roughly eight simulation seconds to reach 99% of the new conditions; natural changes take roughly thirty. Sky, fog, clouds, light, precipitation and wind share the same continuous blend. Selecting another preset preserves the current mix and its rate of change rather than restarting an easing curve. Pausing holds that progress; explicit paused/reduced-motion selections still apply immediately. Saved startup weather has no entrance animation, and existing snow/water is never cleared by a transition.
+
+See [weather physics research](WEATHER_PHYSICS_RESEARCH.md) for equations, source evidence, tunings, and approximations.
 
 ## Pointer, touch, keyboard, and focus
 
@@ -130,7 +149,7 @@ Proposed shortcuts apply **only while the scene navigation region has focus**, n
 
 Every shortcut has a visible, keyboard-operable control equivalent. Tab moves through semantic controls; the canvas navigation region is a named focus stop, not hundreds of individual actors in the tab order. Previous/Next landmark controls cycle a finite manifest, announce the current original landmark, and wrap predictably. This is world navigation, not a searchable catalog.
 
-Escape resolves one applicable layer: close an open modal and return focus to its trigger; otherwise allow the browser to exit fullscreen without also clearing selection; otherwise Stop a future tour; otherwise clear selection. Do not steal Escape from native controls. Use actual fullscreen events to prevent a single Escape from firing multiple actions.
+Escape resolves one applicable layer: close an open modal (or Settings when focus is inside that dock) and return focus to its trigger; otherwise allow the browser to exit fullscreen without also clearing selection; otherwise Stop a future tour; otherwise clear selection. Do not steal Escape from native controls. Use actual fullscreen events to prevent a single Escape from firing multiple actions.
 
 Dialogs/sheets have an accessible name, bounded scrollable content, initial focus, focus containment where modal, and focus return. Hidden panels are not tabbable. Important status changes use a restrained polite live region; do not announce per-frame positions, every actor, or a ticking clock.
 

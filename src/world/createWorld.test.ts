@@ -17,6 +17,7 @@ vi.mock('three', async (importOriginal) => {
     ...original,
     WebGLRenderer: class {
       shadowMap = { enabled: false };
+      debug = { onShaderError: null };
       setPixelRatio = vi.fn();
       setSize = vi.fn();
       render = gpu.render;
@@ -130,6 +131,54 @@ describe('runtime ownership and suspension', () => {
     expect(model.camera.pose).toEqual(pose);
     expect(model.paused).toBe(true);
     expect(frames.size).toBe(0);
+    world.dispose();
+  });
+
+  it('retains weather mass and particles through pause, hidden time, restore and a renderer retry', () => {
+    const model = new WorldModel(false, { weather: 'snow' });
+    const { canvas, world } = mount(model);
+    tick(0);
+    for (let step = 1; step <= 90; step++) tick(step * 1000 / 30);
+    world.command({ type: 'set-paused', paused: true });
+    const physics = model.environment.physics;
+    const particles = physics.snow.positions.slice();
+    const surface = { ...physics.surface };
+    const time = physics.time;
+    expect(surface.snowSweMm).toBeGreaterThan(0);
+    hidden = true;
+    document.dispatchEvent(new Event('visibilitychange'));
+    tick(300000);
+    hidden = false;
+    document.dispatchEvent(new Event('visibilitychange'));
+    canvas.dispatchEvent(new Event('webglcontextlost', { cancelable: true }));
+    canvas.dispatchEvent(new Event('webglcontextrestored'));
+    expect(physics.surface).toEqual(surface);
+    expect(physics.snow.positions).toEqual(particles);
+    expect(physics.time).toBe(time);
+    world.command({ type: 'set-weather', weather: 'sunny' });
+    expect(physics.surface).toEqual(surface);
+    world.dispose();
+    const retry = mount(model);
+    expect(physics.snow.positions).toEqual(particles);
+    expect(physics.surface).toEqual(surface);
+    retry.world.command({ type: 'set-paused', paused: false });
+    tick(600000);
+    expect(physics.time).toBe(time);
+    tick(600034);
+    expect(physics.time).toBeCloseTo(time + 1 / 30);
+    expect(physics.surface.snowSweMm).toBeLessThan(surface.snowSweMm);
+    retry.world.dispose();
+  });
+
+  it('publishes environment status at most once per simulated second without an active camera', () => {
+    const canvas = document.createElement('canvas');
+    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 1000, 600));
+    const onChange = vi.fn();
+    const world = createWorld({ canvas, model: new WorldModel(false), onChange, onLifecycle: vi.fn() });
+    tick(0);
+    for (let frame = 1; frame <= 180; frame++) tick(frame * 1000 / 60);
+    expect(onChange.mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(onChange.mock.calls.length).toBeLessThanOrEqual(3);
     world.dispose();
   });
 
