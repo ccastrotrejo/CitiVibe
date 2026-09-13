@@ -26,8 +26,8 @@ export class CameraController {
   }
 
   private bound(): void {
-    this.pose.x = clamp(this.pose.x, -CITY.bounds, CITY.bounds);
-    this.pose.z = clamp(this.pose.z, -CITY.bounds, CITY.bounds);
+    this.pose.x = clamp(this.pose.x, -CITY.bounds.x, CITY.bounds.x);
+    this.pose.z = clamp(this.pose.z, -CITY.bounds.z, CITY.bounds.z);
     this.pose.zoom = clamp(this.pose.zoom, 0.65, CAMERA_PROJECTION.maxZoom);
     this.pose.pitch = clamp(this.pose.pitch, CAMERA_PROJECTION.minPitch, CAMERA_PROJECTION.maxPitch);
     this.pose.yaw = Math.atan2(Math.sin(this.pose.yaw), Math.cos(this.pose.yaw));

@@ -1,8 +1,10 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
+import { PARK_BOUNDS } from '../content/park';
 import {
-  BIKE_OFFSET, CITY_EXTENT, INTERSECTION_GATE, INTERSECTIONS, ROAD_HALF_WIDTH,
+  BIKE_OFFSET, bikeLaneOffset, CITY_EXTENT, INTERSECTION_GATE, INTERSECTIONS, ROAD_HALF_WIDTH,
   SIDEWALK_HALF_WIDTH, SIDEWALK_OFFSET, STOP_LINE_OFFSET, STREET_BLOCKS, STREET_X, STREET_Z, TRAFFIC_ACTORS, VEHICLE_OFFSET,
+  TWO_WAY_BIKE_TRACK,
 } from '../content/streets';
 import { ActorSimulation, type ActorState } from './actors';
 import {
@@ -11,6 +13,14 @@ import {
 } from './traffic';
 
 const DT = TRAFFIC.maxStep;
+const SOAK_SECONDS = 1200;
+const MOTOR_COUNT = TRAFFIC_ACTORS.filter(({ kind }) => kind === 'car' || kind === 'bus').length;
+const CYCLIST_COUNT = TRAFFIC_ACTORS.filter(({ kind }) => kind === 'cyclist').length;
+const MOTION_COUNT = MOTOR_COUNT + CYCLIST_COUNT;
+const PAIRED_TRACKS = [
+  { z: -95, side: 1, east: 4.45, west: 3.45 },
+  { z: 95, side: -1, east: -3.45, west: -4.45 },
+];
 
 function travel(from: number, to: number, length: number): number {
   return (to - from + length) % length;
@@ -21,15 +31,22 @@ function angleDifference(first: number, second: number): number {
 }
 
 function actorRoute(index: number): TrafficRoute {
-  if (index < 24) return TRAFFIC_ROUTES[index % 6];
-  if (index < 36) return TRAFFIC_ROUTES[6 + (index - 24) % 6];
-  return SIDEWALK_ROUTES[Math.floor((index - 36) / 3)];
+  if (index < MOTOR_COUNT) return TRAFFIC_ROUTES[index % 6];
+  if (index < MOTION_COUNT) return TRAFFIC_ROUTES[6 + (index - MOTOR_COUNT) % 6];
+  return SIDEWALK_ROUTES[(index - MOTION_COUNT) % SIDEWALK_ROUTES.length];
 }
 
 function actorSegment(actor: ActorState, route: TrafficRoute): TrafficSegment {
   let index = 0;
   while (index < route.segments.length - 1 && actor.distance >= route.segments[index + 1].start) index += 1;
   return route.segments[index];
+}
+
+function minimumRadius(segment: TrafficSegment): number {
+  if (segment.turn === 0) return Infinity;
+  const curve = segment.ellipse;
+  return curve ? Math.min(curve.incomingRadius, curve.outgoingRadius) ** 2 /
+    Math.max(curve.incomingRadius, curve.outgoingRadius) : segment.radius;
 }
 
 function halfLength(index: number): number {
@@ -81,23 +98,23 @@ describe('shared connected street graph', () => {
     });
   });
 
-  it('fixes the streets, protected lanes, eight peripheral blocks, and bounded manifest', () => {
-    expect(STREET_X).toEqual([-60, -30, 30, 60]);
-    expect(STREET_Z).toEqual([-54, -26, 26, 54]);
+  it('fixes the streets, protected lanes, peripheral blocks, and bounded manifest', () => {
+    expect(STREET_X).toEqual([-102, -76, -46, 46, 76, 102]);
+    expect(STREET_Z).toEqual([-162, -132, -95, 95, 132, 162]);
     expect(ROAD_HALF_WIDTH).toBe(5);
     expect(SIDEWALK_HALF_WIDTH).toBe(7);
     expect(BIKE_OFFSET).toBe(4);
-    expect(CITY_EXTENT).toEqual({ x: 68, z: 62 });
-    expect(INTERSECTIONS).toHaveLength(16);
-    expect(new Set(INTERSECTIONS.map(({ id }) => id)).size).toBe(16);
-    expect(STREET_BLOCKS).toHaveLength(8);
-    expect(STREET_BLOCKS.some(({ id }) => id === 'block-1-1')).toBe(false);
-    expect(TRAFFIC_ACTORS).toHaveLength(60);
-    expect(TRAFFIC_ACTORS.filter(({ kind }) => kind === 'car')).toHaveLength(20);
-    expect(TRAFFIC_ACTORS.filter(({ kind }) => kind === 'bus')).toHaveLength(4);
+    expect(CITY_EXTENT).toEqual({ x: 110, z: 170 });
+    expect(INTERSECTIONS).toHaveLength(36);
+    expect(new Set(INTERSECTIONS.map(({ id }) => id)).size).toBe(36);
+    expect(STREET_BLOCKS).toHaveLength(24);
+    expect(STREET_BLOCKS.some(({ id }) => id === 'block-2-2')).toBe(false);
+    expect(TRAFFIC_ACTORS).toHaveLength(96);
+    expect(TRAFFIC_ACTORS.filter(({ kind }) => kind === 'car')).toHaveLength(30);
+    expect(TRAFFIC_ACTORS.filter(({ kind }) => kind === 'bus')).toHaveLength(6);
     expect(TRAFFIC_ACTORS.filter(({ kind }) => kind === 'cyclist')).toHaveLength(12);
-    expect(TRAFFIC_ACTORS.filter(({ kind }) => kind === 'pedestrian')).toHaveLength(24);
-    expect(new Set(TRAFFIC_ACTORS.map(({ id }) => id)).size).toBe(60);
+    expect(TRAFFIC_ACTORS.filter(({ kind }) => kind === 'pedestrian')).toHaveLength(48);
+    expect(new Set(TRAFFIC_ACTORS.map(({ id }) => id)).size).toBe(96);
     expect(new Set(TRAFFIC_ACTORS.map(({ vehicleType }) => vehicleType).filter(Boolean)))
       .toEqual(new Set(['sedan', 'taxi', 'van', 'truck', 'bus', 'bicycle']));
   });
@@ -112,6 +129,10 @@ describe('shared connected street graph', () => {
         if (segment.kind !== 'link') continue;
         lanes.set(segment.lane, (lanes.get(segment.lane) ?? 0) + 1);
         const [from, to] = segment.lane.split(':')[0].split('>').map(Number);
+        const adjacentColumn = Math.floor(from / STREET_X.length) === Math.floor(to / STREET_X.length) && Math.abs(from - to) === 1;
+        const adjacentRow = from % STREET_X.length === to % STREET_X.length && Math.abs(from - to) === STREET_X.length;
+        expect(adjacentColumn || adjacentRow, `${route.id}: ${segment.lane} must join neighboring intersections`).toBe(true);
+        expect(Math.abs(segment.dx) + Math.abs(segment.dz)).toBe(1);
         if (!connections.has(from)) connections.set(from, new Set());
         connections.get(from)!.add(to);
       }
@@ -123,7 +144,7 @@ describe('shared connected street graph', () => {
       visited.add(node);
       queue.push(...connections.get(node)!);
     }
-    expect(visited.size).toBe(16);
+    expect(visited.size).toBe(INTERSECTIONS.length);
     expect([...lanes.values()].some((count) => count > 1)).toBe(true);
     expect(lanes.size).toBeGreaterThanOrEqual(40);
   });
@@ -133,12 +154,15 @@ describe('shared connected street graph', () => {
     const after = { position: { x: 0, y: 0, z: 0 }, heading: 0 };
     const epsilon = 0.00001;
     for (const route of [...TRAFFIC_ROUTES, ...SIDEWALK_ROUTES]) {
-      for (const segment of route.segments) {
+      for (let index = 0; index < route.segments.length; index += 1) {
+        const segment = route.segments[index];
+        const previous = route.segments[(index + route.segments.length - 1) % route.segments.length];
         sampleTrafficRoute(route, segment.start - epsilon, before);
         sampleTrafficRoute(route, segment.start + epsilon, after);
         expect(Math.hypot(after.position.x - before.position.x, after.position.z - before.position.z), route.id)
           .toBeLessThanOrEqual(epsilon * 2 + 1e-9);
-        expect(angleDifference(before.heading, after.heading), route.id).toBeLessThanOrEqual(epsilon * 2 + 1e-9);
+        const curvature = 1 / minimumRadius(previous) + 1 / minimumRadius(segment);
+        expect(angleDifference(before.heading, after.heading), route.id).toBeLessThanOrEqual(epsilon * curvature + 1e-9);
       }
     }
   });
@@ -162,18 +186,148 @@ describe('shared connected street graph', () => {
       }
     }
     for (const route of TRAFFIC_ROUTES) {
-      const offset = route.id.startsWith('cycle') ? BIKE_OFFSET : VEHICLE_OFFSET;
       for (const segment of route.segments) {
         if (segment.kind !== 'link') continue;
         const center = INTERSECTIONS[segment.intersection];
+        const offset = route.id.startsWith('cycle') ?
+          bikeLaneOffset(segment.axis, segment.dx === 0 ? center.x : center.z, segment.dx || segment.dz) : VEHICLE_OFFSET;
         const signedOffset = (segment.x - center.x) * -segment.dz + (segment.z - center.z) * segment.dx;
         expect(signedOffset).toBeCloseTo(offset, 7);
+      }
+    }
+  });
+
+  it('preserves motor-lane identity, circular turns, and unmodified speed policy', () => {
+    const pose = { position: { x: 0, y: 0, z: 0 }, heading: 0 };
+    for (const route of TRAFFIC_ROUTES.slice(0, 6)) {
+      for (const segment of route.segments) {
+        expect(segment.ellipse).toBeUndefined();
+        expect(segment.speedLimit).toBeUndefined();
+        if (segment.kind === 'link') expect(segment.lane.endsWith(`:${VEHICLE_OFFSET}`)).toBe(true);
+        if (segment.turn === 0) continue;
+        expect(segment.radius).toBe(INTERSECTION_GATE - segment.turn * VEHICLE_OFFSET);
+        expect(segment.length).toBe(Math.PI / 2 * segment.radius);
+        for (const fraction of [0, 0.25, 0.5, 0.75]) {
+          sampleTrafficRoute(route, segment.start + fraction * segment.length, pose);
+          const angle = segment.turn * fraction * Math.PI / 2;
+          const x = segment.x - segment.centerX;
+          const z = segment.z - segment.centerZ;
+          expect(pose.position.x).toBeCloseTo(segment.centerX + x * Math.cos(angle) - z * Math.sin(angle), 9);
+          expect(pose.position.z).toBeCloseTo(segment.centerZ + x * Math.sin(angle) + z * Math.cos(angle), 9);
+        }
+      }
+    }
+  });
+
+  it('places both cycling directions in their exact park-side half-track, not opposing roadside lanes', () => {
+    const pose = { position: { x: 0, y: 0, z: 0 }, heading: 0 };
+    for (const track of PAIRED_TRACKS) {
+      const directions = new Set<number>();
+      for (const route of TRAFFIC_ROUTES.slice(6)) {
+        for (const segment of route.segments) {
+          if (segment.kind !== 'link' || segment.dx === 0 || INTERSECTIONS[segment.intersection].z !== track.z) continue;
+          directions.add(segment.dx);
+          for (const fraction of [0, 0.25, 0.5, 0.75, 0.999]) {
+            sampleTrafficRoute(route, segment.start + segment.length * fraction, pose);
+            expect(pose.position.z).toBeCloseTo(track.z + (segment.dx === 1 ? track.east : track.west), 9);
+            expect(Math.sin(pose.heading)).toBeCloseTo(segment.dx, 9);
+            expect(Math.cos(pose.heading)).toBeCloseTo(0, 9);
+            const parkSide = (pose.position.z - track.z) * track.side;
+            const divider = TWO_WAY_BIKE_TRACK.offset;
+            expect(parkSide - 0.4).toBeGreaterThan(divider - TWO_WAY_BIKE_TRACK.width / 2);
+            expect(parkSide + 0.4).toBeLessThan(divider + TWO_WAY_BIKE_TRACK.width / 2);
+            expect(Math.abs(parkSide - divider) - 0.4).toBeGreaterThan(0);
+          }
+        }
+      }
+      expect(directions).toEqual(new Set([-1, 1]));
+    }
+  });
+
+  it('samples unequal turn offsets at unit ground speed with tangent-aligned headings', () => {
+    const before = { position: { x: 0, y: 0, z: 0 }, heading: 0 };
+    const pose = { position: { x: 0, y: 0, z: 0 }, heading: 0 };
+    const after = { position: { x: 0, y: 0, z: 0 }, heading: 0 };
+    let ellipses = 0;
+    for (const route of TRAFFIC_ROUTES.slice(6)) {
+      for (const segment of route.segments) {
+        if (!segment.ellipse) continue;
+        ellipses += 1;
+        expect(segment.speedLimit).toBeCloseTo(minimumRadius(segment) * TRAFFIC.maxBicycleTurnRate, 9);
+        for (let index = 1; index < 128; index += 1) {
+          const distance = segment.start + index * segment.length / 128;
+          const delta = 0.0001;
+          sampleTrafficRoute(route, distance - delta, before);
+          sampleTrafficRoute(route, distance, pose);
+          sampleTrafficRoute(route, distance + delta, after);
+          const dx = after.position.x - before.position.x;
+          const dz = after.position.z - before.position.z;
+          expect(Math.hypot(dx, dz) / (2 * delta)).toBeCloseTo(1, 6);
+          expect(angleDifference(Math.atan2(dx, dz), pose.heading)).toBeLessThan(1e-6);
+        }
+      }
+    }
+    expect(ellipses).toBeGreaterThan(0);
+  });
+
+  it('keeps complete bicycle turn footprints off all four sidewalk corners', () => {
+    const pose = { position: { x: 0, y: 0, z: 0 }, heading: 0 };
+    for (const route of TRAFFIC_ROUTES.slice(6)) {
+      for (const segment of route.segments) {
+        if (segment.kind !== 'junction' || segment.turn === 0) continue;
+        const center = INTERSECTIONS[segment.intersection];
+        for (let step = 0; step <= 128; step += 1) {
+          sampleTrafficRoute(route, segment.start + segment.length * step / 128, pose);
+          for (const x of [-10, 10]) {
+            for (const z of [-10, 10]) {
+              expect(overlap(pose.position.x, pose.position.z, pose.heading, 1, 0.4,
+                center.x + x, center.z + z, 0, 5, 5), `${route.id} at ${center.id}, sample ${step}`).toBe(false);
+            }
+          }
+        }
+      }
+    }
+  });
+
+  it('excludes complete vehicle and cyclist footprints from the park along every route', () => {
+    const pose = { position: { x: 0, y: 0, z: 0 }, heading: 0 };
+    for (let index = 0; index < MOTION_COUNT; index += 1) {
+      const route = actorRoute(index);
+      for (let distance = 0; distance < route.length; distance += 0.25) {
+        sampleTrafficRoute(route, distance, pose);
+        expect(overlap(pose.position.x, pose.position.z, pose.heading, halfLength(index), halfWidth(index),
+          0, 0, 0, PARK_BOUNDS.z, PARK_BOUNDS.x), `${TRAFFIC_ACTORS[index].id} at ${distance}`).toBe(false);
       }
     }
   });
 });
 
 describe('CityTraffic', () => {
+  it('places two spaced walkers on each peripheral sidewalk outside the central park', () => {
+    const traffic = new CityTraffic();
+    const occupied = new Map<string, number>();
+    for (const actor of traffic.actors) {
+      if (actor.kind !== 'pedestrian') continue;
+      const block = STREET_BLOCKS.find(({ minX, maxX, minZ, maxZ }) =>
+        actor.position.x >= minX + SIDEWALK_OFFSET - 1e-7 && actor.position.x <= maxX - SIDEWALK_OFFSET + 1e-7 &&
+        actor.position.z >= minZ + SIDEWALK_OFFSET - 1e-7 && actor.position.z <= maxZ - SIDEWALK_OFFSET + 1e-7);
+      expect(block, actor.id).toBeDefined();
+      occupied.set(block!.id, (occupied.get(block!.id) ?? 0) + 1);
+    }
+    expect(occupied.size).toBe(STREET_BLOCKS.length);
+    for (const count of occupied.values()) expect(count).toBe(2);
+    for (let first = MOTION_COUNT; first < traffic.actors.length; first += 1) {
+      for (let second = first + 1; second < traffic.actors.length; second += 1) {
+        if (actorRoute(first) !== actorRoute(second)) continue;
+        const a = traffic.actors[first];
+        const b = traffic.actors[second];
+        const gap = Math.min(travel(a.distance, b.distance, a.routeLength), travel(b.distance, a.distance, a.routeLength));
+        expect(gap).toBeGreaterThanOrEqual(a.routeLength / 2 - 1);
+        expect(Math.hypot(a.position.x - b.position.x, a.position.z - b.position.z)).toBeGreaterThan(1.2);
+      }
+    }
+  });
+
   it('retains actors, position objects, and authoritative signal states through integration', () => {
     const simulation = new ActorSimulation();
     const traffic = simulation.traffic;
@@ -183,7 +337,7 @@ describe('CityTraffic', () => {
     const heads = [...signals];
     expect(traffic.actors.map(({ id }) => id)).toEqual(TRAFFIC_ACTORS.map(({ id }) => id));
     expect(signals.map(({ id }) => id)).toEqual(INTERSECTIONS.map(({ id }) => id));
-    expect(simulation.actors.slice(8)).toEqual(actors);
+    expect(simulation.actors.filter(({ id }) => id.startsWith('city-'))).toEqual(actors);
     expect(Object.isFrozen(traffic.actors)).toBe(true);
     expect(Object.isFrozen(signals)).toBe(true);
     for (let tick = 0; tick < 300; tick += 1) simulation.step(DT);
@@ -249,7 +403,7 @@ describe('CityTraffic', () => {
     for (let seed = 0; seed < 128; seed += 1) {
       const traffic = new CityTraffic(seed * 7919);
       const occupied = new Set<string>();
-      for (let index = 0; index < 36; index += 1) {
+      for (let index = 0; index < MOTION_COUNT; index += 1) {
         const actor = traffic.actors[index];
         const segment = actorSegment(actor, actorRoute(index));
         expect(segment.kind).toBe('link');
@@ -266,7 +420,7 @@ describe('CityTraffic', () => {
     const stopped = new Set<string>();
     for (let tick = 0; tick < 5400; tick++) {
       traffic.step(DT);
-      for (let index = 0; index < 36; index++) {
+      for (let index = 0; index < MOTION_COUNT; index++) {
         const actor = traffic.actors[index];
         const segment = actorSegment(actor, actorRoute(index));
         if (actor.state !== 'waiting' || segment.kind !== 'link') continue;
@@ -279,7 +433,33 @@ describe('CityTraffic', () => {
     expect(stopped).toEqual(new Set(['sedan', 'taxi', 'van', 'truck', 'bus', 'bicycle']));
   });
 
-  it.each([0, 1, 4, 14, 42, 91, 2401, 0xffffffff])('keeps seed %s safe and live for at least ten simulated minutes', (seed) => {
+  it('shows moving cyclists passing safely in opposite directions on each paired track', () => {
+    const traffic = new CityTraffic(2401);
+    const passed = new Set<number>();
+    for (let tick = 0; tick < SOAK_SECONDS / DT && passed.size < PAIRED_TRACKS.length; tick += 1) {
+      traffic.step(DT);
+      for (let first = MOTOR_COUNT; first < MOTION_COUNT; first += 1) {
+        const a = traffic.actors[first];
+        const sa = actorSegment(a, actorRoute(first));
+        if (sa.kind !== 'link' || sa.dx === 0 || a.speed <= 0.1) continue;
+        for (let second = first + 1; second < MOTION_COUNT; second += 1) {
+          const b = traffic.actors[second];
+          const sb = actorSegment(b, actorRoute(second));
+          if (sb.kind !== 'link' || sb.dx !== -sa.dx || b.speed <= 0.1 || Math.abs(a.position.x - b.position.x) >= 1) continue;
+          PAIRED_TRACKS.forEach((track, index) => {
+            if (INTERSECTIONS[sa.intersection].z !== track.z || INTERSECTIONS[sb.intersection].z !== track.z) return;
+            expect(Math.abs(a.position.z - b.position.z) - 0.8).toBeGreaterThanOrEqual(0.2 - 1e-7);
+            expect(overlap(a.position.x, a.position.z, a.heading, 1, 0.4,
+              b.position.x, b.position.z, b.heading, 1, 0.4)).toBe(false);
+            passed.add(index);
+          });
+        }
+      }
+    }
+    expect(passed).toEqual(new Set([0, 1]));
+  });
+
+  it.each([0, 1, 4, 14, 42, 91, 2401, 0xffffffff])('keeps seed %s safe and live for twenty simulated minutes', (seed) => {
     const traffic = new CityTraffic(seed);
     const actors = traffic.actors;
     const routes = actors.map((_, index) => actorRoute(index));
@@ -288,20 +468,22 @@ describe('CityTraffic', () => {
     const totals = new Float64Array(actors.length);
     const idle = new Float64Array(actors.length);
     const longestIdle = new Float64Array(actors.length);
-    const waits = new Uint32Array(36);
-    const crossings = new Uint32Array(16);
-    const stopLines = new Uint32Array(36);
+    const waits = new Uint32Array(MOTION_COUNT);
+    const crossings = new Uint32Array(INTERSECTIONS.length);
+    const stopLines = new Uint32Array(MOTION_COUNT);
+    const trackTravel = new Float64Array(PAIRED_TRACKS.length * 2);
+    const streetTravel = new Float64Array(STREET_X.length + STREET_Z.length);
     const phases = new Set<string>();
     let maxAcceleration = 0;
     let maxBraking = 0;
-    for (let tick = 0; tick < 18_000; tick += 1) {
+    for (let tick = 0; tick < SOAK_SECONDS / DT; tick += 1) {
       traffic.step(DT);
       for (let index = 0; index < actors.length; index += 1) {
         const actor = actors[index];
         const before = previous[index];
         const movement = travel(before.distance, actor.distance, actor.routeLength);
         const displacement = Math.hypot(actor.position.x - before.x, actor.position.z - before.z);
-        const topSpeed = index < 24 ? TRAFFIC.maxVehicleSpeed : index < 36 ? TRAFFIC.maxBicycleSpeed : 1.1;
+        const topSpeed = index < MOTOR_COUNT ? TRAFFIC.maxVehicleSpeed : index < MOTION_COUNT ? TRAFFIC.maxBicycleSpeed : 1.1;
         if (!Number.isFinite(actor.position.x + actor.position.z + actor.distance + actor.heading + actor.speed) ||
           actor.distance < 0 || actor.distance >= actor.routeLength || actor.position.y !== 0 ||
           displacement > topSpeed * DT + 1e-7 || movement > topSpeed * DT + 1e-7 ||
@@ -313,7 +495,39 @@ describe('CityTraffic', () => {
         idle[index] = movement > 0.0001 ? 0 : idle[index] + DT;
         longestIdle[index] = Math.max(longestIdle[index], idle[index]);
         segments[index] = actorSegment(actor, routes[index]);
-        if (index < 36) {
+        if (index < MOTOR_COUNT && segments[index].kind === 'link') {
+          const segment = segments[index];
+          const vertical = segment.dx === 0;
+          const roadIndex = vertical ? segment.intersection % STREET_X.length :
+            Math.floor(segment.intersection / STREET_X.length);
+          const expectedRoad = vertical ? STREET_X[roadIndex] : STREET_Z[roadIndex];
+          const actualRoad = vertical ? actor.position.x + segment.dz * VEHICLE_OFFSET :
+            actor.position.z - segment.dx * VEHICLE_OFFSET;
+          if (Math.abs(actualRoad - expectedRoad) > 1e-7) {
+            throw new Error(`Motor departed its physical street ${actor.id}, seed ${seed}, tick ${tick}`);
+          }
+          streetTravel[(vertical ? 0 : STREET_X.length) + roadIndex] += movement;
+        }
+        if (actor.kind === 'cyclist') {
+          if (angleDifference(before.heading, actor.heading) > TRAFFIC.maxBicycleTurnRate * DT + 1e-6) {
+            throw new Error(`Excessive bicycle turn rate ${actor.id}, seed ${seed}, tick ${tick}`);
+          }
+          const segment = segments[index];
+          for (let trackIndex = 0; trackIndex < PAIRED_TRACKS.length; trackIndex += 1) {
+            const track = PAIRED_TRACKS[trackIndex];
+            if (segment.kind !== 'link' || segment.dx === 0 || INTERSECTIONS[segment.intersection].z !== track.z) continue;
+            const expectedZ = track.z + (segment.dx === 1 ? track.east : track.west);
+            if (Math.abs(actor.position.z - expectedZ) > 1e-7 || Math.abs(Math.sin(actor.heading) - segment.dx) > 1e-7) {
+              throw new Error(`Incorrect counterflow lane ${actor.id}, seed ${seed}, tick ${tick}`);
+            }
+            trackTravel[trackIndex * 2 + (segment.dx === 1 ? 0 : 1)] += movement;
+          }
+        }
+        if (index < MOTION_COUNT) {
+          if (overlap(actor.position.x, actor.position.z, actor.heading, halfLength(index), halfWidth(index),
+            0, 0, 0, PARK_BOUNDS.z, PARK_BOUNDS.x)) {
+            throw new Error(`Vehicle footprint entered park: ${actor.id}, seed ${seed}, tick ${tick}`);
+          }
           maxAcceleration = Math.max(maxAcceleration, (actor.speed - before.speed) / DT);
           maxBraking = Math.max(maxBraking, (before.speed - actor.speed) / DT);
           if (actor.state === 'waiting') {
@@ -340,7 +554,7 @@ describe('CityTraffic', () => {
         const phase = traffic.signals[intersection].phase;
         phases.add(phase);
         let occupied = -1;
-        for (let index = 0; index < 36; index += 1) {
+        for (let index = 0; index < MOTION_COUNT; index += 1) {
           const actor = actors[index];
           if (Math.abs(actor.position.x - center.x) > 11 || Math.abs(actor.position.z - center.z) > 11) continue;
           if (!overlap(actor.position.x, actor.position.z, actor.heading, halfLength(index), halfWidth(index),
@@ -363,31 +577,38 @@ describe('CityTraffic', () => {
           }
           const sa = segments[first];
           const sb = segments[second];
-          if (first < 36 && second < 36 && sa.kind === 'link' && sb.kind === 'link' && sa.lane === sb.lane) {
+          if (first < MOTION_COUNT && second < MOTION_COUNT && sa.kind === 'link' && sb.kind === 'link' && sa.lane === sb.lane) {
             const gap = Math.abs((a.distance - sa.start) - (b.distance - sb.start)) - halfLength(first) - halfLength(second);
-            const required = first < 24 ? TRAFFIC.vehicleGap : TRAFFIC.bicycleGap;
+            const required = first < MOTOR_COUNT ? TRAFFIC.vehicleGap : TRAFFIC.bicycleGap;
             if (gap < required - 1e-6) {
               throw new Error(`Headway ${gap} ${a.id}/${b.id}, seed ${seed}, tick ${tick}`);
             }
           }
         }
       }
-      if (actors.length !== 60 || traffic.signals.length !== 16) throw new Error('Unbounded population');
+      if (actors.length !== TRAFFIC_ACTORS.length || traffic.signals.length !== INTERSECTIONS.length) throw new Error('Unbounded population');
     }
-    expect(traffic.elapsed).toBeCloseTo(600, 6);
+    expect(traffic.elapsed).toBeCloseTo(SOAK_SECONDS, 6);
     expect(phases).toEqual(new Set(['north-south', 'east-west', 'clearance', 'pedestrians']));
     expect(maxAcceleration).toBeLessThanOrEqual(TRAFFIC.acceleration + 1e-6);
     expect(maxBraking).toBeLessThanOrEqual(TRAFFIC.braking + 1e-4);
     for (let index = 0; index < actors.length; index += 1) {
       expect(totals[index] / actors[index].routeLength, `${actors[index].id} must complete a full circuit`).toBeGreaterThan(1);
       expect(longestIdle[index], `${actors[index].id} must never starve`).toBeLessThan(100);
-      if (index < 36) {
+      if (index < MOTION_COUNT) {
         expect(waits[index], `${actors[index].id} must stop at a light`).toBeGreaterThan(0);
         expect(stopLines[index], `${actors[index].id} must stop with its bumper at a painted line`).toBeGreaterThan(0);
       }
     }
     for (let index = 0; index < crossings.length; index += 1) {
       expect(crossings[index], `${INTERSECTIONS[index].id} must carry traffic`).toBeGreaterThan(100);
+    }
+    for (let index = 0; index < trackTravel.length; index += 1) {
+      expect(trackTravel[index], `Paired track/direction ${index} must carry moving cyclists`).toBeGreaterThan(100);
+    }
+    for (let index = 0; index < streetTravel.length; index += 1) {
+      const name = index < STREET_X.length ? `Avenue X=${STREET_X[index]}` : `Cross-street Z=${STREET_Z[index - STREET_X.length]}`;
+      expect(streetTravel[index], `${name} must carry actual moving motor traffic`).toBeGreaterThan(100);
     }
   }, 30_000);
 });

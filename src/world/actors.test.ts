@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { Vector3 } from 'three';
 import { describe, expect, it, vi } from 'vitest';
-import { PARK_BOUNDS, PARK_PATHS, PARK_ROUTES, sampleParkRoute } from '../content/park';
+import { PARK_ACTORS, PARK_BOUNDS, PARK_PATHS, PARK_ROUTES, PARK_RUNNING_ROUTE, sampleParkRoute } from '../content/park';
 import { STREET_X, STREET_Z, TRAFFIC_ACTORS } from '../content/streets';
 import { ActorSimulation } from './actors';
 
@@ -12,7 +12,7 @@ describe('connected car-free park', () => {
   it('connects continuous walking routes through real gates and outside sidewalks', () => {
     const before = new Vector3();
     const after = new Vector3();
-    for (const route of PARK_ROUTES) {
+    for (const route of [...PARK_ROUTES, PARK_RUNNING_ROUTE]) {
       for (const segment of route.segments) {
         sampleParkRoute(route, segment.start - 0.0001, before);
         sampleParkRoute(route, segment.start + 0.0001, after);
@@ -35,12 +35,16 @@ describe('connected car-free park', () => {
     const actors = [...simulation.actors];
     const positions = actors.map(({ position }) => position);
     expect(actors.map(({ id }) => id)).toEqual([
-      ...Array.from({ length: 8 }, (_, index) => `walker-${index + 1}`),
+      ...PARK_ACTORS.map(({ id }) => id),
       ...TRAFFIC_ACTORS.map(({ id }) => id),
     ]);
     expect(simulation.getActor('square-bus')).toBeUndefined();
     expect(simulation.getActor('car-1')).toBeUndefined();
     expect(Object.isFrozen(simulation.actors)).toBe(true);
+    expect(actors).toHaveLength(126);
+    expect(actors.filter(({ kind }) => kind === 'car' || kind === 'bus')).toHaveLength(36);
+    expect(actors.filter(({ kind }) => kind === 'cyclist')).toHaveLength(12);
+    expect(actors.filter(({ kind }) => kind === 'pedestrian')).toHaveLength(78);
     simulation.step(DT);
     actors.forEach((actor, index) => {
       expect(simulation.actors[index]).toBe(actor);
@@ -85,13 +89,17 @@ describe('connected car-free park', () => {
 
   it.each([0, 1, 42, 91, 2401])('keeps seed %s car-free while every visitor enters and leaves', (seed) => {
     const simulation = new ActorSimulation(seed);
-    const walkers = simulation.actors.slice(0, 8);
-    const transitions = new Uint16Array(8);
+    const walkers = simulation.actors.filter(({ gait }) => gait === 'walk');
+    const runners = simulation.actors.filter(({ gait }) => gait === 'run');
+    const parkActors = [...walkers, ...runners];
+    const transitions = new Uint16Array(walkers.length);
     const wasOutside = walkers.map(({ position }) => outsidePark(position));
     const previous = walkers.map(({ position }) => new Vector3(position.x, 0, position.z));
-    const longestIdle = new Float64Array(8);
-    const idle = new Float64Array(8);
-    for (let tick = 0; tick < 18_000; tick++) {
+    const longestIdle = new Float64Array(walkers.length);
+    const idle = new Float64Array(walkers.length);
+    const runnerDistance = new Float64Array(runners.length);
+    const expectedRunner = new Vector3();
+    for (let tick = 0; tick < 27_000; tick++) {
       simulation.step(DT);
       walkers.forEach((actor, index) => {
         const next = new Vector3(actor.position.x, 0, actor.position.z);
@@ -110,6 +118,22 @@ describe('connected car-free park', () => {
           }
         }
       });
+      runners.forEach((actor, index) => {
+        runnerDistance[index] += actor.speed * DT;
+        if (outsidePark(actor.position) || actor.speed < 0 || actor.speed > 2.651) {
+          throw new Error(`Runner stopped or left the park: ${actor.id}, seed ${seed}, tick ${tick}.`);
+        }
+        sampleParkRoute(PARK_RUNNING_ROUTE, actor.distance, expectedRunner);
+        if (Math.hypot(actor.position.x - expectedRunner.x, actor.position.z - expectedRunner.z) > 1e-8) {
+          throw new Error(`Runner left the track: ${actor.id}.`);
+        }
+        for (const other of parkActors) {
+          if (other === actor) continue;
+          if (Math.hypot(other.position.x - actor.position.x, other.position.z - actor.position.z) <= 0.7) {
+            throw new Error(`Runner collision: ${actor.id}/${other.id}, seed ${seed}, tick ${tick}.`);
+          }
+        }
+      });
       for (const actor of simulation.traffic.actors) {
         if (actor.kind === 'car' || actor.kind === 'bus' || actor.kind === 'cyclist') {
           if (!outsidePark(actor.position)) throw new Error(`Vehicle entered the park: ${actor.id}.`);
@@ -118,6 +142,10 @@ describe('connected car-free park', () => {
     }
     transitions.forEach((count) => expect(count).toBeGreaterThanOrEqual(4));
     longestIdle.forEach((seconds) => expect(seconds).toBeLessThan(25));
+    runnerDistance.forEach((distance) => {
+      expect(distance).toBeGreaterThan(PARK_RUNNING_ROUTE.length * 10);
+      expect(distance / 900).toBeGreaterThan(2.3);
+    });
     expect(simulation.elapsed).toBeCloseTo(simulation.traffic.elapsed);
   }, 30_000);
 });

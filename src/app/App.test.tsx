@@ -28,6 +28,17 @@ beforeEach(() => {
 });
 
 describe('accessible city controls', () => {
+  it('keeps an accessible page heading without covering the city with a title card', async () => {
+    render(<App />);
+    await screen.findByText('City is living');
+    expect(screen.getByRole('heading', { level: 1, name: 'Rainlight Square' })).toHaveClass('sr-only');
+    expect(screen.queryByText('The park district / 003')).not.toBeInTheDocument();
+    expect(screen.queryByText('A green heart. A living neighborhood.')).not.toBeInTheDocument();
+    expect(document.querySelector('.scene-heading')).toBeNull();
+    expect(document.querySelector('.wordmark')).toHaveTextContent('CitiVibe.');
+    expect(screen.queryByRole('button', { name: 'Field guide' })).not.toBeInTheDocument();
+  });
+
   it('connects pause, focus cycling, and manual interruption without follow controls', async () => {
     const user = userEvent.setup();
     render(<App />);
@@ -67,13 +78,28 @@ describe('accessible city controls', () => {
     render(<App />);
     await screen.findByText('City is living');
     await user.click(screen.getByRole('button', { name: 'Next landmark' }));
-    const trigger = screen.getByRole('button', { name: 'Field guide' });
-    await user.click(trigger);
+    const trigger = screen.getByRole('region', { name: 'City navigation' });
+    trigger.focus();
+    await user.keyboard('?');
     expect(screen.getByRole('dialog')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Close help' }));
     expect(trigger).toHaveFocus();
     expect(screen.getByText('Free view')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /follow/i })).not.toBeInTheDocument();
+  });
+
+  it('keeps discoverable keyboard help in Settings without a header helper', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByText('City is living');
+    const settings = screen.getByRole('button', { name: 'Settings' });
+    await user.click(settings);
+    const summary = screen.getByText('Keyboard shortcuts', { exact: true });
+    await user.click(summary);
+    expect(summary.closest('details')).toHaveAttribute('open');
+    expect(screen.getByText('Pan around the square')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Close settings' }));
+    expect(settings).toHaveFocus();
   });
 
   it('retains noncommercial focus navigation after renderer failure and retry', async () => {

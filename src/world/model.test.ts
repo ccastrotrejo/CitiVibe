@@ -54,7 +54,8 @@ describe('single camera owner', () => {
   it.each([0, Math.PI / 4, Math.PI / 2, Math.PI, -Math.PI / 2])('can pan to all four map edges at yaw %f', (yaw) => {
     const camera = new CameraController();
     camera.navigate({ type: 'navigate', rotate: yaw - camera.pose.yaw });
-    for (const [x, z] of [[-CITY.bounds, -62], [CITY.bounds, -62], [CITY.bounds, 62], [-CITY.bounds, 62]]) {
+    for (const [x, z] of [[-CITY.bounds.x, -CITY.bounds.z], [CITY.bounds.x, -CITY.bounds.z],
+      [CITY.bounds.x, CITY.bounds.z], [-CITY.bounds.x, CITY.bounds.z]]) {
       const dx = x - camera.pose.x;
       const dz = z - camera.pose.z;
       camera.navigate({
@@ -145,8 +146,8 @@ describe('single camera owner', () => {
   it('bounds all manual camera directions and immediate focus', () => {
     const camera = new CameraController();
     for (let i = 0; i < 100; i++) camera.navigate({ type: 'navigate', panX: 20, panZ: -20, rotate: 1, zoom: 0.5 });
-    expect(Math.abs(camera.pose.x)).toBeLessThanOrEqual(CITY.bounds);
-    expect(Math.abs(camera.pose.z)).toBeLessThanOrEqual(CITY.bounds);
+    expect(Math.abs(camera.pose.x)).toBeLessThanOrEqual(CITY.bounds.x);
+    expect(Math.abs(camera.pose.z)).toBeLessThanOrEqual(CITY.bounds.z);
     expect(camera.pose.zoom).toBe(CAMERA_PROJECTION.maxZoom);
     expect(Math.abs(camera.pose.yaw)).toBeLessThanOrEqual(Math.PI);
     camera.navigate({ type: 'navigate', zoom: -100 });
@@ -185,14 +186,14 @@ describe('authored content', () => {
       const b = new WorldModel(false);
       a.command({ type: 'start-tour' });
       b.command({ type: 'start-tour' });
-      for (let i = 0; i < 240 * 30; i++) {
+      for (let i = 0; i < 900 * 30; i++) {
         const previous = { ...a.camera.pose };
         a.step(STEP);
         b.step(STEP);
         expect(a.camera.pose).toEqual(b.camera.pose);
         expect(Math.hypot(a.camera.pose.x - previous.x, a.camera.pose.z - previous.z)).toBeLessThan(0.2);
-        expect(Math.abs(a.camera.pose.x)).toBeLessThanOrEqual(CITY.bounds);
-        expect(Math.abs(a.camera.pose.z)).toBeLessThanOrEqual(CITY.bounds);
+        expect(Math.abs(a.camera.pose.x)).toBeLessThanOrEqual(CITY.bounds.x);
+        expect(Math.abs(a.camera.pose.z)).toBeLessThanOrEqual(CITY.bounds.z);
       }
       expect(a.camera.revision).toBeGreaterThan(10);
       expect(a.snapshot().view).toMatchObject({ guided: false, total: CONTENT.tourAnchorIds.length });

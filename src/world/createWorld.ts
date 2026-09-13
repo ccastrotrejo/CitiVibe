@@ -53,7 +53,7 @@ export function createWorld({ canvas, model, onChange, onLifecycle }: WorldOptio
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, lightweight ? 1 : 1.5));
   }
   applyQuality();
-  const camera = new OrthographicCamera(-63, 63, 63, -63, 0.1, 500);
+  const camera = new OrthographicCamera(-63, 63, 63, -63, 0.1, CAMERA_PROJECTION.far);
   const clock = new FrameClock();
   const locomotion = new Locomotion();
   let environment: EnvironmentVisual;
@@ -101,6 +101,7 @@ export function createWorld({ canvas, model, onChange, onLifecycle }: WorldOptio
       mesh.rotation.y = actor.heading;
     }
     art.setTrafficSignals?.(model.simulation.traffic.signals);
+    art.updateCourtActivity?.(model.simulation.elapsed, model.reducedMotion);
     art.updateActors?.();
     const selected = LANDMARKS.find(({ id }) => id === model.selectedId);
     art.marker.visible = Boolean(selected);

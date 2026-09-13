@@ -41,7 +41,7 @@ function inventory(group: THREE.Group) {
 
 function cameraFor(aspect: number, x: number, z: number, yaw: number, zoom: number): THREE.OrthographicCamera {
   const height = Math.max(CAMERA_PROJECTION.overviewHeight, CAMERA_PROJECTION.overviewWidth / aspect);
-  const camera = new THREE.OrthographicCamera(-height * aspect / 2, height * aspect / 2, height / 2, -height / 2, 0.1, 500);
+  const camera = new THREE.OrthographicCamera(-height * aspect / 2, height * aspect / 2, height / 2, -height / 2, 0.1, CAMERA_PROJECTION.far);
   const radius = CAMERA_PROJECTION.distance * Math.cos(CAMERA_PROJECTION.defaultPitch);
   camera.position.set(x + Math.sin(yaw) * radius, CAMERA_PROJECTION.distance * Math.sin(CAMERA_PROJECTION.defaultPitch), z + Math.cos(yaw) * radius);
   camera.lookAt(x, 0, z);
@@ -146,7 +146,7 @@ describe('AirplaneSimulation', () => {
     const state = simulation.state;
     const position = state.position;
     waitForFlight(simulation);
-    for (let tick = 0; tick < AIRPLANE.routeLength / AIRPLANE.speed / DT / 2; tick += 1) simulation.step(DT);
+    for (let tick = 0; tick < AIRPLANE.routeLength / (AIRPLANE.speed * DT) / 2; tick += 1) simulation.step(DT);
     expect(state.active).toBe(true);
     expect(state.position.x).toBe(0);
     simulation.setReducedMotion(true);
@@ -215,7 +215,7 @@ describe('AirplaneSimulation', () => {
           flightTicks += 1;
           if (!state.active) {
             exits += 1;
-            expect(flightTicks).toBe(AIRPLANE.routeLength / AIRPLANE.speed * 30);
+            expect(flightTicks).toBe(AIRPLANE.routeLength / (AIRPLANE.speed * DT));
             expect(Math.abs(position.x)).toBe(AIRPLANE.endX);
             expect(Math.abs(position.z)).toBe(AIRPLANE.endZ);
             gap = nextGap(gap.seed);
@@ -252,8 +252,8 @@ describe('AirplaneSimulation', () => {
       new THREE.Vector3(AIRPLANE.startX, AIRPLANE.altitude, AIRPLANE.startZ),
       new THREE.Vector3(AIRPLANE.endX, AIRPLANE.altitude, AIRPLANE.endZ),
     ];
-    const targets = [[0, 0], [-CITY.bounds, -CITY.bounds], [-CITY.bounds, CITY.bounds],
-      [CITY.bounds, -CITY.bounds], [CITY.bounds, CITY.bounds]];
+    const targets = [[0, 0], [-CITY.bounds.x, -CITY.bounds.z], [-CITY.bounds.x, CITY.bounds.z],
+      [CITY.bounds.x, -CITY.bounds.z], [CITY.bounds.x, CITY.bounds.z]];
     for (const aspect of [4 / 3, 16 / 10, 16 / 9, 21 / 9, 32 / 9]) {
       for (const [x, z] of targets) {
         for (const zoom of [0.65, 1, 2.7, CAMERA_PROJECTION.maxZoom]) {

@@ -1,6 +1,6 @@
 import {
-  BIKE_OFFSET, INTERSECTION_GATE, INTERSECTIONS, SIDEWALK_OFFSET, STOP_LINE_OFFSET, STREET_BLOCKS,
-  TRAFFIC_ACTORS, VEHICLE_OFFSET, type TrafficSignalState, type TrafficVehicleType,
+  BIKE_OFFSET, bikeLaneOffset, INTERSECTION_GATE, INTERSECTIONS, SIDEWALK_OFFSET, STOP_LINE_OFFSET, STREET_BLOCKS,
+  STREET_X, STREET_Z, TRAFFIC_ACTORS, VEHICLE_OFFSET, type TrafficSignalState, type TrafficVehicleType,
 } from '../content/streets';
 import type { ActorState } from './actors';
 
@@ -18,6 +18,7 @@ export const TRAFFIC = {
   pedestrianSeconds: 3,
   maxVehicleSpeed: 4.8,
   maxBicycleSpeed: 3.4,
+  maxBicycleTurnRate: 1.1,
 } as const;
 
 export const TRAFFIC_LENGTHS: Record<TrafficVehicleType, number> = {
@@ -25,6 +26,13 @@ export const TRAFFIC_LENGTHS: Record<TrafficVehicleType, number> = {
 };
 
 interface Point { x: number; z: number }
+
+interface EllipticTurn {
+  incomingRadius: number;
+  outgoingRadius: number;
+  lead: number;
+  distances: Float64Array;
+}
 
 export interface TrafficSegment {
   kind: 'link' | 'junction';
@@ -42,6 +50,8 @@ export interface TrafficSegment {
   lane: string;
   intersection: number;
   axis: 'north-south' | 'east-west';
+  ellipse?: EllipticTurn;
+  speedLimit?: number;
 }
 
 export interface TrafficRoute {
@@ -73,6 +83,8 @@ const EPSILON = 1e-7;
 // Stop before the painted bar without changing the tighter, road-contained turn arcs.
 const STOP_APPROACH_BUFFER = STOP_LINE_OFFSET - INTERSECTION_GATE + TRAFFIC.stopBuffer;
 const QUARTER_TURN = Math.PI / 2;
+const ARC_SAMPLES = 256;
+const ARC_STEP = QUARTER_TURN / ARC_SAMPLES;
 const PHASES = ['north-south', 'clearance', 'east-west', 'clearance', 'pedestrians', 'clearance'] as const;
 
 function wrap(value: number, length: number): number {
@@ -94,27 +106,73 @@ function sequence(seed: number): () => number {
 
 function rectangleNodes(left: number, top: number, right: number, bottom: number, reverse = false): number[] {
   const nodes: number[] = [];
-  for (let column = left; column < right; column += 1) nodes.push(top * 4 + column);
-  for (let row = top; row < bottom; row += 1) nodes.push(row * 4 + right);
-  for (let column = right; column > left; column -= 1) nodes.push(bottom * 4 + column);
-  for (let row = bottom; row > top; row -= 1) nodes.push(row * 4 + left);
+  const columns = STREET_X.length;
+  for (let column = left; column < right; column += 1) nodes.push(top * columns + column);
+  for (let row = top; row < bottom; row += 1) nodes.push(row * columns + right);
+  for (let column = right; column > left; column -= 1) nodes.push(bottom * columns + column);
+  for (let row = bottom; row > top; row -= 1) nodes.push(row * columns + left);
   return reverse ? nodes.reverse() : nodes;
 }
 
+const LAST_COLUMN = STREET_X.length - 1;
+const LAST_ROW = STREET_Z.length - 1;
+const PARK_COLUMN = Math.floor(LAST_COLUMN / 2);
+const PARK_ROW = Math.floor(LAST_ROW / 2);
 const CIRCUITS = [
-  rectangleNodes(0, 0, 3, 3),
-  rectangleNodes(0, 0, 3, 3, true),
-  rectangleNodes(0, 0, 2, 2),
-  rectangleNodes(1, 1, 3, 3),
-  rectangleNodes(0, 1, 3, 2, true),
-  rectangleNodes(1, 0, 2, 3, true),
+  rectangleNodes(0, 0, LAST_COLUMN, LAST_ROW),
+  rectangleNodes(1, 1, LAST_COLUMN - 1, LAST_ROW - 1, true),
+  rectangleNodes(0, 0, PARK_COLUMN + 1, PARK_ROW + 1),
+  rectangleNodes(PARK_COLUMN, PARK_ROW, LAST_COLUMN, LAST_ROW),
+  rectangleNodes(0, PARK_ROW, LAST_COLUMN, PARK_ROW + 1, true),
+  rectangleNodes(PARK_COLUMN, 0, PARK_COLUMN + 1, LAST_ROW, true),
 ];
 
 function direction(from: Point, to: Point): Point {
   return { x: Math.sign(to.x - from.x), z: Math.sign(to.z - from.z) };
 }
 
-function makeRoute(nodes: readonly number[], offset: number, id: string): TrafficRoute {
+function arcSpeed(curve: EllipticTurn, angle: number): number {
+  return Math.hypot(curve.incomingRadius * Math.cos(angle), curve.outgoingRadius * Math.sin(angle));
+}
+
+function arcLength(curve: EllipticTurn, from: number, to: number): number {
+  return (to - from) / 6 * (arcSpeed(curve, from) + 4 * arcSpeed(curve, (from + to) / 2) + arcSpeed(curve, to));
+}
+
+function makeEllipse(incomingRadius: number, outgoingRadius: number, lead: number): EllipticTurn {
+  const curve = { incomingRadius, outgoingRadius, lead, distances: new Float64Array(ARC_SAMPLES + 1) };
+  for (let index = 1; index <= ARC_SAMPLES; index += 1) {
+    curve.distances[index] = curve.distances[index - 1] + arcLength(curve, (index - 1) * ARC_STEP, index * ARC_STEP);
+  }
+  return curve;
+}
+
+function arcAngle(curve: EllipticTurn, distance: number): number {
+  let low = 0;
+  let high = ARC_SAMPLES;
+  while (high - low > 1) {
+    const middle = (low + high) >>> 1;
+    if (curve.distances[middle] <= distance) low = middle;
+    else high = middle;
+  }
+  const start = low * ARC_STEP;
+  const end = high * ARC_STEP;
+  let angle = start + ARC_STEP * (distance - curve.distances[low]) / (curve.distances[high] - curve.distances[low]);
+  // Refine inside the lookup interval so unequal axes do not change ground speed.
+  for (let iteration = 0; iteration < 2; iteration += 1) {
+    const error = curve.distances[low] + arcLength(curve, start, angle) - distance;
+    angle = Math.max(start, Math.min(end, angle - error / arcSpeed(curve, angle)));
+  }
+  return angle;
+}
+
+function laneOffset(point: Point, travel: Point): number {
+  const horizontal = travel.x !== 0;
+  return bikeLaneOffset(horizontal ? 'east-west' : 'north-south', horizontal ? point.z : point.x,
+    horizontal ? travel.x : travel.z);
+}
+
+function makeRoute(nodes: readonly number[], offset: number, id: string, bicycle = false): TrafficRoute {
   const segments: TrafficSegment[] = [];
   let length = 0;
   for (let index = 0; index < nodes.length; index += 1) {
@@ -125,25 +183,35 @@ function makeRoute(nodes: readonly number[], offset: number, id: string): Traffi
     const next = INTERSECTIONS[nextIndex];
     const incoming = direction(previous, current);
     const outgoing = direction(current, next);
+    const incomingOffset = bicycle ? laneOffset(current, incoming) : offset;
+    const outgoingOffset = bicycle ? laneOffset(current, outgoing) : offset;
     const turn = incoming.x * outgoing.z - incoming.z * outgoing.x;
-    const radius = INTERSECTION_GATE - turn * offset;
-    const x = current.x - incoming.x * INTERSECTION_GATE - incoming.z * offset;
-    const z = current.z - incoming.z * INTERSECTION_GATE + incoming.x * offset;
-    const junctionLength = turn === 0 ? INTERSECTION_GATE * 2 : QUARTER_TURN * radius;
+    // Tighter curb-side arcs leave room for the whole bicycle, not only its center.
+    const turnGate = bicycle && turn === 1 && incomingOffset > 0 && outgoingOffset > 0 ? 5.6 : INTERSECTION_GATE;
+    const lead = INTERSECTION_GATE - turnGate;
+    const radius = turnGate - turn * incomingOffset;
+    const incomingRadius = turnGate - turn * outgoingOffset;
+    const ellipse = turn !== 0 && (incomingRadius !== radius || lead > 0) ? makeEllipse(incomingRadius, radius, lead) : undefined;
+    const minimumRadius = Math.min(incomingRadius, radius) ** 2 / Math.max(incomingRadius, radius);
+    const x = current.x - incoming.x * INTERSECTION_GATE - incoming.z * incomingOffset;
+    const z = current.z - incoming.z * INTERSECTION_GATE + incoming.x * incomingOffset;
+    const junctionLength = turn === 0 ? INTERSECTION_GATE * 2 :
+      ellipse ? ellipse.distances[ARC_SAMPLES] + lead * 2 : QUARTER_TURN * radius;
     segments.push({
       kind: 'junction', start: length, length: junctionLength, x, z,
       dx: incoming.x, dz: incoming.z, radius, turn,
       centerX: x + outgoing.x * radius, centerZ: z + outgoing.z * radius,
       lane: '', intersection, axis: incoming.x === 0 ? 'north-south' : 'east-west',
+      ellipse, speedLimit: bicycle && turn !== 0 ? minimumRadius * TRAFFIC.maxBicycleTurnRate : undefined,
     });
     length += junctionLength;
     const linkLength = Math.abs(next.x - current.x) + Math.abs(next.z - current.z) - INTERSECTION_GATE * 2;
     segments.push({
       kind: 'link', start: length, length: linkLength,
-      x: current.x + outgoing.x * INTERSECTION_GATE - outgoing.z * offset,
-      z: current.z + outgoing.z * INTERSECTION_GATE + outgoing.x * offset,
+      x: current.x + outgoing.x * INTERSECTION_GATE - outgoing.z * outgoingOffset,
+      z: current.z + outgoing.z * INTERSECTION_GATE + outgoing.x * outgoingOffset,
       dx: outgoing.x, dz: outgoing.z, radius: 0, turn: 0, centerX: 0, centerZ: 0,
-      lane: `${nodes[index]}>${nextIndex}:${offset}`,
+      lane: `${nodes[index]}>${nextIndex}:${outgoingOffset}`,
       intersection: nextIndex, axis: outgoing.x === 0 ? 'north-south' : 'east-west',
     });
     length += linkLength;
@@ -154,7 +222,7 @@ function makeRoute(nodes: readonly number[], offset: number, id: string): Traffi
 /** Connected circuits share directed graph edges, including both driving directions. */
 export const TRAFFIC_ROUTES: readonly TrafficRoute[] = [
   ...CIRCUITS.map((nodes, index) => makeRoute(nodes, VEHICLE_OFFSET, `motor-${index}`)),
-  ...CIRCUITS.map((nodes, index) => makeRoute(nodes, BIKE_OFFSET, `cycle-${index}`)),
+  ...CIRCUITS.map((nodes, index) => makeRoute(nodes, BIKE_OFFSET, `cycle-${index}`, true)),
 ];
 
 function makeFootpath(block: typeof STREET_BLOCKS[number]): TrafficRoute {
@@ -208,6 +276,21 @@ function place(segment: TrafficSegment, distance: number, target: Pick<ActorStat
     target.position.x = segment.x + segment.dx * distance;
     target.position.z = segment.z + segment.dz * distance;
     target.heading = Math.atan2(segment.dx, segment.dz);
+  } else if (segment.ellipse) {
+    const curve = segment.ellipse;
+    const along = distance - curve.lead;
+    const curveLength = curve.distances[ARC_SAMPLES];
+    const angle = along <= 0 ? 0 : along >= curveLength ? QUARTER_TURN : arcAngle(curve, along);
+    const sin = Math.sin(angle);
+    const cos = Math.cos(angle);
+    const outX = -segment.dz * segment.turn;
+    const outZ = segment.dx * segment.turn;
+    const incomingTravel = Math.min(distance, curve.lead) + curve.incomingRadius * sin;
+    const outgoingTravel = curve.outgoingRadius * (1 - cos) + Math.max(0, along - curveLength);
+    target.position.x = segment.x + segment.dx * incomingTravel + outX * outgoingTravel;
+    target.position.z = segment.z + segment.dz * incomingTravel + outZ * outgoingTravel;
+    target.heading = Math.atan2(segment.dx * curve.incomingRadius * cos + outX * curve.outgoingRadius * sin,
+      segment.dz * curve.incomingRadius * cos + outZ * curve.outgoingRadius * sin);
   } else {
     const angle = segment.turn * distance / segment.radius;
     const cos = Math.cos(angle);
@@ -248,9 +331,11 @@ export class CityTraffic {
     }));
     this.signals = Object.freeze(this.junctions);
     const occupiedLanes = new Set<string>();
-    this.motions = TRAFFIC_ACTORS.slice(0, 36).map((definition, index) => {
+    let motorIndex = 0;
+    let bicycleIndex = 0;
+    this.motions = TRAFFIC_ACTORS.filter(({ kind }) => kind !== 'pedestrian').map((definition) => {
       const bicycle = definition.kind === 'cyclist';
-      const route = TRAFFIC_ROUTES[bicycle ? 6 + (index - 24) % 6 : index % 6];
+      const route = TRAFFIC_ROUTES[bicycle ? CIRCUITS.length + bicycleIndex++ % CIRCUITS.length : motorIndex++ % CIRCUITS.length];
       const length = TRAFFIC_LENGTHS[definition.vehicleType!];
       const linkCount = route.segments.length / 2;
       const startLink = Math.floor(random() * linkCount);
@@ -273,9 +358,11 @@ export class CityTraffic {
         advance: 0, permit: -1, releaseRemaining: 0, requestSince: -1,
       };
     });
-    this.walkers = TRAFFIC_ACTORS.slice(36).map((definition, index) => {
-      const route = SIDEWALK_ROUTES[Math.floor(index / 3)];
-      const distance = (index % 3) * route.length / 3 + random();
+    const walkerDefinitions = TRAFFIC_ACTORS.filter(({ kind }) => kind === 'pedestrian');
+    const walkersPerRoute = Math.ceil(walkerDefinitions.length / SIDEWALK_ROUTES.length);
+    this.walkers = walkerDefinitions.map((definition, index) => {
+      const route = SIDEWALK_ROUTES[index % SIDEWALK_ROUTES.length];
+      const distance = Math.floor(index / SIDEWALK_ROUTES.length) * route.length / walkersPerRoute + random();
       return {
         actor: createActor(definition.id, definition.kind, route, distance),
         route, segment: 0, length: 0.7, bicycle: false, desiredSpeed: 0.85 + random() * 0.25,
@@ -395,7 +482,18 @@ export class CityTraffic {
       }
       const brakeTick = TRAFFIC.braking * dt;
       const safeSpeed = Math.sqrt(brakeTick ** 2 + 2 * TRAFFIC.braking * available) - brakeTick;
-      const desired = Math.min(motion.desiredSpeed, safeSpeed);
+      let desired = Math.min(motion.desiredSpeed, safeSpeed);
+      if (motion.bicycle) {
+        if (segment.speedLimit !== undefined) desired = Math.min(desired, segment.speedLimit);
+        if (segment.kind === 'link') {
+          const turn = motion.route.segments[(motion.segment + 1) % motion.route.segments.length];
+          if (turn.speedLimit !== undefined) {
+            const remaining = segment.start + segment.length - actor.distance;
+            const turnApproach = Math.sqrt(brakeTick ** 2 + turn.speedLimit ** 2 + 2 * TRAFFIC.braking * remaining) - brakeTick;
+            desired = Math.min(desired, turnApproach);
+          }
+        }
+      }
       actor.speed = Math.max(0, Math.min(actor.speed + TRAFFIC.acceleration * dt, Math.max(actor.speed - brakeTick, desired)));
       motion.advance = Math.min(available, actor.speed * dt);
       if (available < EPSILON) {

@@ -2,6 +2,7 @@ import { MOTION_MODES, QUALITY_MODES, TIME_MODES, WEATHER_MODES, optionValue } f
 import type { Preferences } from '../content/preferences';
 import type { AudioStatus } from '../world/audio';
 import { Modal } from './Modal';
+import { KeyboardShortcuts } from './Help';
 
 interface SettingsProps {
   preferences: Preferences;
@@ -54,6 +55,7 @@ export function Settings({ preferences, audioStatus, onChange, onEnableSound, on
       <p id="sound-status" className="muted">{audioStatus.message}</p>
     </section>
     <label className="motion-control"><input type="checkbox" checked={preferences.guide} onChange={(event) => onChange({ guide: event.target.checked })} /><span>Show navigation hint</span></label>
+    <details className="keyboard-help"><summary>Keyboard shortcuts</summary><KeyboardShortcuts /></details>
     <p className="muted">Only these non-sensitive preferences are saved on this computer. Sound requires a fresh enable action every visit.</p>
     {notice ? <p role="status" className="settings-notice">{notice}</p> : null}
   </Modal>;

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { PARK_PATHS, type ParkPathId } from '../content/park';
-import { BIKE_OFFSET, STREET_X, STREET_Z } from '../content/streets';
+import { BIKE_OFFSET, bikeLaneOffset, STREET_X, STREET_Z, TWO_WAY_BIKE_STREETS } from '../content/streets';
 import type { StreetscapeBuilder } from './streetscape';
 
 type Point = readonly [number, number];
@@ -9,20 +9,21 @@ export const BIKE_MARKINGS = [
   ...STREET_X.flatMap((x) => STREET_Z.slice(0, -1).flatMap((z, index) =>
     [-1, 1].map((side) => ({
       x: x + side * BIKE_OFFSET, z: (z + STREET_Z[index + 1]) / 2,
-      yaw: side < 0 ? 0 : Math.PI,
+      yaw: side < 0 ? 0 : Math.PI, widthScale: 1,
     })))),
   ...STREET_Z.flatMap((z) => STREET_X.slice(0, -1).flatMap((x, index) =>
     [-1, 1].map((side) => ({
-      x: (x + STREET_X[index + 1]) / 2, z: z + side * BIKE_OFFSET,
+      x: (x + STREET_X[index + 1]) / 2, z: z + side * bikeLaneOffset('east-west', z, side),
       yaw: side > 0 ? Math.PI / 2 : -Math.PI / 2,
+      widthScale: TWO_WAY_BIKE_STREETS.some((street) => street.z === z) ? 0.82 : 1,
     })))),
 ];
 
 export const WALK_MARKINGS: readonly { id: ParkPathId; at: number; reverse?: boolean }[] = [
-  { id: 'mall', at: 0.13 },
-  { id: 'east-walk', at: 0.44 },
-  { id: 'meadow', at: 0.36 },
-  { id: 'woodland', at: 0.52, reverse: true },
+  { id: 'reservoir-track', at: 0.125 },
+  { id: 'reservoir-track', at: 0.375 },
+  { id: 'reservoir-track', at: 0.625 },
+  { id: 'reservoir-track', at: 0.875 },
 ];
 
 /** Original geometric stencils, not downloaded icons; each kind shares one flat mesh. */
@@ -63,8 +64,8 @@ export function buildPavementMarkings({ add, palette }: StreetscapeBuilder) {
       [0.32, 1.24], [0, 1.59], [-0.32, 1.24], [-0.27, 1.16], [-0.055, 1.34]]),
   ]).rotateX(-Math.PI / 2);
   bicycle.name = 'Bicycle and direction pavement stencil';
-  for (const { x, z, yaw } of BIKE_MARKINGS) {
-    add(bicycle, palette.line, [x, 0.026, z], [1, 1, 1.35], [0, yaw, 0]);
+  for (const { x, z, yaw, widthScale } of BIKE_MARKINGS) {
+    add(bicycle, palette.line, [x, 0.026, z], [widthScale, 1, 1.35], [0, yaw, 0]);
   }
 
   const runner = new THREE.ShapeGeometry([

@@ -1,7 +1,9 @@
 import * as THREE from 'three';
+import { BASKETBALL_COURT, PICKLEBALL_COURT } from '../content/courts';
 import {
   BIKE_OFFSET, CITY_EXTENT, INTERSECTIONS, ROAD_HALF_WIDTH, SIDEWALK_HALF_WIDTH,
-  SIDEWALK_OFFSET, STOP_LINE_OFFSET, STREET_X, STREET_Z, VEHICLE_OFFSET,
+  SIDEWALK_OFFSET, STOP_LINE_OFFSET, STREET_X, STREET_Z, TWO_WAY_BIKE_STREETS,
+  TWO_WAY_BIKE_TRACK, VEHICLE_OFFSET, bikeLaneOffset,
 } from '../content/streets';
 
 type Triple = readonly [number, number, number];
@@ -61,12 +63,16 @@ export interface StreetBuilding {
   setbackFloors: number;
   fireEscape: boolean;
   stoop: boolean;
+  brownstone: boolean;
 }
+
+const CENTER_COLUMN = Math.floor((STREET_X.length - 1) / 2);
+const CENTER_ROW = Math.floor((STREET_Z.length - 1) / 2);
 
 /** Interior parcels exclude the shared sidewalks and the retained garden block. */
 export const STREET_BLOCKS: readonly StreetBlock[] = STREET_Z.slice(0, -1).flatMap((south, row) =>
   STREET_X.slice(0, -1).flatMap((west, column) => {
-    if (row === 1 && column === 1) return [];
+    if (row === CENTER_ROW && column === CENTER_COLUMN) return [];
     const east = STREET_X[column + 1];
     const north = STREET_Z[row + 1];
     return [{
@@ -76,6 +82,21 @@ export const STREET_BLOCKS: readonly StreetBlock[] = STREET_Z.slice(0, -1).flatM
     }];
   }),
 );
+
+const WEST_X = (STREET_X[CENTER_COLUMN - 1] + STREET_X[CENTER_COLUMN]) / 2;
+const EAST_X = (STREET_X[CENTER_COLUMN + 1] + STREET_X[CENTER_COLUMN + 2]) / 2;
+const NORTH_Z = (STREET_Z[CENTER_ROW - 1] + STREET_Z[CENTER_ROW]) / 2;
+const SOUTH_Z = (STREET_Z[CENTER_ROW + 1] + STREET_Z[CENTER_ROW + 2]) / 2;
+const PARK_HALF_X = STREET_X[CENTER_COLUMN + 1] - SIDEWALK_HALF_WIDTH;
+const PARK_HALF_Z = STREET_Z[CENTER_ROW + 1] - SIDEWALK_HALF_WIDTH;
+const SIDE_SCALE = PARK_HALF_Z / 98;
+const CORNER_BLOCKS = {
+  construction: `block-${CENTER_COLUMN - 1}-${CENTER_ROW - 1}`,
+  transit: `block-${CENTER_COLUMN + 1}-${CENTER_ROW - 1}`,
+  court: `block-${CENTER_COLUMN - 1}-${CENTER_ROW + 1}`,
+  southeast: `block-${CENTER_COLUMN + 1}-${CENTER_ROW + 1}`,
+};
+const TRANSIT = { x: 63, z: -118 } as const;
 
 /** Authored silhouettes repeat architectural vocabulary, not identical towers. */
 export const STREET_BUILDINGS: readonly StreetBuilding[] = (() => {
@@ -87,35 +108,68 @@ export const STREET_BUILDINGS: readonly StreetBuilding[] = (() => {
     floors: number, accent = false,
   ) => {
     const index = buildings.length;
+    const brownstone = [0, 4, 10, 14, 24, 40].includes(index);
     buildings.push({
-      id: `street-building-${index + 1}`, blockId, x, z, width, depth, floors,
-      skin: skins[index % skins.length], roof: roofs[index % roofs.length],
+      id: `street-building-${index + 1}`, blockId, x, z,
+      width: brownstone ? Math.min(width, 8.15) : width, depth,
+      floors: brownstone ? Math.min(floors, 5) : floors,
+      skin: brownstone ? 'clay' : skins[index % skins.length], roof: roofs[index % roofs.length],
       setbackFloors: accent ? 2 : 0, fireEscape: index % 3 === 0,
-      stoop: width > 4 && index % 2 === 0,
+      stoop: width > 4 && index % 2 === 0, brownstone,
     });
   };
-  for (const row of [0, 2]) {
-    for (let column = 0; column < 7; column++) {
-      add(`block-1-${row}`, -19.5 + column * 6.5, (row === 0 ? -40 : 40) + (column % 2 ? -0.8 : 0.6),
-        5.5 + (column % 2) * 0.3, 7.5 + (column % 3) * 0.7,
-        3 + (column * 3 + row) % 5, column === 3);
+  const frontageStep = (PARK_HALF_X * 2 - 1) / 10;
+  for (const side of [-1, 1]) {
+    for (let column = 0; column < 10; column++) {
+      add(`block-${CENTER_COLUMN}-${CENTER_ROW + side}`, (column - 4.5) * frontageStep,
+        (side < 0 ? NORTH_Z : SOUTH_Z) + (column % 2 ? -0.4 : 0),
+        frontageStep - 1.4 + (column % 2) * 0.3, 7.6 + (column % 3) * 0.6,
+        3 + (column * 3 + side + 1) % 5, column === 5);
     }
   }
-  for (const column of [0, 2]) {
-    for (let row = 0; row < 3; row++) {
-      for (const side of [-1, 1]) {
-        add(`block-${column}-1`, (column === 0 ? -45 : 45) + side * 4.3,
-          -12.5 + row * 12.5, 5.8, 8.8 + (row % 2) * 0.8,
-          3 + (row + column + side + 1) % 5, row === 1 && side === 1);
+  for (const side of [-1, 1]) {
+    const parcel = STREET_BLOCKS.find(({ id }) => id === `block-${CENTER_COLUMN + side}-${CENTER_ROW}`)!;
+    for (let row = 0; row < 16; row++) {
+      const cluster = Math.floor(row / 4);
+      add(`block-${CENTER_COLUMN + side}-${CENTER_ROW}`, (side < 0 ? WEST_X : EAST_X) + (row % 2 ? -0.3 : 0.3),
+        (-76 + cluster * 51 + (row % 4 - 1.5) * 10.2) * SIDE_SCALE,
+        parcel.maxX - parcel.minX - 3.2 + (row % 3) * 0.35, (7.6 + (row % 2) * 0.6) * SIDE_SCALE,
+        3 + (row * 2 + side + 1) % 5, row === 6 || row === 10);
+    }
+  }
+  add(CORNER_BLOCKS.construction, WEST_X - 4, NORTH_Z, 3.2, 9, 4);
+  add(CORNER_BLOCKS.construction, WEST_X + 2.2, NORTH_Z - 4.5, 6.8, 3, 3);
+  add(CORNER_BLOCKS.transit, TRANSIT.x - 3.7, TRANSIT.z - 0.5, 3.8, 9.5, 5);
+  add(CORNER_BLOCKS.transit, TRANSIT.x + 2, TRANSIT.z - 5, 6.8, 3, 4);
+  add(CORNER_BLOCKS.southeast, EAST_X, SOUTH_Z - 3.3, 8.5, 4.2, 4);
+  add(CORNER_BLOCKS.southeast, EAST_X, SOUTH_Z + 2.7, 8.5, 4.2, 6);
+  for (const parcel of STREET_BLOCKS) {
+    const width = parcel.maxX - parcel.minX;
+    const depth = parcel.maxZ - parcel.minZ;
+    const innerColumn = parcel.minX >= STREET_X[CENTER_COLUMN - 1] &&
+      parcel.maxX <= STREET_X[CENTER_COLUMN + 2];
+    const innerRow = parcel.minZ >= STREET_Z[CENTER_ROW - 1] &&
+      parcel.maxZ <= STREET_Z[CENTER_ROW + 2];
+    if (innerColumn && innerRow) continue;
+    if (depth > width * 3) {
+      for (let index = 0; index < 8; index++) {
+        add(parcel.id, parcel.x + (index % 2 ? 0.25 : -0.25),
+          parcel.z + (index - 3.5) * depth / 8,
+          width - 3.4 + (index % 2) * 0.4, 15 + (index % 2) * 0.8,
+          3 + (index * 2 + Math.abs(parcel.x)) % 5);
       }
+    } else if (width > depth * 3) {
+      for (let index = 0; index < 4; index++) {
+        add(parcel.id, parcel.x + (index - 1.5) * width / 4,
+          parcel.z + (index % 2 ? -0.6 : 0.6),
+          width / 4 - 4.7 + (index % 2) * 0.7, depth - 5 + (index % 2) * 0.6,
+          3 + (index * 2 + Math.abs(parcel.z)) % 5);
+      }
+    } else {
+      add(parcel.id, parcel.x, parcel.z, width - 4.2, Math.min(depth - 5.2, 14.5),
+        3 + Math.round(Math.abs(parcel.x) + Math.abs(parcel.z)) % 5);
     }
   }
-  add('block-0-0', -50, -40, 4.6, 9.5, 4);
-  add('block-0-0', -42, -44.2, 6.5, 3.5, 3);
-  add('block-2-0', 39.5, -40, 3.8, 9.5, 5);
-  add('block-2-0', 48.2, -44.5, 8.2, 4, 4);
-  add('block-2-2', 40.4, 40.2, 5.8, 9.3, 4);
-  add('block-2-2', 49.4, 39.5, 5.8, 9.4, 6);
   return buildings;
 })();
 
@@ -127,6 +181,7 @@ export function validateStreetscape(buildings: readonly StreetBuilding[] = STREE
     const parcel = STREET_BLOCKS.find((block) => block.id === blockId);
     if (!parcel || !id || ids.has(id) ||
       ![x, z, width, depth, floors, setbackFloors].every(Number.isFinite) ||
+      typeof building.brownstone !== 'boolean' ||
       width < 3 || depth < 3 || !Number.isInteger(floors) || floors < 3 || floors > 7 ||
       !Number.isInteger(setbackFloors) || setbackFloors < 0 || setbackFloors > 2 ||
       (floors + setbackFloors) * 2.4 + 0.8 > 23 ||
@@ -145,7 +200,7 @@ export function validateStreetscape(buildings: readonly StreetBuilding[] = STREE
 }
 
 function isBrownstone(building: StreetBuilding): boolean {
-  return building.skin === 'clay' && building.stoop && building.floors <= 5;
+  return building.brownstone;
 }
 
 /** Segments omit crossing boxes, so curbs and bike separators never block crossings. */
@@ -207,12 +262,14 @@ export function buildStreetscape(builder: StreetscapeBuilder): Streetscape {
     ) => block(surface, vertical ? road + offset : along, y, vertical ? along : road + offset,
       vertical ? width : length, height, vertical ? length : width);
     for (const road of roads) {
+      const track = vertical ? undefined : TWO_WAY_BIKE_STREETS.find(({ z }) => z === road);
       stripe(p.paving, road, 0, 0, SIDEWALK_HALF_WIDTH * 2, extent * 2, -0.13, 0.1);
       stripe(p.road, road, 0, 0, ROAD_HALF_WIDTH * 2, extent * 2, vertical ? -0.065 : -0.055, 0.1);
       for (const segment of streetSpans(extent, crossings, ROAD_HALF_WIDTH)) {
-        for (const side of [-1, 1]) {
-          stripe(p.teal, road, segment.center, side * BIKE_OFFSET, 1.28, segment.length, 0.004, 0.015);
-          stripe(p.line, road, segment.center, side * (BIKE_OFFSET - 0.77),
+        for (const side of track ? [track.side] : [-1, 1]) {
+          stripe(p.teal, road, segment.center, side * (track ? TWO_WAY_BIKE_TRACK.offset : BIKE_OFFSET),
+            track ? TWO_WAY_BIKE_TRACK.width : 1.28, segment.length, 0.004, 0.015);
+          stripe(p.line, road, segment.center, side * (track ? TWO_WAY_BIKE_TRACK.separatorOffset - 0.08 : BIKE_OFFSET - 0.77),
             0.085, segment.length, 0.016, 0.016);
         }
       }
@@ -220,15 +277,20 @@ export function buildStreetscape(builder: StreetscapeBuilder): Streetscape {
         for (const side of [-1, 1]) {
           stripe(p.stone, road, segment.center, side * (ROAD_HALF_WIDTH + 0.09),
             0.18, segment.length, 0.025, 0.13);
-          for (let along = segment.center - segment.length / 2 + 1; along < segment.center + segment.length / 2; along += 3.4) {
-            const x = vertical ? road + side * 3.1 : along;
-            const z = vertical ? along : road + side * 3.1;
+        }
+        for (const side of track ? [track.side] : [-1, 1]) {
+          for (let along = segment.center - segment.length / 2 + 1; along < segment.center + segment.length / 2; along += track ? 3.4 : 5) {
+            const offset = side * (track ? TWO_WAY_BIKE_TRACK.separatorOffset : 3.1);
+            const x = vertical ? road + offset : along;
+            const z = vertical ? along : road + offset;
             add(cylinder, p.line, [x, 0.32, z], [0.07, 0.64, 0.07]);
-            add(cylinder, p.rubber, [x, 0.1, z], [0.12, 0.15, 0.12]);
+            if (track) add(cylinder, p.rubber, [x, 0.1, z], [0.075, 0.15, 0.075]);
+            else block(p.rubber, x, 0.05, z, 0.24, 0.07, 0.24);
           }
         }
         for (let along = segment.center - segment.length / 2 + 1; along < segment.center + segment.length / 2 - 0.5; along += 4) {
           stripe(p.line, road, along, 0, 0.085, 1.5, 0.017, 0.018);
+          if (track) stripe(p.taxi, road, along, track.side * TWO_WAY_BIKE_TRACK.offset, 0.065, 1.3, 0.017, 0.014);
         }
       }
     }
@@ -242,11 +304,14 @@ export function buildStreetscape(builder: StreetscapeBuilder): Streetscape {
       // One stop bar per incoming motor lane; protected lanes have their own short bar.
       if (Math.abs(intersection.z - side * STOP_LINE_OFFSET) < CITY_EXTENT.z) {
         block(p.line, intersection.x - side * VEHICLE_OFFSET, 0.02, intersection.z - side * STOP_LINE_OFFSET, 2.65, 0.024, 0.18);
-        block(p.line, intersection.x - side * BIKE_OFFSET, 0.02, intersection.z - side * STOP_LINE_OFFSET, 1.25, 0.024, 0.18);
+        block(p.line, intersection.x - side * bikeLaneOffset('north-south', intersection.x, side),
+          0.02, intersection.z - side * STOP_LINE_OFFSET, 1.25, 0.024, 0.18);
       }
       if (Math.abs(intersection.x + side * STOP_LINE_OFFSET) < CITY_EXTENT.x) {
         block(p.line, intersection.x + side * STOP_LINE_OFFSET, 0.02, intersection.z - side * VEHICLE_OFFSET, 0.18, 0.024, 2.65);
-        block(p.line, intersection.x + side * STOP_LINE_OFFSET, 0.02, intersection.z - side * BIKE_OFFSET, 0.18, 0.024, 1.25);
+        const track = TWO_WAY_BIKE_STREETS.some(({ z }) => z === intersection.z);
+        block(p.line, intersection.x + side * STOP_LINE_OFFSET, 0.02,
+          intersection.z - side * bikeLaneOffset('east-west', intersection.z, -side), 0.18, 0.024, track ? 0.88 : 1.25);
       }
     }
   }
@@ -256,6 +321,8 @@ export function buildStreetscape(builder: StreetscapeBuilder): Streetscape {
     const height = floors * 2.4;
     const brownstone = isBrownstone(building);
     const masonry = brownstone ? p.wood : p[building.skin];
+    const baySpacing = brownstone ? 1.8 : 2.2;
+    const windowWidth = brownstone ? 0.79 : 0.96;
     block(masonry, x, base + height / 2, z, width, height, depth);
     for (let floor = 0; floor < floors; floor++) {
       const principal = brownstone && floor === 0;
@@ -264,30 +331,30 @@ export function buildStreetscape(builder: StreetscapeBuilder): Streetscape {
       for (const side of [-1, 1]) {
         const front = z + side * (depth / 2 + 0.025);
         const flank = x + side * (width / 2 + 0.025);
-        const columns = Math.max(1, Math.floor(width / 1.8));
-        const bays = Math.max(1, Math.floor(depth / 1.8));
+        const columns = Math.max(1, Math.floor(width / baySpacing));
+        const bays = Math.max(1, Math.floor(depth / baySpacing));
         for (let column = 0; column < columns; column++) {
           const wx = x + (column - (columns - 1) / 2) * (width - 1.25) / columns;
           if (principal && side > 0 && Math.abs(wx - (x - width * 0.26)) < 0.7) continue;
-          block(p.glass, wx, y, front, 0.79, windowHeight, 0.045);
+          block(p.glass, wx, y, front, windowWidth, windowHeight, 0.045);
           block(brownstone ? p.copperEdge : p.paving, wx, y - windowHeight / 2 - 0.08,
-            front + side * 0.07, 1.02, brownstone ? 0.16 : 0.1, 0.2);
+            front + side * 0.07, windowWidth + 0.23, brownstone ? 0.16 : 0.1, 0.2);
           if (brownstone && side > 0) {
             block(p.copperEdge, wx, y + windowHeight / 2 + 0.1, front + 0.08, 1.06, 0.18, 0.24);
             if (principal) {
               block(p.rubber, wx, y, front + 0.035, 0.79, 0.065, 0.065);
               block(p.glass, wx, 0.5, front + 0.15, 0.68, 0.3, 0.045);
             }
-          } else {
+          } else if (brownstone || side > 0 || floor === 0) {
             block(brownstone ? p.rubber : masonry, wx, y + 0.05, front + side * 0.03,
               brownstone ? 0.79 : 0.07, brownstone ? 0.065 : windowHeight, 0.075);
           }
         }
         for (let bay = 0; bay < bays; bay++) {
           const wz = z + (bay - (bays - 1) / 2) * (depth - 1.25) / bays;
-          block(p.glass, flank, y, wz, 0.045, windowHeight, 0.79);
+          block(p.glass, flank, y, wz, 0.045, windowHeight, windowWidth);
           block(brownstone ? p.copperEdge : p.paving, flank + side * 0.07,
-            y - windowHeight / 2 - 0.08, wz, 0.2, brownstone ? 0.16 : 0.1, 1.02);
+            y - windowHeight / 2 - 0.08, wz, 0.2, brownstone ? 0.16 : 0.1, windowWidth + 0.23);
         }
       }
       block(brownstone ? p.copperEdge : p.stone, x, base + floor * 2.4 + 0.12, z,
@@ -394,8 +461,10 @@ export function buildStreetscape(builder: StreetscapeBuilder): Streetscape {
 
   // Quiet courtyards interrupt the street walls; all foliage is original shared geometry.
   for (const parcel of STREET_BLOCKS) {
+    if ([CORNER_BLOCKS.construction, CORNER_BLOCKS.transit, CORNER_BLOCKS.court].includes(parcel.id)) continue;
     for (const x of [parcel.minX + 1.3, parcel.maxX - 1.3]) {
       for (const z of [parcel.minZ + 1.3, parcel.maxZ - 1.3]) {
+        if ((x === parcel.minX + 1.3) !== (z === parcel.minZ + 1.3)) continue;
         if (STREET_BUILDINGS.some((building) =>
           Math.abs(building.x - x) < building.width / 2 + 1.3 &&
           Math.abs(building.z - z) < building.depth / 2 + 1.3)) continue;
@@ -403,123 +472,227 @@ export function buildStreetscape(builder: StreetscapeBuilder): Streetscape {
       }
     }
   }
-  for (const x of [-45, 45]) for (const z of [-6.25, 6.25]) {
-    tree(x, z, 0.92);
-    bench(x, z + 1.8);
-  }
-  for (const x of [-15, -2, 15]) {
-    tree(x, -34.3, 0.8);
-    tree(x, 45.2, 0.8);
+  const subwayPlaza = (x: number, z: number, width: number, depth: number, entranceX: number, entranceZ: number) => {
+    const minX = x - width / 2;
+    const maxX = x + width / 2;
+    const minZ = z - depth / 2;
+    const maxZ = z + depth / 2;
+    const west = entranceX - 1.16;
+    const east = entranceX + 1.16;
+    const north = entranceZ - 2.22;
+    const south = entranceZ + 2.22;
+    block(p.paving, (minX + west) / 2, -0.025, z, west - minX, 0.1, depth);
+    block(p.paving, (east + maxX) / 2, -0.025, z, maxX - east, 0.1, depth);
+    block(p.paving, entranceX, -0.025, (minZ + north) / 2, east - west, 0.1, north - minZ);
+    block(p.paving, entranceX, -0.025, (south + maxZ) / 2, east - west, 0.1, maxZ - south);
+  };
+  for (const x of [WEST_X, EAST_X]) for (const position of [-50.5, 0.5, 51.5]) {
+    const z = position * SIDE_SCALE;
+    if (x === WEST_X && position === 51.5) subwayPlaza(x, z, 10.8, 9 * SIDE_SCALE, x, z);
+    else block(p.paving, x, -0.025, z, 10.8, 0.1, 9 * SIDE_SCALE);
+    tree(x - 3, z - 2 * SIDE_SCALE, 0.92);
+    tree(x + 3, z + 2 * SIDE_SCALE, 0.85);
+    bench(x, z - 2.8 * SIDE_SCALE);
   }
 
-  // Juniper Court: a modest half-court and open planted sitting edge, not a full arena.
-  block(p.paving, -45, -0.015, 40, 15.8, 0.12, 13.8);
-  block(p.teal, -44.5, 0.063, 40, 9.4, 0.035, 10.8);
+  const basketball = BASKETBALL_COURT;
+  const pickleball = PICKLEBALL_COURT;
+  const courtX = basketball.x;
+  const courtZ = basketball.z;
+  const courtParcel = STREET_BLOCKS.find(({ id }) => id === CORNER_BLOCKS.court)!;
+  const courtGapZ = (basketball.z - basketball.depth / 2 + pickleball.z + pickleball.depth / 2) / 2;
+  block(p.paving, courtParcel.x, -0.025, courtParcel.z,
+    courtParcel.maxX - courtParcel.minX - 0.4, 0.1, courtParcel.maxZ - courtParcel.minZ - 0.4);
+  block(p.teal, courtX, basketball.surfaceY - 0.015, courtZ, basketball.width, 0.03, basketball.depth);
+  const serviceWidth = pickleball.width / 2 - pickleball.kitchenDepth;
+  block(p.teal, pickleball.x, pickleball.surfaceY - 0.015, pickleball.z,
+    pickleball.kitchenDepth * 2, 0.03, pickleball.depth);
   for (const side of [-1, 1]) {
-    block(p.line, -44.5 + side * 4.35, 0.085, 40, 0.07, 0.02, 10.2);
-    block(p.line, -44.5, 0.085, 40 + side * 5.1, 8.7, 0.02, 0.07);
+    block(p.roof, pickleball.x + side * (pickleball.kitchenDepth + serviceWidth / 2),
+      pickleball.surfaceY - 0.015, pickleball.z, serviceWidth, 0.03, pickleball.depth);
   }
-  block(p.line, -44.5, 0.085, 40, 8.7, 0.02, 0.06);
+  for (const court of [basketball, pickleball]) {
+    for (const side of [-1, 1]) {
+      block(p.line, court.x + side * (court.width / 2 - 0.035), court.surfaceY + 0.006, court.z,
+        0.07, 0.008, court.depth - 0.07);
+      block(p.line, court.x, court.surfaceY + 0.006, court.z + side * (court.depth / 2 - 0.035),
+        court.width - 0.07, 0.008, 0.07);
+    }
+  }
+  block(p.line, courtX, basketball.surfaceY + 0.006, courtZ, 0.065, 0.008, basketball.depth - 0.07);
+  const circleRadius = basketball.depth * 0.135;
   for (let segment = 0; segment < 24; segment++) {
     const angle = segment / 24 * Math.PI * 2;
-    block(p.line, -44.5 + Math.cos(angle) * 1.5, 0.085, 40 + Math.sin(angle) * 1.5,
-      0.4, 0.02, 0.06, -angle - Math.PI / 2);
+    block(p.line, courtX + Math.cos(angle) * circleRadius, basketball.surfaceY + 0.006,
+      courtZ + Math.sin(angle) * circleRadius, Math.PI * circleRadius / 12, 0.008, 0.055, -angle - Math.PI / 2);
   }
   for (const side of [-1, 1]) {
-    const z = 40 + side * 4.65;
-    add(cylinder, p.copperEdge, [-44.5, 1.6, z], [0.075, 3.2, 0.075]);
-    block(p.paving, -44.5, 2.92, z - side * 0.28, 1.3, 0.9, 0.09);
-    block(p.roof, -44.5, 2.93, z - side * 0.34, 0.57, 0.36, 0.035);
-    const rimZ = z - side * 0.65;
+    const keyDepth = basketball.width * 0.23;
+    const keyWidth = basketball.depth * 0.3;
+    block(p.line, courtX + side * (basketball.width / 2 - keyDepth), basketball.surfaceY + 0.006,
+      courtZ, 0.065, 0.008, keyWidth);
+    for (const flank of [-1, 1]) block(p.line,
+      courtX + side * (basketball.width / 2 - keyDepth / 2 - 0.035), basketball.surfaceY + 0.006,
+      courtZ + flank * keyWidth / 2, keyDepth - 0.07, 0.008, 0.065);
+    const rimX = courtX + side * basketball.hoopOffset;
+    const rimY = basketball.surfaceY + basketball.hoopHeight;
+    const poleX = rimX + side * 0.65;
+    const poleHeight = basketball.hoopHeight + 0.65;
+    const boardX = rimX + side * 0.35;
+    add(cylinder, p.copperEdge, [poleX, basketball.surfaceY + poleHeight / 2, courtZ], [0.075, poleHeight, 0.075]);
+    block(p.paving, boardX, rimY + 0.32, courtZ, 0.09, 0.9, 1.3);
+    block(p.roof, boardX - side * 0.065, rimY + 0.18, courtZ, 0.035, 0.36, 0.57);
+    rod(p.copperEdge, [poleX, rimY + 0.18, courtZ], [boardX, rimY + 0.18, courtZ], 0.065);
+    rod(p.copper, [boardX, rimY, courtZ], [rimX + side * 0.22, rimY, courtZ], 0.035);
     for (let segment = 0; segment < 10; segment++) {
       const angle = segment / 10 * Math.PI * 2;
-      block(p.copper, -44.5 + Math.cos(angle) * 0.22, 2.65, rimZ + Math.sin(angle) * 0.22,
+      block(p.copper, rimX + Math.cos(angle) * 0.22, rimY, courtZ + Math.sin(angle) * 0.22,
         0.15, 0.035, 0.035, -angle - Math.PI / 2);
     }
+    block(p.line, pickleball.x + side * pickleball.kitchenDepth, pickleball.surfaceY + 0.006,
+      pickleball.z, 0.055, 0.008, pickleball.depth - 0.07);
+    block(p.line, pickleball.x + side * (pickleball.kitchenDepth + serviceWidth / 2),
+      pickleball.surfaceY + 0.006, pickleball.z, serviceWidth - 0.07, 0.008, 0.055);
+    const netPoleHeight = pickleball.netHeight + 0.12;
+    add(cylinder, p.rubber,
+      [pickleball.x, pickleball.surfaceY + netPoleHeight / 2, pickleball.z + side * (pickleball.depth / 2 + 0.17)],
+      [0.05, netPoleHeight, 0.05]);
+    rod(p.rubber,
+      [pickleball.x, pickleball.surfaceY + pickleball.netHeight - 0.02, pickleball.z + side * pickleball.depth / 2],
+      [pickleball.x, pickleball.surfaceY + pickleball.netHeight - 0.02, pickleball.z + side * (pickleball.depth / 2 + 0.17)],
+      0.02);
   }
-  for (const z of [35.8, 40, 44.2]) bench(-51.2, z, Math.PI / 2);
-  for (const z of [34.5, 45.5]) tree(-38.5, z, 0.8);
-  for (let z = 34; z <= 46; z += 2) {
-    rod(p.copperEdge, [-49.8, 0, z], [-49.8, 2.5, z], 0.055);
+  const netTop = pickleball.surfaceY + pickleball.netHeight;
+  const netBottom = pickleball.surfaceY + 0.1;
+  const meshHeight = netTop - 0.04 - netBottom;
+  block(p.line, pickleball.x, netTop - 0.02, pickleball.z, 0.045, 0.04, pickleball.depth);
+  for (let thread = 0; thread <= 24; thread++) {
+    block(p.rubber, pickleball.x, netBottom + meshHeight / 2,
+      pickleball.z + (thread / 24 - 0.5) * pickleball.depth, 0.02, meshHeight, 0.02);
   }
-  for (const y of [0.5, 1.5, 2.5]) rod(p.copperEdge, [-49.8, y, 34], [-49.8, y, 46], 0.045);
+  for (let row = 0; row < 4; row++) block(p.rubber, pickleball.x,
+    netBottom + meshHeight * row / 4, pickleball.z, 0.02, 0.02, pickleball.depth);
+  for (const x of [courtX - 4.6, courtX + 4.6]) bench(x, courtGapZ + 0.5);
+  bench(courtX + 1.2, courtParcel.minZ + 1.4);
+  for (const x of [courtParcel.minX + 1.5, courtParcel.maxX - 1.5]) tree(x, courtParcel.minZ + 1.6, 0.7);
+  const fenceX = courtParcel.minX + 0.45;
+  const fenceStart = courtZ - basketball.depth / 2 - 0.1;
+  const fenceEnd = courtZ + basketball.depth / 2 + 0.7;
+  for (let post = 0; post <= 4; post++) {
+    const z = fenceStart + (fenceEnd - fenceStart) * post / 4;
+    rod(p.copperEdge, [fenceX, 0, z], [fenceX, 2.5, z], 0.055);
+  }
+  for (const y of [0.5, 1.5, 2.5]) rod(p.copperEdge,
+    [fenceX, y, fenceStart], [fenceX, y, fenceEnd], 0.045);
 
   const subway = (x: number, z: number) => {
-    block(p.roof, x, 0.065, z, 2.2, 0.15, 4.2);
+    // The shallow recess stays above the island top (-0.14); paving leaves its mouth open.
+    block(p.rubber, x, -0.1, z, 2.14, 0.035, 4.18);
+    block(p.cream, x, 0.165, z - 2.06, 2.1, 0.57, 0.16);
+    block(p.stone, x, 0.43, z - 2.08, 2.44, 0.18, 0.28);
     for (let step = 0; step < 6; step++) {
-      block(p.stone, x, 0.17 - step * 0.018, z + 1.7 - step * 0.56, 1.85, 0.06, 0.24);
+      block(p.stone, x, 0.31 - step * 0.08, z + 1.49 - step * 0.56, 1.76, 0.08, 0.56);
     }
+    for (let step = 0; step < 3; step++) {
+      const height = (step + 1) * 0.14;
+      block(p.stone, x, height / 2, z + 3.03 - step * 0.36, 2.08, height, 0.36);
+    }
+    block(p.stone, x, 0.215, z + 1.95, 1.86, 0.43, 0.36);
+    block(p.taxi, x, 0.438, z + 1.89, 1.74, 0.012, 0.11);
     for (const side of [-1, 1]) {
-      for (let index = 0; index < 6; index++) {
-        add(cylinder, p.copperEdge, [x + side * 1.05, 0.66, z - 2 + index * 0.7], [0.035, 1.25, 0.035]);
+      const edgeX = x + side * 1.08;
+      block(p.cream, x + side * 0.975, 0.165, z, 0.16, 0.57, 4.2);
+      block(p.stone, edgeX, 0.43, z, 0.28, 0.18, 4.4);
+      for (const y of [0.1, 0.28]) block(p.paving, x + side * 0.89, y, z, 0.025, 0.025, 4);
+      for (let index = 0; index < 10; index++) {
+        block(p.teal, edgeX, 0.93, z - 1.9 + index * 0.39, 0.035, 0.8, 0.035);
       }
-      rod(p.copperEdge, [x + side * 1.05, 1.26, z - 2], [x + side * 1.05, 1.26, z + 1.6], 0.065);
-      add(cylinder, p.copperEdge, [x + side * 1.05, 1.28, z + 2], [0.065, 2.56, 0.065]);
-      add(crown, p.leafLight, [x + side * 1.05, 2.63, z + 2], [0.25, 0.25, 0.25]);
-      add(cylinder, p.paving, [x + side * 1.05, 2.62, z + 2], [0.26, 0.1, 0.26]);
+      for (const y of [0.62, 1.34]) block(p.teal, edgeX, y, z, 0.065, 0.065, 4.24);
+      for (const end of [-1, 1]) block(p.teal, edgeX, 0.96, z + end * 2.03, 0.12, 0.96, 0.12);
+      const railX = x + side * 0.72;
+      rod(p.stone, [railX, 0.98, z + 1.77], [railX, 0.5, z - 1.59], 0.045);
+      rod(p.stone, [railX, 0.98, z + 2.11], [railX, 0.98, z + 1.77], 0.045);
+      rod(p.stone, [railX, 0.5, z - 1.59], [railX, 0.5, z - 1.84], 0.045);
+      for (const step of [0, 3, 5]) {
+        const treadY = 0.35 - step * 0.08;
+        const treadZ = z + 1.49 - step * 0.56;
+        rod(p.stone, [railX, treadY, treadZ], [railX, treadY + 0.59, treadZ], 0.035);
+      }
+      block(p.teal, edgeX, 1.28, z + 2.03, 0.105, 2.56, 0.105);
+      add(crown, p.leafLight, [edgeX, 2.63, z + 2.03], [0.26, 0.26, 0.26]);
+      add(cylinder, p.paving, [edgeX, 2.42, z + 2.03], [0.16, 0.12, 0.16]);
     }
-    rod(p.copperEdge, [x - 1.05, 1.26, z - 2], [x + 1.05, 1.26, z - 2], 0.065);
+    for (const y of [0.62, 1.34]) block(p.teal, x, y, z - 2.08, 2.2, 0.065, 0.065);
+    for (let index = -2; index <= 2; index++) block(p.teal, x + index * 0.36, 0.93, z - 2.08, 0.035, 0.8, 0.035);
+    block(p.rubber, x, 1.21, z - 2.08, 1.62, 0.23, 0.11);
   };
   // Crosstown Steps retains generous circulation beside a small unbranded shelter.
-  block(p.paving, 46.8, -0.025, -38.3, 11.7, 0.1, 10.3);
-  subway(49, -39);
-  subway(-44.9, 13.5);
-  for (const x of [42.5, 46.5]) {
-    add(cylinder, p.copperEdge, [x, 1.4, -34.9], [0.065, 2.8, 0.065]);
+  const transitX = TRANSIT.x;
+  const transitZ = TRANSIT.z;
+  subwayPlaza(transitX, transitZ - 0.5, 11.8, 12.8, transitX + 2, transitZ + 0.2);
+  subway(transitX + 2, transitZ + 0.2);
+  subway(WEST_X, 51.5 * SIDE_SCALE);
+  for (const x of [transitX, transitX + 4]) {
+    add(cylinder, p.copperEdge, [x, 1.4, transitZ + 4.3], [0.065, 2.8, 0.065]);
   }
-  block(p.teal, 44.5, 2.83, -34.9, 5.2, 0.18, 2.2);
-  block(p.paving, 44.5, 2.95, -34.9, 5.45, 0.08, 2.4);
-  bench(44.5, -35);
-  bench(51.4, -34.4);
-  tree(42.5, -38.5, 0.8);
+  block(p.teal, transitX + 2, 2.83, transitZ + 4.3, 5.2, 0.18, 2.2);
+  block(p.paving, transitX + 2, 2.95, transitZ + 4.3, 5.45, 0.08, 2.4);
+  bench(transitX + 2, transitZ + 4.2);
+  bench(transitX + 4.5, transitZ - 1.6);
+  tree(transitX - 0.3, transitZ + 2.8, 0.65);
 
   // A compact construction pocket: open frame, muted safety fencing and a lattice crane.
-  block(p.sand, -43, 0.02, -37.6, 9.1, 0.12, 7.8);
-  for (const x of [-46.3, -40]) for (const z of [-40.1, -35.1]) {
+  const siteX = WEST_X + 1.5;
+  const siteZ = STREET_Z[CENTER_ROW] - SIDEWALK_OFFSET - 5.3;
+  block(p.sand, siteX, 0.02, siteZ, 7.2, 0.12, 7);
+  for (const x of [siteX - 2.8, siteX + 2.5]) for (const z of [siteZ - 2.5, siteZ + 2.5]) {
     block(p.stone, x, 2.1, z, 0.55, 4.2, 0.55);
   }
   for (const y of [0.25, 2.3, 4.25]) {
-    block(p.stone, -43.15, y, -37.6, 7.2, 0.24, 5.8);
+    block(p.stone, siteX - 0.15, y, siteZ, 6, 0.24, 5.8);
   }
-  for (const z of [-41.5, -33.9]) block(p.teal, -43, 0.75, z, 9.1, 1.5, 0.13);
-  block(p.teal, -38.4, 0.75, -37.7, 0.13, 1.5, 7.7);
-  for (const x of [-46.8, -45.8, -44.8]) {
-    block(p.wood, x, 0.32, -35, 0.55, 0.5, 1.4);
+  for (const z of [siteZ - 3.8, siteZ + 3.7]) block(p.teal, siteX, 0.75, z, 7.2, 1.5, 0.13);
+  block(p.teal, siteX + 3.7, 0.75, siteZ, 0.13, 1.5, 7.7);
+  for (const x of [siteX - 2.5, siteX - 1.5, siteX - 0.5]) {
+    block(p.wood, x, 0.32, siteZ + 2.3, 0.55, 0.5, 1.4);
   }
   // The facade scaffold stays behind the separate protective sidewalk shed.
-  for (const x of [-46.8, -43.2, -39.6]) {
-    for (const z of [-35.15, -34.35]) {
+  const scaffoldX = siteX - 0.1;
+  const scaffoldZ = siteZ + 2.7;
+  for (const x of [scaffoldX - 3, scaffoldX, scaffoldX + 3]) {
+    for (const z of [scaffoldZ - 0.4, scaffoldZ + 0.4]) {
       block(p.roof, x, 3.4, z, 0.085, 6.8, 0.085);
     }
   }
   for (const y of [2.2, 4.4, 6.6]) {
-    for (const z of [-35.15, -34.35]) block(p.roof, -43.2, y, z, 7.3, 0.09, 0.09);
-    block(p.wood, -43.2, y + 0.06, -34.75, 7.3, 0.08, 1);
-    for (const x of [-46.8, -43.2]) {
-      rod(p.roof, [x, y - 2.1, -34.3], [x + 3.6, y, -34.3], 0.055);
-      rod(p.roof, [x, y, -34.3], [x + 3.6, y - 2.1, -34.3], 0.055);
+    for (const z of [scaffoldZ - 0.4, scaffoldZ + 0.4]) block(p.roof, scaffoldX, y, z, 6.3, 0.09, 0.09);
+    block(p.wood, scaffoldX, y + 0.06, scaffoldZ, 6.3, 0.08, 1);
+    for (const x of [scaffoldX - 3, scaffoldX]) {
+      rod(p.roof, [x, y - 2.1, scaffoldZ + 0.45], [x + 3, y, scaffoldZ + 0.45], 0.055);
+      rod(p.roof, [x, y, scaffoldZ + 0.45], [x + 3, y - 2.1, scaffoldZ + 0.45], 0.055);
     }
   }
-  const shedWalkZ = STREET_Z[1] - SIDEWALK_OFFSET;
-  for (const x of [-47, -44.2, -41.4, -38.6]) {
+  const shedWalkZ = STREET_Z[CENTER_ROW] - SIDEWALK_OFFSET;
+  const shedX = WEST_X + 1.05;
+  for (const x of [shedX - 3.45, shedX - 1.15, shedX + 1.15, shedX + 3.45]) {
     for (const z of [shedWalkZ - 1.25, shedWalkZ + 0.9]) {
       block(p.roof, x, 1.35, z, 0.1, 2.7, 0.1);
     }
     block(p.roof, x, 2.62, shedWalkZ - 0.175, 0.12, 0.16, 2.35);
   }
   for (const z of [shedWalkZ - 1.25, shedWalkZ + 0.9]) {
-    block(p.roof, -42.8, 2.64, z, 8.65, 0.17, 0.14);
-    block(p.teal, -42.8, 2.99, z, 8.8, 0.48, 0.12);
-    for (const x of [-47, -41.4]) {
-      rod(p.roof, [x, 0.25, z], [x + 2.8, 2.5, z], 0.065);
+    block(p.roof, shedX, 2.64, z, 7.15, 0.17, 0.14);
+    block(p.teal, shedX, 2.99, z, 7.3, 0.48, 0.12);
+    for (const x of [shedX - 3.45, shedX + 1.15]) {
+      rod(p.roof, [x, 0.25, z], [x + 2.3, 2.5, z], 0.065);
     }
   }
-  block(p.roof, -42.8, 2.78, shedWalkZ - 0.175, 8.8, 0.18, 2.5);
-  for (const x of [-45.6, -42.8, -40]) {
+  block(p.roof, shedX, 2.78, shedWalkZ - 0.175, 7.3, 0.18, 2.5);
+  for (const x of [shedX - 2.3, shedX, shedX + 2.3]) {
     block(p.line, x, 2.66, shedWalkZ - 0.175, 0.65, 0.06, 0.22);
   }
-  const craneX = -43;
-  const craneZ = -38.5;
+  const craneX = WEST_X + 1.2;
+  const craneZ = siteZ - 0.2;
   for (const dx of [-0.4, 0.4]) for (const dz of [-0.4, 0.4]) {
     rod(p.copper, [craneX + dx, 0, craneZ + dz], [craneX + dx, 18, craneZ + dz], 0.1);
   }
@@ -529,18 +702,18 @@ export function buildStreetscape(builder: StreetscapeBuilder): Streetscape {
     }
     block(p.copper, craneX, y, craneZ, 0.9, 0.09, 0.9);
   }
-  for (const y of [17.8, 18.5]) block(p.copper, -44, y, craneZ, 13.2, 0.12, 0.4);
-  for (let x = -50; x < -38; x++) {
+  for (const y of [17.8, 18.5]) block(p.copper, WEST_X - 0.5, y, craneZ, 10.3, 0.12, 0.4);
+  for (let x = WEST_X - 5; x < WEST_X + 4; x++) {
     rod(p.copper, [x, 17.8, craneZ], [x + 0.8, 18.5, craneZ], 0.065);
   }
-  block(p.teal, -44.1, 17.1, craneZ, 1.1, 1.1, 1.1);
-  block(p.glass, -44.1, 17.25, craneZ + 0.56, 0.8, 0.55, 0.035);
-  block(p.stone, -49.5, 17.35, craneZ, 1.6, 0.8, 1);
-  rod(p.copperEdge, [-38.5, 17.8, craneZ], [-38.5, 6, craneZ], 0.035);
-  block(p.copperEdge, -38.5, 5.8, craneZ, 0.3, 0.4, 0.2);
+  block(p.teal, craneX - 1.1, 17.1, craneZ, 1.1, 1.1, 1.1);
+  block(p.glass, craneX - 1.1, 17.25, craneZ + 0.56, 0.8, 0.55, 0.035);
+  block(p.stone, WEST_X - 4.5, 17.35, craneZ, 1.6, 0.8, 1);
+  rod(p.copperEdge, [WEST_X + 4.4, 17.8, craneZ], [WEST_X + 4.4, 6, craneZ], 0.035);
+  block(p.copperEdge, WEST_X + 4.4, 5.8, craneZ, 0.3, 0.4, 0.2);
 
-  for (const x of [-60, -30, 30, 60]) {
-    for (const z of [-39, 1, 39]) {
+  for (const x of STREET_X) {
+    for (const z of [NORTH_Z, -74, -24, 24, 74, SOUTH_Z]) {
       const side = x < 0 ? -1 : 1;
       const px = x + side * 5.5;
       add(cylinder, p.clay, [px, 0.42, z], [0.16, 0.7, 0.16]);
@@ -548,7 +721,7 @@ export function buildStreetscape(builder: StreetscapeBuilder): Streetscape {
       block(p.copperEdge, px, 0.52, z, 0.5, 0.14, 0.15);
     }
   }
-  for (const [x, z] of [[-44.8, -14], [44.8, 14], [51.2, -36.4], [-38.4, 39.5]] as const) {
+  for (const [x, z] of [[WEST_X, -50.5 * SIDE_SCALE], [EAST_X, 0.5 * SIDE_SCALE], [transitX + 4.5, transitZ + 2.5], [courtParcel.maxX - 1.05, courtGapZ - 1.05]] as const) {
     for (let index = 0; index < 3; index++) {
       const pz = z + index * 0.8;
       rod(p.copperEdge, [x - 0.45, 0, pz], [x - 0.45, 0.75, pz], 0.045);
@@ -556,7 +729,7 @@ export function buildStreetscape(builder: StreetscapeBuilder): Streetscape {
       rod(p.copperEdge, [x - 0.45, 0.75, pz], [x + 0.45, 0.75, pz], 0.045);
     }
   }
-  for (const [x, z] of [[-51.1, 37.6], [44.2, -41]] as const) {
+  for (const [x, z] of [[courtX - 3.7, courtParcel.minZ + 1.65], [transitX - 0.4, transitZ - 2.25]] as const) {
     block(p.paving, x, 0.68, z, 1.65, 0.8, 0.85);
     block(p.copper, x, 1.11, z, 1.8, 0.1, 1);
     for (const side of [-1, 1]) {
@@ -589,7 +762,7 @@ function buildSignalLights({ block, add, box, cylinder, palette: p }: Streetscap
       for (const side of [-1, 1]) {
         const px = intersection.x + (vertical ? side * 5.5 : side * approach);
         let pz = intersection.z + (vertical ? side * approach : -side * 5.5);
-        if (Math.abs(px) < 24 && Math.abs(pz) < 21) pz = 2 * intersection.z - pz;
+        if (Math.abs(px) < PARK_HALF_X && Math.abs(pz) < PARK_HALF_Z) pz = 2 * intersection.z - pz;
         const hx = intersection.x + (vertical ? side * VEHICLE_OFFSET : side * approach);
         const hz = intersection.z + (vertical ? side * approach : -side * VEHICLE_OFFSET);
         if (Math.abs(px) > CITY_EXTENT.x - 0.5 || Math.abs(pz) > CITY_EXTENT.z - 0.5) continue;

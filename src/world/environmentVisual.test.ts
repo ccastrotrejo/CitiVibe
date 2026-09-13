@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { CAMERA_PROJECTION } from '../content/city';
+import { CITY_EXTENT } from '../content/streets';
 import { EnvironmentController } from './environment';
 import { EnvironmentVisual } from './environmentVisual';
 
@@ -47,10 +48,10 @@ describe('bounded environment GPU adapter', () => {
     const positions = rain.geometry.getAttribute('position');
     const x = Array.from({ length: positions.count }, (_, index) => positions.getX(index));
     const z = Array.from({ length: positions.count }, (_, index) => positions.getZ(index));
-    expect(Math.max(...x)).toBeGreaterThan(65);
-    expect(Math.min(...x)).toBeLessThan(-65);
-    expect(Math.max(...z)).toBeGreaterThan(60);
-    expect(Math.min(...z)).toBeLessThan(-60);
+    expect(Math.max(...x)).toBeGreaterThan(CITY_EXTENT.x * 0.97);
+    expect(Math.min(...x)).toBeLessThan(-CITY_EXTENT.x * 0.97);
+    expect(Math.max(...z)).toBeGreaterThan(CITY_EXTENT.z * 0.97);
+    expect(Math.min(...z)).toBeLessThan(-CITY_EXTENT.z * 0.97);
     visual.dispose();
     expect(material.color).toEqual(original);
     material.dispose();
@@ -99,6 +100,26 @@ describe('bounded environment GPU adapter', () => {
     expect(world.rain.material.opacity).toBeCloseTo(0.42);
     expect(world.rain.material.size).toBeGreaterThanOrEqual(1);
     expect(world.rain.material.sizeAttenuation).toBe(false);
+    world.dispose();
+  });
+
+  it('carries the fixed cloud population over both expanded outer avenues', () => {
+    const world = fixture();
+    const clouds = world.scene.getObjectByName('Environment effects')!.children.filter((object) => object instanceof THREE.Mesh);
+    let minX = Infinity;
+    let maxX = -Infinity;
+    for (let seconds = 0; seconds <= 3600; seconds += 60) {
+      world.visual.update(world.environment.frame, OPTIONS, seconds);
+      for (const cloud of clouds) {
+        minX = Math.min(minX, cloud.position.x);
+        maxX = Math.max(maxX, cloud.position.x);
+        expect(Math.abs(cloud.position.x)).toBeLessThan(CITY_EXTENT.x + 15);
+        expect(Math.abs(cloud.position.z)).toBeLessThanOrEqual(CITY_EXTENT.z);
+      }
+    }
+    expect(minX).toBeLessThan(-CITY_EXTENT.x);
+    expect(maxX).toBeGreaterThan(CITY_EXTENT.x);
+    expect(clouds).toHaveLength(6);
     world.dispose();
   });
 

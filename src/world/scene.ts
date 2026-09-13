@@ -1,7 +1,10 @@
 import * as THREE from 'three';
 import { CITY, CONTENT, LANDMARKS, validateLandmarks } from '../content/city';
+import { PARK_ACTORS } from '../content/park';
+import { BASKETBALL_COURT, COURT_PLAYERS, PICKLEBALL_COURT } from '../content/courts';
 import { CITY_EXTENT, TRAFFIC_ACTORS, type TrafficSignalState } from '../content/streets';
 import { ActorInstances } from './actorInstances';
+import { CourtActivity, type CourtPlayerRig } from './courtActivity';
 import { buildCentralPark } from './park';
 import { buildPavementMarkings } from './pavement';
 import { buildStreetscape } from './streetscape';
@@ -16,6 +19,7 @@ export interface CityScene {
   marker: THREE.Object3D;
   setTrafficSignals?(signals: readonly TrafficSignalState[]): void;
   updateActors?(): void;
+  updateCourtActivity?(elapsedSeconds: number, reducedMotion: boolean): void;
   dispose(): void;
 }
 
@@ -212,16 +216,16 @@ export function buildCityScene(): CityScene {
     spin.add(limb(cylinder, palette.stone, [Math.sign(x) * 0.1, 0, 0], [0.16 * radiusFactor, 0.05, 0.16 * radiusFactor], [0, 0, Math.PI / 2]));
     return { steer, spin, front };
   }
-  function buildWalkerRig(group: THREE.Group, shirt: THREE.Material, headMat: THREE.Material): WalkerRig {
+  function buildWalkerRig(group: THREE.Group, shirt: THREE.Material, headMat: THREE.Material, running = false): WalkerRig {
     const buildLeg = (): LegRig => {
       const hip = new THREE.Object3D();
       hip.add(limb(box, palette.rubber, [0, -WALKER.thigh / 2, 0], WALKER.thighSize));
       const knee = new THREE.Object3D();
       knee.position.y = -WALKER.thigh;
-      knee.add(limb(box, palette.rubber, [0, -WALKER.shank / 2, 0], WALKER.shankSize));
+      knee.add(limb(box, running ? headMat : palette.rubber, [0, -WALKER.shank / 2, 0], WALKER.shankSize));
       const ankle = new THREE.Object3D();
       ankle.position.y = -WALKER.shank;
-      ankle.add(limb(box, palette.rubber, [0, WALKER.footSize[1] / 2, WALKER.footFwd], WALKER.footSize));
+      ankle.add(limb(box, running ? palette.line : palette.rubber, [0, WALKER.footSize[1] / 2, WALKER.footFwd], WALKER.footSize));
       knee.add(ankle);
       hip.add(knee);
       return { hip, knee, ankle };
@@ -238,7 +242,12 @@ export function buildCityScene(): CityScene {
     [-1, 1].forEach((side, index) => {
       const shoulder = arms[index];
       shoulder.position.set(side * WALKER.shoulderHalf, WALKER.shoulderY, 0);
-      shoulder.add(limb(box, shirt, [0, -WALKER.armLen / 2, 0], WALKER.armSize));
+      if (running) {
+        shoulder.add(limb(box, shirt, [0, -0.13, 0], [0.12, 0.27, 0.15]));
+        shoulder.add(limb(box, headMat, [0, -0.27, 0.12], [0.11, 0.12, 0.3]));
+      } else {
+        shoulder.add(limb(box, shirt, [0, -WALKER.armLen / 2, 0], WALKER.armSize));
+      }
       torso.add(shoulder);
       const leg = legs[index];
       leg.hip.position.set(side * WALKER.hipHalf, 0, 0);
@@ -249,10 +258,12 @@ export function buildCityScene(): CityScene {
 
   const shirts = [palette.teal, palette.clay, palette.cream, palette.leaf];
   const neighborhoodActors: THREE.Group[] = [];
-  for (let index = 0; index < 8; index++) {
-    const walker = actorGroup(`walker-${index + 1}`, 'Square walker');
+  for (const [index, definition] of PARK_ACTORS.entries()) {
+    const running = definition.gait === 'run';
+    const walker = actorGroup(definition.id, running ? 'Park runner' : 'Park walker');
     neighborhoodActors.push(walker);
-    const rig = buildWalkerRig(walker, shirts[index % shirts.length], index % 2 ? palette.skin : palette.skinLight);
+    const rig = buildWalkerRig(walker, running ? [palette.bus, palette.teal, palette.line][index % 3] : shirts[index % shirts.length],
+      index % 2 ? palette.skin : palette.skinLight, running);
     walker.userData.rig = rig;
     poseNeutral(rig);
   }
@@ -372,6 +383,32 @@ export function buildCityScene(): CityScene {
     group.userData.rig = rig;
     poseNeutral(rig);
   }
+  const courtPlayers: CourtPlayerRig[] = COURT_PLAYERS.map((definition, index) => {
+    const group = new THREE.Group();
+    group.name = definition.id;
+    scene.add(group);
+    neighborhoodActors.push(group);
+    const rig = buildWalkerRig(group, [palette.bus, palette.teal, palette.clay, palette.cream][index % 4],
+      index % 2 ? palette.skin : palette.skinLight);
+    if (definition.sport === 'pickleball') {
+      rig.arms[0].add(limb(box, palette.wood, [0, -0.51, 0], [0.06, 0.22, 0.06]));
+      const paddle = limb(cylinder, palette.teal, [0, -0.65, 0], [0.17, 0.035, 0.22]);
+      paddle.name = 'Pickleball paddle';
+      rig.arms[0].add(paddle);
+    }
+    return { definition, group, rig };
+  });
+  const courtBall = (name: string, radius: number, surface: THREE.Material) => {
+    const group = new THREE.Group();
+    group.name = name;
+    group.add(limb(crown, surface, [0, 0, 0], [radius, radius, radius]));
+    scene.add(group);
+    neighborhoodActors.push(group);
+    return group;
+  };
+  const courtActivity = new CourtActivity(courtPlayers,
+    courtBall('Basketball in play', BASKETBALL_COURT.ballRadius, palette.bus),
+    courtBall('Pickleball in play', PICKLEBALL_COURT.ballRadius, palette.taxi));
   const actorInstances = new ActorInstances(neighborhoodActors);
   scene.add(actorInstances.group);
   const bus = actors.get(CITY.busId)!;
@@ -401,10 +438,12 @@ export function buildCityScene(): CityScene {
 
   scene.add(new THREE.HemisphereLight('#fff1d8', '#a99f87', 2.4));
   const sun = new THREE.DirectionalLight('#fff1d6', 3);
-  sun.position.set(-65, 100, 70);
+  sun.position.set(-130, 200, 140);
   sun.castShadow = true;
   sun.shadow.mapSize.set(1024, 1024);
-  Object.assign(sun.shadow.camera, { left: -105, right: 105, top: 100, bottom: -100, near: 1, far: 300 });
+  const shadowExtent = Math.max(CITY_EXTENT.x, CITY_EXTENT.z) * 1.6;
+  Object.assign(sun.shadow.camera, { left: -shadowExtent, right: shadowExtent, top: shadowExtent, bottom: -shadowExtent, near: 1, far: 700 });
+  sun.shadow.camera.updateProjectionMatrix();
   sun.shadow.normalBias = 0.06;
   sun.shadow.bias = -0.00015;
   scene.add(sun);
@@ -415,6 +454,9 @@ export function buildCityScene(): CityScene {
     scene, bus, actors, hitTargets, marker,
     setTrafficSignals: (signals) => streetscape.setSignals(signals),
     updateActors: () => actorInstances.update(),
+    updateCourtActivity: (elapsedSeconds, reducedMotion) => {
+      if (!disposed) courtActivity.update(elapsedSeconds, reducedMotion);
+    },
     dispose() {
       if (disposed) return;
       disposed = true;

@@ -19,10 +19,10 @@ interface CityStageProps {
 export function CityStage({ canvas, attempt, live, guide, status, send, onCycle, onDismissGuide, onKeyDown }: CityStageProps) {
   const selected = LANDMARKS.find(({ id }) => id === status.selectedId);
   return <section className="scene-shell" aria-label={`${CITY.name} experience`}>
-    <div className="scene-heading"><span className="eyebrow">The park district / 003</span><h1>{CITY.name}</h1><p>A green heart. A living neighborhood.</p></div>
+    <h1 className="sr-only">{CITY.name}</h1>
     <div className="scene-navigation" role="region" aria-label="City navigation" aria-describedby="navigation-hint" tabIndex={0} onKeyDown={onKeyDown}>
       <div className={`poster-frame ${live ? 'poster-hidden' : ''}`}>
-        <img className="city-poster" src={`/city/${CITY.version}.svg`} alt="Original miniature city around a large central park with lawns, wooded paths, a pond and footbridge, surrounded by brick avenues, bike lanes, and public spaces." />
+        <img className="city-poster" src={`/city/${CITY.version}.svg`} alt="Original miniature city with a reservoir running loop, lawns, woodland, a lake and bridge, and a tree-lined mall. Busy avenues and two-way bike paths surround the park; neighbors play basketball and pickleball at Juniper Court." />
         {!live && selected ? <div className={`static-marker marker-${selected.id}`}><span aria-hidden="true" />{selected.name}</div> : null}
       </div>
       <canvas key={attempt} ref={canvas} className={live ? 'world-canvas' : 'world-canvas canvas-hidden'} aria-hidden="true" />

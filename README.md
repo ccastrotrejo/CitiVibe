@@ -1,8 +1,10 @@
-# LivingCity
+# CitiVibe
 
 An original, interactive miniature city for exploring or leaving on a second screen: traffic, pedestrians, aerial activity, distinctive architecture, changing light and weather, optional ambient sound, and controls that put the viewer in charge.
 
-**Current work: a connected NYC-inspired park district.** Starting from the latest main, Rainlight Square now spans four avenues, four cross streets, sixteen intersections, and eight surrounding blocks with 32 buildings. The central village and internal vehicle loop are replaced by a car-free park; visitors enter and leave through gates connected to the surrounding sidewalks. Protected bike lanes, pavement symbols, varied vehicles, yellow cabs, detailed brownstones, and construction scaffolding add street life. React, strict TypeScript, Vite, and direct Three.js remain the stack. Existing camera controls, tours, pause, weather/time, optional sound, quality settings, fullscreen, and the occasional airplane remain intact. Camera-follow features and drones remain excluded. See the [NYC research and image references](docs/NYC_CITY_RESEARCH.md), [roadmap](docs/ROADMAP.md), and [verification record](docs/ACCEPTANCE_CRITERIA.md). Reference images are research only; no source-site model, code, or branded artwork is included.
+**Current work: a larger NYC-inspired city and park.** Rainlight Square spans a 220 x 340 m map with six avenues, six cross streets, thirty-six intersections, twenty-four surrounding blocks and 94 buildings. The park is trimmed to 78 x 176 m, about 10% smaller per dimension than the first expanded layout, making more room for city streets and buildings. It retains a reservoir running loop, lawns, woodland, a lake and pale bridge, and a tree-lined mall leading to a fountain terrace. Eighteen visitors walk through real gates to the surrounding sidewalks; twelve runners circulate around the reservoir. The busier streets have 36 motor vehicles, twelve cyclists and 48 sidewalk walkers. Park-side two-way tracks carry opposing riders, paired arrows and a direction divider. At Juniper Court, four basketball players dribble, pass and shoot beside a pickleball court with two players and a rallying ball. The games are bounded ambient animation, not interactive sports. The title overlay is removed so it no longer covers the city.
+
+React, strict TypeScript, Vite, and direct Three.js remain the stack. Camera controls, tours, pause, weather/time, optional sound, quality settings, fullscreen, and the occasional airplane remain intact. Camera-follow features and drones remain excluded. See the [NYC research and image references](docs/NYC_CITY_RESEARCH.md), [roadmap](docs/ROADMAP.md), and [verification record](docs/ACCEPTANCE_CRITERIA.md). Reference photographs inform original geometry only; no source-site model, photo, map or branded artwork is shipped.
 
 ## GitHub destination
 
@@ -38,7 +40,7 @@ npm ci
 npm run dev
 ```
 
-Open the local URL printed by Vite. Drag to pan; Command/Control-drag or right-drag to rotate and tilt; scroll to zoom. All map edges are reachable, with safe outer bounds. The visible camera buttons offer the same controls. Focus the navigation region for shortcuts, including Q/E for rotation, W/S for tilt, and R for reset. The Field guide explains the controls. Reduced motion starts paused. Ambient sound stays off until you enable it from Settings (a deliberate user gesture); mute and volume then persist locally.
+Open the local URL printed by Vite. Drag to pan; Command/Control-drag or right-drag to rotate and tilt; scroll to zoom. All map edges are reachable, with safe outer bounds. The visible camera buttons offer the same controls. Focus the navigation region for shortcuts, including Q/E for rotation, W/S for tilt, and R for reset. Keyboard shortcuts are available in Settings; `?` opens full control help from the navigation region. The header and browser title use CitiVibe, without a Field guide header button. Reduced motion starts paused. Ambient sound stays off until you enable it from Settings (a deliberate user gesture); mute and volume then persist locally.
 
 The supported priority is **desktop and laptop computers**. Browser layout checks target 1024, 1440, and 1920 px widths. Basic responsive styles remain, but mobile edge cases and physical-phone testing are outside the current request.
 

@@ -11,6 +11,9 @@ export interface EnvironmentVisualOptions {
 const RAIN_HIGH = 600;
 const RAIN_LIGHT = 160;
 const CLOUD_COUNT = 6;
+const CLOUD_HALF_WIDTH = CITY_EXTENT.x + 14;
+const CLOUD_SPAN = CLOUD_HALF_WIDTH * 2;
+const CLOUD_SPEED = 0.1;
 
 function copyColor(target: THREE.Color, source: EnvironmentColor): void {
   target.setRGB(source.r, source.g, source.b);
@@ -92,7 +95,7 @@ export class EnvironmentVisual {
     this.group.add(this.rain);
     for (let index = 0; index < CLOUD_COUNT; index++) {
       const cloud = new THREE.Mesh(this.cloudGeometry, this.cloudMaterial);
-      cloud.position.set(index * 28 - 70, 48 + random() * 10, (random() * 2 - 1) * CITY_EXTENT.z);
+      cloud.position.set((index + 0.5) * CLOUD_SPAN / CLOUD_COUNT - CLOUD_HALF_WIDTH, 48 + random() * 10, (random() * 2 - 1) * CITY_EXTENT.z);
       cloud.scale.set(7 + random() * 4, 0.7 + random(), 3 + random() * 3);
       cloud.userData.originX = cloud.position.x;
       this.clouds.push(cloud);
@@ -137,7 +140,8 @@ export class EnvironmentVisual {
       }
       this.rainGeometry.getAttribute('position').needsUpdate = true;
       for (const cloud of this.clouds) {
-        cloud.position.x = ((cloud.userData.originX as number) + 84 + (effectTime % 1680) * 0.1) % 168 - 84;
+        cloud.position.x = ((cloud.userData.originX as number) + CLOUD_HALF_WIDTH +
+          (effectTime % (CLOUD_SPAN / CLOUD_SPEED)) * CLOUD_SPEED) % CLOUD_SPAN - CLOUD_HALF_WIDTH;
       }
       this.lastTime = effectTime;
     }

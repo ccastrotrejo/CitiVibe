@@ -104,9 +104,8 @@ export function App() {
 
   return <main ref={root} className={`city-app${screenMode.expanded ? ' is-expanded' : ''}`} data-reduced-motion={status.reducedMotion}>
     <header className="app-header">
-      <div className="wordmark"><Icon name="leaf" /><span>LivingCity<span className="wordmark-dot">.</span></span></div>
+      <div className="wordmark"><Icon name="leaf" /><span>CitiVibe<span className="wordmark-dot">.</span></span></div>
       <p className="header-caption">A small world of its own</p>
-      <button className="help-button" onClick={() => openPanel('help')}><Icon name="help" /><span>Field guide</span></button>
     </header>
     <div className="world-layout">
       <CityStage canvas={canvas} attempt={attempt} live={live} guide={preferences.guide} status={status} send={send} onCycle={cycle} onDismissGuide={() => changePreferences({ guide: false })} onKeyDown={keyDown} />

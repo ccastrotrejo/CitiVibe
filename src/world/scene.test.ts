@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
-import poster from '../../public/city/rainlight-003.svg?raw';
-import { CITY, LANDMARKS } from '../content/city';
-import { PARK_BOUNDS, PARK_PATHS } from '../content/park';
+import poster from '../../public/city/rainlight-004.svg?raw';
+import shell from '../../index.html?raw';
+import { CAMERA_ANCHORS, CAMERA_PROJECTION, CITY, LANDMARKS } from '../content/city';
+import { PARK_ACTORS, PARK_BOUNDS, PARK_PATHS } from '../content/park';
 import { STOP_LINE_OFFSET, STREET_X, STREET_Z, TRAFFIC_ACTORS } from '../content/streets';
 import { BIKE_MARKINGS, WALK_MARKINGS } from './pavement';
 import { ART_INPUTS, buildCityScene, validateArtInputs, type CityScene } from './scene';
@@ -37,13 +39,16 @@ describe('original car-free park district', () => {
     expect(world.marker.position).toEqual(new THREE.Vector3());
   });
 
-  it('has only neighborhood vehicles and eight park visitor rigs', () => {
+  it('has neighborhood vehicles, eighteen park walkers and twelve runner rigs', () => {
     const { actors, bus } = createScene();
     expect([...actors.keys()]).toEqual([
-      ...Array.from({ length: 8 }, (_, index) => `walker-${index + 1}`),
+      ...PARK_ACTORS.map(({ id }) => id),
       ...TRAFFIC_ACTORS.map(({ id }) => id),
     ]);
     expect(bus).toBe(actors.get(CITY.busId));
+    expect(actors.size).toBe(126);
+    expect(PARK_ACTORS.filter(({ gait }) => gait === 'walk')).toHaveLength(18);
+    expect(PARK_ACTORS.filter(({ gait }) => gait === 'run')).toHaveLength(12);
     expect(actors.has('square-bus')).toBe(false);
     actors.forEach((actor) => {
       expect(actor.position).toEqual(new THREE.Vector3());
@@ -62,9 +67,13 @@ describe('original car-free park district', () => {
     const lawn = new THREE.Box3().setFromObject(park.getObjectByName('Park lawn')!);
     expect(lawn.min.x).toBeCloseTo(-PARK_BOUNDS.x);
     expect(lawn.max.z).toBeCloseTo(PARK_BOUNDS.z);
-    expect((lawn.max.x - lawn.min.x) * (lawn.max.z - lawn.min.z)).toBeGreaterThan(1700);
+    expect(lawn.max.x - lawn.min.x).toBe(78);
+    expect(lawn.max.z - lawn.min.z).toBe(176);
     expect(park.getObjectByName('Great lawn')).toBeDefined();
     expect(park.getObjectByName('Reed pond')).toBeDefined();
+    expect(park.getObjectByName('Park reservoir')).toBeDefined();
+    expect(park.getObjectByName('South meadow')).toBeDefined();
+    expect(park.getObjectByName('Lakeside terrace')).toBeDefined();
     const transform = new THREE.Matrix4();
     const center = new THREE.Vector3();
     scene.traverseVisible((object) => {
@@ -97,6 +106,33 @@ describe('original car-free park district', () => {
     }
   });
 
+  it('fits the larger city in the overview and keeps its corners inside the shadow camera', () => {
+    const { scene } = createScene();
+    scene.updateMatrixWorld(true);
+    const sun = scene.children.find((object): object is THREE.DirectionalLight => object instanceof THREE.DirectionalLight)!;
+    sun.shadow.updateMatrices(sun);
+    const shadow = sun.shadow.getFrustum();
+    const pose = CAMERA_ANCHORS[0].pose;
+    for (const aspect of [4 / 3, 16 / 10, 16 / 9]) {
+      const height = Math.max(CAMERA_PROJECTION.overviewHeight, CAMERA_PROJECTION.overviewWidth / aspect);
+      const camera = new THREE.OrthographicCamera(-height * aspect / 2, height * aspect / 2,
+        height / 2, -height / 2, 0.1, CAMERA_PROJECTION.far);
+      const radius = CAMERA_PROJECTION.distance * Math.cos(pose.pitch);
+      camera.position.set(Math.sin(pose.yaw) * radius, CAMERA_PROJECTION.distance * Math.sin(pose.pitch), Math.cos(pose.yaw) * radius);
+      camera.lookAt(0, 0, 0);
+      camera.updateMatrixWorld(true);
+      const view = new THREE.Frustum().setFromProjectionMatrix(
+        new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+      for (const x of [-CITY.bounds.x, CITY.bounds.x]) for (const z of [-CITY.bounds.z, CITY.bounds.z]) {
+        for (const y of [0, 38]) {
+          const corner = new THREE.Vector3(x, y, z);
+          expect(view.containsPoint(corner)).toBe(true);
+          expect(shadow.containsPoint(corner)).toBe(true);
+        }
+      }
+    }
+  });
+
   it('keeps tree trunks clear of every park walking surface and gate', () => {
     const { scene } = createScene();
     const paths = PARK_PATHS.map((path) => ({ ...path, points: path.curve.getPoints(1024) }));
@@ -112,7 +148,7 @@ describe('original car-free park district', () => {
       for (let index = 0; index < instance.count; index++) {
         instance.getMatrixAt(index, transform);
         transform.decompose(center, rotation, scale);
-        if (scale.y < 2 || scale.x > 0.2 ||
+        if (scale.y < 2 || scale.x > 0.3 ||
           Math.abs(center.x) > PARK_BOUNDS.x || Math.abs(center.z) > PARK_BOUNDS.z) continue;
         trunks++;
         for (const path of paths) {
@@ -122,7 +158,7 @@ describe('original car-free park district', () => {
         }
       }
     }
-    expect(trunks).toBe(27);
+    expect(trunks).toBeGreaterThanOrEqual(65);
   });
 
   it('rejects invalid version and seed before allocating resources', () => {
@@ -132,11 +168,43 @@ describe('original car-free park district', () => {
     ]) expect(() => validateArtInputs(invalid)).toThrow();
   });
 
+  it('keeps park walking surfaces and sidewalk body clearance free of low props', () => {
+    const { scene } = createScene();
+    const paths = PARK_PATHS.map((path) => ({
+      id: path.id, clearance: path.id.includes('sidewalk') ? 0.35 : path.width / 2 + 0.05,
+      points: path.curve.getPoints(1024),
+    }));
+    const transform = new THREE.Matrix4();
+    const bounds = new THREE.Box3();
+    const inverse = new THREE.Matrix4();
+    const nearest = new THREE.Vector3();
+    for (const instance of resources(scene).instances) {
+      if (!instance.castShadow) continue;
+      instance.geometry.computeBoundingBox();
+      for (let index = 0; index < instance.count; index++) {
+        instance.getMatrixAt(index, transform);
+        bounds.copy(instance.geometry.boundingBox!).applyMatrix4(transform);
+        const center = bounds.getCenter(new THREE.Vector3());
+        if (bounds.max.y < 0.3 || bounds.min.y > 1.6 ||
+          Math.abs(center.x) > PARK_BOUNDS.x + 0.2 || Math.abs(center.z) > PARK_BOUNDS.z + 0.2) continue;
+        inverse.copy(transform).invert();
+        for (const path of paths) for (const point of path.points) {
+          nearest.copy(point).setY(THREE.MathUtils.clamp(center.y, 0.3, 1.6)).applyMatrix4(inverse);
+          nearest.clamp(instance.geometry.boundingBox!.min, instance.geometry.boundingBox!.max).applyMatrix4(transform);
+          const distance = Math.hypot(nearest.x - point.x, nearest.z - point.z);
+          if (distance < path.clearance) {
+            throw new Error(`Prop ${instance.geometry.type} at ${center.x},${center.y},${center.z} blocks ${path.id}: ${distance}.`);
+          }
+        }
+      }
+    }
+  });
+
   it('marks every protected-lane segment without covering crossings or leaving the lane', () => {
     const { scene } = createScene();
     const painted = resources(scene).instances.find((mesh) =>
       mesh.geometry.name === 'Bicycle and direction pavement stencil')!;
-    expect(painted.count).toBe(48);
+    expect(painted.count).toBe(120);
     expect(BIKE_MARKINGS).toHaveLength(painted.count);
     const matrix = new THREE.Matrix4();
     const point = new THREE.Vector3();
@@ -174,10 +242,10 @@ describe('original car-free park district', () => {
     });
   });
 
-  it('gives four yellow cabs roof lights and door details without enlarging traffic footprints', () => {
+  it('gives six yellow cabs roof lights and door details without enlarging traffic footprints', () => {
     const { actors } = createScene();
     const taxis = TRAFFIC_ACTORS.filter(({ vehicleType }) => vehicleType === 'taxi');
-    expect(taxis).toHaveLength(4);
+    expect(taxis).toHaveLength(6);
     for (const { id } of taxis) {
       const cab = actors.get(id)!;
       expect(cab.getObjectByName('Unbranded taxi roof light')).toBeDefined();
@@ -200,8 +268,8 @@ describe('original car-free park district', () => {
       triangles += (object.geometry.index?.count ?? object.geometry.getAttribute('position').count) / 3 *
         (object instanceof THREE.InstancedMesh ? object.count : 1);
     });
-    expect(calls).toBeLessThanOrEqual(240);
-    expect(triangles).toBeLessThan(200_000);
+    expect(calls).toBeLessThanOrEqual(110);
+    expect(triangles).toBeLessThan(550_000);
     expect(resources(scene).materials.size).toBeLessThanOrEqual(36);
   });
 
@@ -247,5 +315,17 @@ describe('original car-free park district', () => {
       expect(document.querySelector(element.getAttribute('href')!)).not.toBeNull();
     });
     LANDMARKS.forEach(({ id }) => expect(document.getElementById(id)).not.toBeNull());
+    const html = new DOMParser().parseFromString(shell, 'text/html');
+    expect(html.querySelector('img')?.getAttribute('src')).toBe(`/city/${CITY.version}.svg`);
+    expect(html.title).toBe('CitiVibe - Rainlight Square');
+    const styles = readFileSync('src/styles.css', 'utf8');
+    for (const { id } of LANDMARKS) {
+      const position = poster.match(new RegExp(`${id} (\\d+(?:\\.\\d+)?),(\\d+(?:\\.\\d+)?)`));
+      const marker = styles.match(new RegExp(`\\.marker-${id} \\{ left: ([\\d.]+)%; top: ([\\d.]+)%; \\}`));
+      expect(position).not.toBeNull();
+      expect(marker).not.toBeNull();
+      expect(Number(marker![1])).toBeCloseTo(Number(position![1]) / 12, 3);
+      expect(Number(marker![2])).toBeCloseTo(Number(position![2]) / 9, 3);
+    }
   });
 });

@@ -14,6 +14,10 @@ First-visit defaults: overview camera, fixed Afternoon, Sunny, natural weather o
 
 Keep pause, camera navigation, and an entry to settings/help discoverable. Less frequent controls may live in a popover or mobile sheet. The world remains the dominant surface. No directory, advertising panel, commercial CTA, or engagement/presence counter.
 
+The scene-title card (district label, city name and tagline) is removed at the user's request. Retain a screen-reader-only level-one heading and the named navigation region, without covering the map. The application header, environment badge and landmark navigation remain.
+
+The header wordmark and browser title use **CitiVibe**, matching the repository identity; Rainlight Square remains the fictional place name. The separate Field guide header helper is removed. Keyboard shortcuts remain discoverable in Settings, and `?` opens control help from the focused navigation region with focus restored there on close.
+
 ## State boundaries
 
 Maintain independent state for:
@@ -32,9 +36,9 @@ Effective simulation running requires a ready renderer, a visible page, and no u
 
 ## Camera modes and transitions
 
-Use one camera controller with bounded pan, zoom, height/tilt, and near/far distances. The implementation uses an orthographic projection. The expanded ground spans +/-68 m on X and +/-62 m on Z, with a camera-target limit of +/-68 m and an overview sized to show the whole neighborhood. Orbit covers all azimuths, with elevation bounded to 30-75 degrees at a fixed 200 m distance from the ground pivot. World bounds and target anchors determine limits; no camera clipping through buildings or flying indefinitely off the district.
+Use one camera controller with bounded pan, zoom, height/tilt, and near/far distances. The implementation uses an orthographic projection. The expanded ground and camera targets span +/-110 m on X and +/-170 m on Z, with an overview sized to show the six-by-six district. Orbit covers all azimuths, with elevation bounded to 30-75 degrees at a fixed 340 m distance from the ground pivot. An 850 m far plane covers the map even when panning to its edges. World bounds and target anchors determine limits; no camera clipping through buildings or flying indefinitely off the district.
 
-Expanded landmark anchors use zoom 2.7 with a maximum of 4.5, so Zoom in remains useful after focusing. Manual navigation updates intent immediately and coalesces repeated input into one requested render; it never starts a paused simulation loop.
+Landmark anchors use zoom 3.5-5.2 with a maximum of 10, leaving useful zoom-in headroom. Reservoir Walk retains the existing `reed-garden` semantic ID. Manual navigation updates intent immediately and coalesces repeated input into one requested render; it never starts a paused simulation loop.
 
 | Mode | Meaning | Entry | Exit |
 | --- | --- | --- | --- |
@@ -61,9 +65,15 @@ The current global route includes overview, pavilion, crosstown, terrace, garden
 
 ### Park and street activity
 
-The center is car-free: no internal asphalt circuit, vehicle stop, bus/car loop, or crossing signals. Its eight visitors follow continuous shared walking curves through open north/east/south/west gates onto adjacent city sidewalks. Some pause briefly at the pergola; spacing and merge ownership prevent overlap and permanent queues. The gate connections remain step-free and free of trees, fence segments and construction props. Running/walking pavement symbols identify pedestrian paths; they do not promise that every visitor is a jogger.
+The center is car-free: no internal asphalt circuit, vehicle stop, bus/car loop, or crossing signals. Eighteen walkers follow two continuous circuits through open north/east/south/west gates onto adjacent city sidewalks. Some pause briefly; shared-route headway and geometric spacing prevent overlap and permanent queues. The gate connections remain step-free and free of trees, fence segments and construction props.
 
-All motor vehicles and cyclists remain on the surrounding grid. Its 24 vehicles, twelve cyclists and 24 sidewalk walkers share the same pause/visibility clock as park visitors. Signals use north-south, east-west, pedestrian and all-red clearance phases; occupied reservations survive phase changes. Bumpers stop behind the shared 8.5 m painted bars, while the separate 7 m turn boundary keeps bicycle turns inside the road. Street buses have no scheduled dwell stops, and neighborhood walkers currently stay on sidewalks rather than crossing roads. These are explicit miniature simplifications, not NYC traffic-standard compliance.
+Twelve runners use the dedicated reservoir circuit at roughly 2.4-2.65 m/s, compared with walkers at 0.85-1.05 m/s. Running has bent arms, exposed lower legs, light shoes, a longer stride and a short interval with both feet airborne. Reduced motion uses conservative stepping instead of running bounce/flight. Pause and hidden-tab suspension freeze runner travel and gait just like other actors. Four original runner pictograms mark this track; they are not the running behavior itself. The pale lake bridge is scenery, not an implemented bridge-crossing route.
+
+All motor vehicles and cyclists remain on the surrounding grid. Its 36 vehicles, twelve cyclists and 48 sidewalk walkers share the same pause/visibility clock as park visitors. Signals use north-south, east-west, pedestrian and all-red clearance phases; occupied reservations survive phase changes. Bumpers stop behind the shared 8.5 m painted bars, while the separate 7 m turn boundary keeps bicycle turns inside the road. Street buses have no scheduled dwell stops, and neighborhood walkers currently stay on sidewalks rather than crossing roads. These are explicit miniature simplifications, not NYC traffic-standard compliance.
+
+Juniper Court contains adjacent basketball and pickleball surfaces with six animated players and two balls. Basketball cycles through dribbling, passing, a shot through the hoop, and a rebound; pickleball rallies cross the net and bounce on the receiving side. Players hold planted stances and articulate their arms, rather than sliding around the courts. They are non-interactive ambient scenes, not competitive sports simulations. Pause, hidden pages and context loss freeze their retained clock; restoration reconstructs the same pose. Reduced motion holds the entire court scene still. The shared landmark description provides a nonvisual account without announcing each play.
+
+The park-adjacent north and south cross streets each carry one 2.1 m-wide protected two-way cycle track on the park side. Opposing lane centers are 1 m apart on the same green surface, with paired direction arrows and a dashed yellow divider. A low separator distinguishes the track from motor traffic. Cyclists follow the actual counterflow geometry through controlled turns, not merely opposite-facing decorative paint. The other streets retain their one-way lanes.
 
 Starting tour with a selected landmark uses a slow bounded orbit of that landmark. Tour status identifies the current subject and always exposes Stop. With reduced motion, replace automatic travel/advance with **stepwise guided views** and explicit Previous/Next actions. Guided views use ordinary `focus` mode without an active tour clock and remain usable while paused.
 

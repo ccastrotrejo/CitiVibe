@@ -1,8 +1,18 @@
 # Acceptance criteria and verification plan
 
-**Status: connected NYC-inspired park district; final physical-device hardening pending.** The M1-M5 foundation now supports a four-by-four street grid, 32 buildings, 68 moving actors and a car-free central park. Automated coverage establishes integration and deterministic behavior, but does not substitute for physical-device FPS, two-hour stability, or screen-reader/assistive-tech verification (M6/M7). Production readiness is not claimed. Camera-follow and the drone remain excluded.
+**Status: six-by-six city and expanded park follow-up in progress; final physical-device hardening pending.** The new scope has thirty-six intersections, twenty-four blocks, 94 buildings, 132 animated people/vehicles, two sports balls and a car-free park trimmed to 78 x 176 m. The completed version-003 record below is historical and does not establish verification of these newer changes. Automated coverage does not substitute for physical-device FPS, two-hour stability, or screen-reader/assistive-tech verification (M6/M7). Production readiness is not claimed. Camera-follow and the drone remain excluded.
 
 Use this matrix when implementing each [roadmap](ROADMAP.md) milestone. Numerical budgets are working targets; name the reference devices and record actual results before declaring them met. The [experience spec](EXPERIENCE_SPEC.md) is authoritative for pause/camera behavior.
+
+## Version-004 feature checkpoint - 2026-09-13
+
+Before synchronization with the newer weather/deployment work on main, the integrated city follow-up passes **248 Vitest cases in 16 files**, strict TypeScript, ESLint and the production build. It includes 94 buildings, 36 intersections, 24 surrounding blocks, 126 traveling actors, six court players and two sports balls. The park contains 87 trees with clear shared paths.
+
+Eight twenty-minute street seeds retain full-footprint separation, park exclusion, circuit completion and waits below 100 seconds at the increased population. Five fifteen-minute park seeds cover gate transitions, spacing and sustained running. Court checks verify continuous basketball dribble/pass/shot/rebound trajectories, shared-rim alignment, both pickleball directions, net clearance, receiving-side bounces, paddle contact, bounded play, retained-clock reconstruction and reduced-motion stills. Overview/shadow tests pass after explicitly refreshing the expanded shadow camera's projection.
+
+The base scene measures **88 visible mesh submissions, 507,474 triangles and 31 materials**, within the explicit 110 / 550,000 / 36 source-scene ceilings. These figures exclude extra renderer passes and runtime weather effects and are not physical-device FPS. The entry chunk is 505.13 KB minified / 150.62 KB gzip; the renderer chunk is 405.84 KB / 106.07 KB gzip. The >500 KB warning remains visible.
+
+**Visual verification remains blocked.** Chromium startup still crashes or times out. An alternative WebKit binary was installed after its missing-executable error; it launches, but navigation to the local app times out before application assertions. Native browser inspection also fails closed because it cannot verify the page URL. No missing-permission workaround or final screenshot claim is made. The shared preview remains HTTP-responsive, but that alone is not visual acceptance. The final merged revision requires a new integrated verification record.
 
 ## Behavior matrix
 
@@ -81,7 +91,7 @@ Visual fixture inputs must include seed, simulation tick, fixed date/time zone o
 
 The browser suite uses software-rendered Chromium and a production bundle, not the development server. This historical checkpoint does not establish physical-computer FPS, screen-reader usability, long-session memory stability, or a finished M1-M8 product. The user subsequently resumed implementation for the connected-city slice.
 
-## Connected-city behavior coverage
+## Historical version-003 behavior coverage
 
 The street system uses eight ten-minute seeds (`0`, `1`, `4`, `14`, `42`, `91`, `2401`, `0xffffffff`) to check full-footprint separation, continuous routes, acceleration/braking, per-actor progress, intersection usage, painted stop bars and maximum queue waits below 100 seconds. Green phases last eight seconds; a separate 8.5 m stop-line offset avoids moving the 7 m turn boundary into bicycle corner-cutting geometry. Occupied reservations survive phase changes until the actor's rear clears.
 
@@ -89,7 +99,7 @@ Five ten-minute park seeds check every visitor repeatedly enters/leaves through 
 
 Geometry checks cover five landmark targets, original version-003 fallback references, path/render alignment, 48 lane markings clear of crossings, four pedestrian stencils on park paths, taxi dimensions/details, deterministic regeneration and independent idempotent disposal. Originality/provenance and image-observation limits are documented in [art](ART_AND_ASSETS.md) and [research](NYC_CITY_RESEARCH.md).
 
-### Final code verification - 2026-09-13
+### Version-003 code verification - 2026-09-13
 
 - Strict TypeScript and ESLint pass; **216 Vitest cases in 15 files pass**, including street/park soaks, signal-phase/art wiring, scaffold pedestrian clearance, tree/path clearance, deterministic geometry and resource ownership.
 - The final base scene has **74 visible mesh submissions, 199,216 triangles and 29 materials**, below the explicit expanded-scene ceilings of 240 / 200,000 / 36. These CPU traversal counts exclude additional rendering passes and runtime effects; they are not physical-device FPS or GPU measurements.

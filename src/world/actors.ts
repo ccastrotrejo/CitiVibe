@@ -1,11 +1,12 @@
 import { Vector3 } from 'three';
-import { PARK_ROUTES, sampleParkRoute } from '../content/park';
+import { PARK_ACTORS, PARK_ROUTES, PARK_RUNNING_ROUTE, sampleParkRoute } from '../content/park';
 import type { Position } from '../content/city';
 import { CityTraffic } from './traffic';
 
 export interface ActorState {
   id: string;
   kind: 'bus' | 'car' | 'cyclist' | 'pedestrian';
+  gait?: 'walk' | 'run';
   position: Position;
   heading: number;
   state: 'moving' | 'waiting' | 'dwelling';
@@ -34,8 +35,6 @@ export class ActorSimulation {
   elapsed = 0;
   private readonly walkers: ParkVisitor[];
   private readonly lookAhead = new Vector3();
-  private mergeOwner: ParkVisitor | null = null;
-  private mergeEntered = false;
 
   constructor(seed: number = ACTIVITY.seed) {
     this.traffic = new CityTraffic(seed);
@@ -45,9 +44,12 @@ export class ActorSimulation {
       return state / 0x100000000;
     };
     const occupied: Vector3[] = [];
-    this.walkers = Array.from({ length: 8 }, (_, index) => {
-      const route = PARK_ROUTES[index % PARK_ROUTES.length];
-      let distance = (index + random() * 0.3) / 8 * route.length;
+    this.walkers = PARK_ACTORS.map(({ id, gait }, index) => {
+      const running = gait === 'run';
+      const route = running ? PARK_RUNNING_ROUTE : PARK_ROUTES[index % PARK_ROUTES.length];
+      const group = PARK_ACTORS.filter((actor) => actor.gait === gait);
+      const ordinal = group.findIndex((actor) => actor.id === id);
+      let distance = (ordinal + random() * 0.3) / group.length * route.length;
       const position = new Vector3();
       let placed = false;
       for (let attempt = 0; attempt < 32; attempt++) {
@@ -58,14 +60,14 @@ export class ActorSimulation {
       if (!placed) throw new Error('Unable to place park visitors with safe spacing.');
       occupied.push(position);
       const actor: ActorState = {
-        id: `walker-${index + 1}`, kind: 'pedestrian', position, heading: 0,
+        id, kind: 'pedestrian', gait, position, heading: 0,
         state: 'moving', distance, speed: 0, routeLength: route.length,
       };
       sampleParkRoute(route, distance + 0.2, this.lookAhead);
       actor.heading = Math.atan2(this.lookAhead.x - position.x, this.lookAhead.z - position.z);
       return {
-        actor, route, next: position.clone(), desiredSpeed: 0.85 + random() * 0.2,
-        advance: 0, rest: 0, restDuration: index % 3 === 0 ? 2 : 0,
+        actor, route, next: position.clone(), desiredSpeed: running ? 2.4 + random() * 0.25 : 0.85 + random() * 0.2,
+        advance: 0, rest: 0, restDuration: !running && index % 3 === 0 ? 2 : 0,
         untilRest: (route.segments[0].length - distance + route.length) % route.length,
       };
     });
@@ -82,24 +84,6 @@ export class ActorSimulation {
     const dt = Math.min(delta, ACTIVITY.maxStep);
     this.elapsed += dt;
     this.traffic.step(dt);
-    const mergeDistance = (position: Position) => position.x ** 2 + (position.z - 12.5) ** 2;
-    if (this.mergeOwner) {
-      const distance = mergeDistance(this.mergeOwner.actor.position);
-      if (distance < 1.6 ** 2) this.mergeEntered = true;
-      if ((this.mergeEntered && distance > 1.7 ** 2) || distance > 2 ** 2) this.mergeOwner = null;
-    }
-    if (!this.mergeOwner) {
-      // The south entrance joins the meadow walk here; one visitor clears the merge first.
-      let nearest = 2 ** 2;
-      for (const walker of this.walkers) {
-        const distance = mergeDistance(walker.actor.position);
-        const approaching = walker.actor.position.x * Math.sin(walker.actor.heading) +
-          (walker.actor.position.z - 12.5) * Math.cos(walker.actor.heading) < 0;
-        if (distance >= 1.6 ** 2 && !approaching) continue;
-        if (distance < nearest) { this.mergeOwner = walker; nearest = distance; }
-      }
-      this.mergeEntered = nearest < 1.6 ** 2;
-    }
     for (const walker of this.walkers) {
       walker.advance = 0;
       if (walker.rest > 0) {
@@ -108,9 +92,14 @@ export class ActorSimulation {
         walker.actor.state = 'dwelling';
         continue;
       }
-      walker.advance = Math.min(walker.desiredSpeed * dt, walker.untilRest);
+      let available = walker.restDuration > 0 ? walker.untilRest : Infinity;
+      for (const other of this.walkers) {
+        if (other === walker || other.route !== walker.route) continue;
+        const gap = (other.actor.distance - walker.actor.distance + walker.route.length) % walker.route.length;
+        available = Math.min(available, Math.max(0, gap - 1.4));
+      }
+      walker.advance = Math.min(walker.desiredSpeed * dt, available);
       sampleParkRoute(walker.route, walker.actor.distance + walker.advance, walker.next);
-      if (walker !== this.mergeOwner && mergeDistance(walker.next) < 1.6 ** 2) walker.advance = 0;
       for (const other of this.walkers) {
         if (other === walker) continue;
         const current = (walker.actor.position.x - other.actor.position.x) ** 2 +

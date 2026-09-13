@@ -55,6 +55,8 @@ export const WALKER = {
   blendRate: 8,
 } as const;
 
+export const RUNNER = { stride: 1.55, duty: 0.4, stepHeight: 0.22, hipY: 0.76, bobAmp: 0.025, armSwing: 0.7, trunkLean: 0.16 } as const;
+
 /** Vehicle wheel radii and attitude tuning. */
 export const VEHICLE = {
   busWheelRadius: 0.38,
@@ -124,8 +126,17 @@ export function footTrajectory(phase: number, stride: number): { z: number; y: n
   if (phase < DUTY) {
     return { z: amplitude - phase * stride, y: 0 };
   }
+
   const u = (phase - DUTY) / (1 - DUTY);
   return { z: -amplitude + smoothstep(u) * 2 * amplitude, y: WALKER.stepHeight * Math.sin(Math.PI * u) };
+}
+
+/** Shorter stance leaves a flight phase with both feet off the running track. */
+export function runningFootTrajectory(phase: number): { z: number; y: number } {
+  const amplitude = RUNNER.duty * RUNNER.stride / 2;
+  if (phase < RUNNER.duty) return { z: amplitude - phase * RUNNER.stride, y: 0 };
+  const swing = (phase - RUNNER.duty) / (1 - RUNNER.duty);
+  return { z: -amplitude + smoothstep(swing) * 2 * amplitude, y: RUNNER.stepHeight * Math.sin(Math.PI * swing) };
 }
 
 /**
@@ -149,24 +160,28 @@ interface WalkerPose {
   speed: number;
   blend: number;
   reducedMotion: boolean;
+  running?: boolean;
 }
 
 /** Pose an articulated pedestrian rig from its travelled distance. */
 export function poseWalkerRig(rig: WalkerRig, pose: WalkerPose): void {
   const { distance, speed, blend, reducedMotion } = pose;
-  const stride = strideLength(speed);
+  const running = pose.running && !reducedMotion;
+  const stride = running ? RUNNER.stride : strideLength(speed);
   const cyclePhase = gaitPhase(distance, stride);
-  const bob = reducedMotion ? 0 : WALKER.bobAmp * -Math.cos(2 * TAU * cyclePhase);
-  const pelvisY = WALKER.hipY + bob * blend;
+  const bob = reducedMotion ? 0 : running
+    ? RUNNER.bobAmp * Math.cos(2 * TAU * (cyclePhase - 0.45))
+    : WALKER.bobAmp * -Math.cos(2 * TAU * cyclePhase);
+  const pelvisY = WALKER.hipY + ((running ? RUNNER.hipY - WALKER.hipY : 0) + bob) * blend;
   rig.pelvis.position.y = pelvisY;
 
-  rig.torso.rotation.x = WALKER.trunkLean * blend * (reducedMotion ? 0.4 : 1);
+  rig.torso.rotation.x = (running ? RUNNER.trunkLean : WALKER.trunkLean) * blend * (reducedMotion ? 0.4 : 1);
   rig.torso.rotation.z = reducedMotion ? 0 : WALKER.listAmp * Math.sin(TAU * cyclePhase) * blend;
   rig.torso.position.x = reducedMotion ? 0 : WALKER.swayAmp * Math.sin(TAU * cyclePhase) * blend;
 
   for (let leg = 0; leg < 2; leg += 1) {
     const phase = gaitPhase(distance, stride, leg === 1 ? 0.5 : 0);
-    const foot = footTrajectory(phase, stride);
+    const foot = running ? runningFootTrajectory(phase) : footTrajectory(phase, stride);
     const footZ = foot.z * blend;
     const footY = foot.y * blend;
     const { hip, knee } = solveLeg(footZ, pelvisY - footY);
@@ -177,7 +192,7 @@ export function poseWalkerRig(rig: WalkerRig, pose: WalkerPose): void {
     rig.legs[leg].ankle.rotation.x = hip - knee;
   }
 
-  const swing = (reducedMotion ? 0.4 : 1) * WALKER.armSwing * blend;
+  const swing = (reducedMotion ? 0.4 : 1) * (running ? RUNNER.armSwing : WALKER.armSwing) * blend;
   rig.arms[0].rotation.x = swing * Math.cos(TAU * cyclePhase);
   rig.arms[1].rotation.x = swing * Math.cos(TAU * gaitPhase(distance, stride, 0.5));
 }
@@ -258,7 +273,8 @@ export class Locomotion {
       if (rig.kind === 'walker') {
         const moving = actor.state === 'moving' && actor.speed > WALKER.moveThreshold;
         memory.blend += ((moving ? 1 : 0) - memory.blend) * Math.min(1, dt * WALKER.blendRate);
-        poseWalkerRig(rig, { distance: actor.distance, speed: actor.speed, blend: memory.blend, reducedMotion });
+        poseWalkerRig(rig, { distance: actor.distance, speed: actor.speed, blend: memory.blend, reducedMotion,
+          running: actor.gait === 'run' });
         continue;
       }
       const acceleration = (actor.speed - memory.speed) / dt;

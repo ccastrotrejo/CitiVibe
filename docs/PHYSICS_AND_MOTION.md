@@ -61,6 +61,20 @@ The solver is exact to machine precision for reachable targets (verified to 1e-1
 - **Arm swing** — anti-phase with the legs, `±armSwing`.
 - **Start/stop blend** — an eased `blend` toward `moving ? 1 : 0` folds foot targets and bob toward a planted neutral stance so no foot freezes mid-swing.
 
+## Runner model
+
+The expanded park has twelve runners, separate from its eighteen walkers. They travel around the reservoir at 2.4-2.65 m/s with a 1.55 m stride, 40% stance and 60% swing. This is original miniature tuning, not measured Central Park behavior. With the legs offset by half a cycle, the shorter stance produces two short flight intervals per cycle; both feet are genuinely above the ground.
+
+Running stance uses `footZ = 0.2 * stride - phase * stride`, retaining exact straight-path ground contact. Swing uses the existing smooth forward arc with 0.22 m lift. A 0.76 m hip height keeps targets inside the same two-bone leg's reachable envelope. Bent-arm geometry, light shoes, exposed shanks, a 0.16 rad trunk lean and larger arm swing distinguish running from accelerated walking. Poses remain deterministic functions of traveled distance.
+
+Runners share fixed-step timing, spacing, pause and visibility with other actors. They do not take intentional rests or enter the street. Reduced motion falls back to conservative walking articulation with no running flight or bob. Tests cover planted-foot contact, actual flight, repeatable poses, pause, reduced motion, track adherence and sustained multi-lap progress.
+
+## Court activity
+
+`CourtActivity` samples two bounded original choreographies from `ActorSimulation.elapsed`: a twelve-second basketball sequence and a 4.8-second two-way pickleball rally. Six planted player rigs articulate their arms, with two visible paddles. Basketball follows continuous dribble/pass/shot/rebound segments through the shared hoop position; pickleball clears the shared net and bounces before the receiving paddle. Ball centers stay above their radius and inside the authored courts. These are illustrative trajectories, not rigid-body simulation, sports AI or regulation-play claims.
+
+Court geometry and motion share `src/content/courts.ts`. The existing actor instance batches also submit players and balls, borrowing scene-owned resources. No extra timer, animation-frame chain or per-frame React state is created. Pause/visibility retain the sample time, reconstruction samples the current retained time, and reduced motion uses a fixed still.
+
 ## Vehicle model
 
 - **Wheel roll** `spin.rotation.x = distance / wheelRadius` — frame-rate independent, monotonic, and zero when stopped (asserted in tests).
@@ -73,7 +87,7 @@ Smoothing uses `min(1, dt/τ)` with `τ = 0.22 s`; yaw deltas use a shortest-ang
 
 ## Reduced motion
 
-Reduced motion zeroes bob, sway, list, arm swing, and all vehicle attitude, and halves trunk lean, while keeping functional stepping and wheel roll. Motion-sensitive users still read the city as alive without oscillatory cues.
+Reduced motion zeroes bob, sway and list, reduces arm swing and trunk lean to 40%, and suppresses vehicle attitude while keeping functional stepping and wheel roll. Runners use the conservative walking pose. Motion-sensitive users can resume the initially paused world without the full running animation.
 
 ## Parameter table
 

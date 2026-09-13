@@ -89,6 +89,10 @@ describe('runtime ownership and suspension', () => {
     world.command({ type: 'set-paused', paused: true });
     const states = structuredClone(model.simulation.traffic.actors);
     const signals = structuredClone(model.simulation.traffic.signals);
+    const before: unknown = gpu.render.mock.lastCall?.[0];
+    if (!(before instanceof Scene)) throw new Error('Missing rendered scene');
+    const basketball = before.getObjectByName('Basketball in play')!.position.clone();
+    const pickleball = before.getObjectByName('Pickleball in play')!.position.clone();
     tick(300000);
     canvas.dispatchEvent(new Event('webglcontextlost', { cancelable: true }));
     canvas.dispatchEvent(new Event('webglcontextrestored'));
@@ -97,6 +101,8 @@ describe('runtime ownership and suspension', () => {
     const rendered: unknown = gpu.render.mock.lastCall?.[0];
     if (!(rendered instanceof Scene)) throw new Error('Missing rendered scene');
     expect(rendered.getObjectByName('Instanced neighborhood activity')).toBeDefined();
+    expect(rendered.getObjectByName('Basketball in play')!.position).toEqual(basketball);
+    expect(rendered.getObjectByName('Pickleball in play')!.position).toEqual(pickleball);
     expect(frames.size).toBe(0);
     world.dispose();
   });
