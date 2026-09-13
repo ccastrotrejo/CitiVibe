@@ -26,7 +26,7 @@ No account, transaction, identity, location permission, or network service shoul
 | Micro-animation | Small wheel motion, gentle tree or flag movement, fountain detail, rooftop activity. | Constant bobbing on every object, large distracting motion, gratuitous effects. |
 | Environment | Gradual light, cloud, rain, and mist changes; lighting cues respond to the selected time. | Abrupt automatic changes, mandatory weather, live data dependency. |
 | Occasional events | Park visitors pause near the pergola. A distant airplane passes with seeded gaps. | Drones, frequent surprises, notifications, explosions, objectives, or attention demands. |
-| Viewer agency | Manual exploration, original landmark focus, tours, pause, quality and sound controls. | A camera that fights input, sound without permission, hidden controls. |
+| Viewer agency | Manual exploration, city-wide tours, pause, quality and sound controls. | A camera that fights input, sound without permission, hidden controls. |
 
 **Population policy:** 260 active people/vehicle rigs: six street buses, thirty other motor vehicles, twelve cyclists, 144 neighborhood walkers, 36 park walkers, eighteen runners, six court players and eight meadow family figures. That is 224 active/posable people versus the previous 150; eight resting picnic neighbors and two sports balls are counted separately. Thirteen work roles, five age bands, independently varied appearance and purpose-biased pace make the population more varied without introducing careers, selection cards or a demographic simulator. Six shorter children play near two guardians in the south meadow. See [people and activity](PEOPLE_AND_ACTIVITY.md).
 
@@ -34,15 +34,15 @@ The former central bus/car loop is explicitly removed. The park has no motor tra
 
 ## Essential experience
 
-The city is the main surface. A compact control system provides movement, zoom, rotation/reset, landmark focus cycling, tour, pause, weather/time, sound, quality, fullscreen, and help. Controls can be grouped into panels, but core pause and navigation remain available without hunting through a menu.
+The city is the main surface. A compact control system provides movement, zoom, rotation/reset, city-wide tour, pause, weather/time, sound, quality, fullscreen, and help. Controls can be grouped into panels, but core pause and navigation remain available without hunting through a menu.
 
-Landmarks are original noncommercial places, such as a civic observatory or rain garden. Selecting one gives a concise name/description and a view action. It does not open a brand card, website link, searchable location catalog, availability inventory, or booking workflow. Street actors are not selectable camera-follow targets. The removed drone must not be reintroduced through a later milestone.
+The scenery includes original noncommercial places, such as a civic observatory or rain garden. The user removed landmark selection on 2026-09-13: no selection bar, clickable targets, bracket cycling, highlights or landmark-specific tours. The city-wide tour retains named viewpoints without a selectable place catalog, brand cards, website links, availability inventory or booking workflow. Street actors are not selectable camera-follow targets. The removed drone must not be reintroduced through a later milestone.
 
 The [experience specification](EXPERIENCE_SPEC.md) defines consistent proposed behavior, including what freezes when paused, what manual interaction cancels, and what happens after a hidden tab.
 
 ## Success conditions
 
-The first slice succeeds when a viewer can understand the city, explore it using pointer or keyboard, focus one landmark, watch a moving bus, and pause/resume without jumps. Failure to render should still produce a clear, useful noncommercial experience.
+The first slice succeeds when a viewer can understand the city, explore it using pointer or keyboard, take a city-wide tour, watch a moving bus, and pause/resume without jumps. Failure to render should still produce a clear, useful noncommercial experience.
 
 The polished ambient experience succeeds when independent activity, architecture, environmental changes, and camera views remain interesting over a long session without demanding attention; controls stay predictable on small screens; reduced-motion and silent use are first-class; and the agreed devices meet the [acceptance targets](ACCEPTANCE_CRITERIA.md).
 

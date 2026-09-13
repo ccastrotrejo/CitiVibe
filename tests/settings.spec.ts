@@ -59,8 +59,8 @@ for (const [width, height] of [[1024, 768], [1440, 900], [1920, 1080]]) {
 
     await page.getByRole('combobox', { name: 'Weather', exact: true }).selectOption('snow');
     await page.getByRole('region', { name: 'City navigation' }).focus();
-    await page.keyboard.press(']');
-    await expect(page.getByText('Landmark view', { exact: true })).toBeVisible();
+    await page.keyboard.press('ArrowLeft');
+    await expect(page.getByText('Free view', { exact: true })).toBeVisible();
     await expect(dock).toBeVisible();
     await page.keyboard.press('ArrowRight');
     await expect(page.getByText('Free view', { exact: true })).toBeVisible();
@@ -68,8 +68,9 @@ for (const [width, height] of [[1024, 768], [1440, 900], [1920, 1080]]) {
     await page.getByRole('button', { name: 'Pause city' }).click();
     await expect(dock).toBeVisible();
 
-    await page.getByRole('button', { name: 'Next landmark' }).click();
-    await expect(page.getByRole('button', { name: 'Clear selection' })).toBeVisible();
+    await page.getByRole('button', { name: 'Zoom in' }).click();
+    await expect(page.getByText('Free view', { exact: true })).toBeVisible();
+    await expect(page.getByRole('group', { name: 'Landmark navigation' })).toHaveCount(0);
     expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
     await page.getByRole('combobox', { name: 'Weather', exact: true }).focus();
     await page.keyboard.press('Escape');

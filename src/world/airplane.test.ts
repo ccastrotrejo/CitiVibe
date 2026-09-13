@@ -269,7 +269,10 @@ describe('AirplaneSimulation', () => {
   });
 
   it('crosses the overview and retained garden views; distant closeups need not show every flight', () => {
-    for (const { pose } of CAMERA_ANCHORS.slice(0, 4)) {
+    const retainedViews = CAMERA_ANCHORS.filter(({ id }) =>
+      ['square-overview', 'pavilion-view', 'terrace-view', 'garden-view'].includes(id));
+    expect(retainedViews).toHaveLength(4);
+    for (const { pose } of retainedViews) {
       const frustum = frustumFor(cameraFor(16 / 9, pose.x, pose.z, pose.yaw, pose.zoom));
       let visible = false;
       for (let distance = 0; distance <= AIRPLANE.routeLength; distance += 5) {

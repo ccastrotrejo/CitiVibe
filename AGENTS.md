@@ -2,6 +2,8 @@
 
 ## Authority and current task
 
+**Controls follow-up (2026-09-13):** the user removed the entire landmark-selection feature: the "Find a quiet place" bar, map-click selection, bracket shortcuts, highlights, descriptions and landmark-specific tours. Preserve manual pan/zoom/orbit/reset, the city-wide tour and reduced-motion guided views, all original scenery, population, street signs, weather and other controls. This supersedes older landmark-navigation requirements below. Main `121817c` and street signs `e7a49dc` were merged and pushed as `0d76990`; finish this separate controls follow-up on existing PR #6, not a duplicate PR or deployment.
+
 **Population follow-up (2026-09-13):** the current user request supersedes the old population cap below. Diversify people across workwear, independent casual clothing/accessories, skin tones, builds and ages; use stature-aware grounded walking/running and add more people. Target 144 street walkers, 36 park walkers, eighteen runners, twelve cyclists, six court players and eight meadow family figures (224 active/posable people; 260 rigs including unchanged vehicles), plus eight resting picnic neighbors and two balls. Keep occupations fictional, skin/build independent of work roles, children out of adult jobs, and uniforms unbranded/unarmed. Preserve court skeleton/contact dimensions, park gates, traffic, weather and existing controls. See [people and activity](docs/PEOPLE_AND_ACTIVITY.md). The user subsequently approved the current code and requested a commit, push and new pull request against main. Keep the remaining browser/performance limitations explicit; deployment is not authorized.
 
 This root file controls work throughout the repository. On 2026-09-12 the user expanded authorization from M1-M3 to **all roadmap goals, M1-M7**, and requested detailed progress/change reports. The repository includes a React/TypeScript/Vite/Three.js application, original procedural art, and behavior tests. Complete and verify bounded vertical slices rather than adding placeholder controls. Do not create a remote, commit, or push without explicit permission.
@@ -22,11 +24,11 @@ Read [README](README.md), [product brief](docs/PRODUCT_BRIEF.md), [experience sp
 
 ## Non-negotiable scope
 
-Build an original ambient miniature city with rich activity and user control. Preserve noncommercial landmark focus, ordinary street activity, tours, pause, weather/time, sound, quality, fullscreen, responsive and accessible interaction. The user explicitly removed bus/drone camera-follow features and subsequently removed the drone entirely on 2026-09-12. Do not restore those controls or the drone. The later **all-roadmap** authorization includes the planned occasional airplane fly-by; implement it as rare ambient activity, not a replacement follow target.
+Build an original ambient miniature city with rich activity and user control. Preserve manual camera exploration, ordinary street activity, city-wide tours, pause, weather/time, sound, quality, fullscreen, responsive and accessible interaction. The user explicitly removed bus/drone camera-follow features and subsequently removed the drone entirely on 2026-09-12. Do not restore those controls or the drone. The later **all-roadmap** authorization includes the planned occasional airplane fly-by; implement it as rare ambient activity, not a replacement follow target.
 
 Do **not** add a directory, listings, advertiser features, sponsored/branded placements, monetized signs/billboards, marketing sections, checkout, payments, bidding/auctions, buyer identity/recovery, ad moderation, advertiser analytics, or business metrics. No backend, database, login, presence service, or analytics is required. Persist only non-sensitive local preferences. Multiplayer, city editing, GIS, and live weather APIs need a new explicit user request.
 
-Accessibility means keyboard-operable world controls, shortcut help, focus cycling through original landmarks, and a useful noncommercial fallback, **not a directory or card catalog**. Source commercial requirements never override this boundary.
+Accessibility means keyboard-operable world controls, shortcut help, city-wide guided views, and a useful noncommercial fallback, **not a directory or card catalog**. Source commercial requirements never override this boundary.
 
 ## Evidence discipline
 

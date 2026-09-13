@@ -1,5 +1,5 @@
-import { OrthographicCamera, Raycaster, Vector2, WebGLRenderer } from 'three';
-import { CAMERA_PROJECTION, LANDMARKS, validateLandmarks } from '../content/city';
+import { OrthographicCamera, WebGLRenderer } from 'three';
+import { CAMERA_ANCHORS, CAMERA_PROJECTION, validateCameraAnchors } from '../content/city';
 import { createAirplaneVisual } from './airplane';
 import type { AirplaneVisual } from './airplane';
 import { FrameClock } from './clock';
@@ -19,7 +19,7 @@ interface WorldOptions {
 }
 
 export function createWorld({ canvas, model, onChange, onLifecycle }: WorldOptions): Runtime {
-  validateLandmarks(LANDMARKS);
+  validateCameraAnchors(CAMERA_ANCHORS);
   const context = canvas.getContext('webgl2', { antialias: true, alpha: false });
   if (!context) throw new Error('WebGL2 is unavailable. This browser can’t render the live city.');
   const renderer = new WebGLRenderer({ canvas, context, antialias: true });
@@ -29,11 +29,9 @@ export function createWorld({ canvas, model, onChange, onLifecycle }: WorldOptio
   function buildArt(): CityScene {
     const next = buildCityScene();
     if (next.actors.size !== model.simulation.actors.length ||
-      !model.simulation.actors.every(({ id }) => next.actors.has(id)) ||
-      next.hitTargets.length !== LANDMARKS.length ||
-      !LANDMARKS.every(({ id }) => next.hitTargets.some((target) => target.userData.semanticId === id))) {
+      !model.simulation.actors.every(({ id }) => next.actors.has(id))) {
       next.dispose();
-      throw new Error('City artwork does not match the active landmarks and street actors. Retry the live city.');
+      throw new Error('City artwork does not match the active street actors. Retry the live city.');
     }
     return next;
   }
@@ -75,8 +73,6 @@ export function createWorld({ canvas, model, onChange, onLifecycle }: WorldOptio
     plane.dispose();
   }
   attachEffects();
-  const raycaster = new Raycaster();
-  const pointer = new Vector2();
   const listeners = new AbortController();
   let frame: number | null = null;
   let viewDirty = false;
@@ -109,9 +105,6 @@ export function createWorld({ canvas, model, onChange, onLifecycle }: WorldOptio
     art.setTrafficSignals?.(model.simulation.traffic.signals);
     art.updateCourtActivity?.(model.simulation.elapsed, model.reducedMotion, model.environment.physics.snowDepth);
     art.updateActors?.();
-    const selected = LANDMARKS.find(({ id }) => id === model.selectedId);
-    art.marker.visible = Boolean(selected);
-    if (selected) art.marker.position.set(selected.position.x, 0.12 + model.environment.physics.snowDepth, selected.position.z);
     const radius = CAMERA_PROJECTION.distance * Math.cos(pose.pitch);
     camera.position.set(pose.x + Math.sin(pose.yaw) * radius, CAMERA_PROJECTION.distance * Math.sin(pose.pitch), pose.z + Math.cos(pose.yaw) * radius);
     camera.lookAt(pose.x, 0, pose.z);
@@ -194,16 +187,6 @@ export function createWorld({ canvas, model, onChange, onLifecycle }: WorldOptio
     scale: () => {
       const scale = viewHeight / Math.max(1, canvas.clientHeight) / model.camera.pose.zoom;
       return { x: scale, y: scale / Math.sin(model.camera.pose.pitch) };
-    },
-    select(x, y) {
-      const bounds = canvas.getBoundingClientRect();
-      pointer.set((x - bounds.left) / bounds.width * 2 - 1, -(y - bounds.top) / bounds.height * 2 + 1);
-      raycaster.setFromCamera(pointer, camera);
-      const hit = raycaster.intersectObjects(art.hitTargets, true)[0];
-      if (!hit) return;
-      const id: unknown = hit.object.userData.semanticId;
-      if (typeof id !== 'string' || !LANDMARKS.some((landmark) => landmark.id === id)) return;
-      command({ type: 'focus-landmark', id });
     },
   });
 

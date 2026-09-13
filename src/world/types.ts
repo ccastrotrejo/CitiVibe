@@ -1,7 +1,7 @@
 import type { Weather, TimeMode } from './environment';
 import type { QualityMode } from '../content/preferences';
 
-export type CameraMode = 'overview' | 'free' | 'focus' | 'tour';
+export type CameraMode = 'overview' | 'free' | 'guided' | 'tour';
 export type Lifecycle = 'loading' | 'ready' | 'error' | 'unsupported' | 'lost' | 'restoring';
 
 export interface CameraPose {
@@ -15,9 +15,7 @@ export interface CameraPose {
 export type WorldCommand =
   | { type: 'navigate'; panX?: number; panZ?: number; rotate?: number; tilt?: number; zoom?: number }
   | { type: 'reset' }
-  | { type: 'focus-landmark'; id: string }
   | { type: 'stop' }
-  | { type: 'clear-selection' }
   | { type: 'set-paused'; paused: boolean }
   | { type: 'set-reduced-motion'; reduced: boolean }
   | { type: 'start-tour' }
@@ -39,7 +37,6 @@ export interface ViewStatus {
 
 export interface WorldStatus {
   cameraMode: CameraMode;
-  selectedId: string | null;
   paused: boolean;
   reducedMotion: boolean;
   view: ViewStatus | null;

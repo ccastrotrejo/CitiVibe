@@ -12,9 +12,8 @@ function fixture() {
   canvas.hasPointerCapture = (id) => captured.has(id);
   canvas.releasePointerCapture = (id) => { captured.delete(id); };
   const command = vi.fn();
-  const select = vi.fn();
   let enabled = true;
-  const input = bindSceneInput(canvas, { command, select, enabled: () => enabled, scale: () => ({ x: 0.1, y: 0.14 }) });
+  const input = bindSceneInput(canvas, { command, enabled: () => enabled, scale: () => ({ x: 0.1, y: 0.14 }) });
   function pointer(type: string, id: number, x: number, y: number, button = 0, modifiers: Pick<MouseEventInit, 'metaKey' | 'ctrlKey'> = {}) {
     const event = new MouseEvent(type, { clientX: x, clientY: y, button, cancelable: true, ...modifiers });
     Object.defineProperty(event, 'pointerId', { value: id });
@@ -22,7 +21,7 @@ function fixture() {
     return event;
   }
   return {
-    canvas, region, command, select, captured, pointer,
+    canvas, region, command, captured, pointer,
     disable() { enabled = false; },
     dispose() { input.dispose(); region.remove(); },
   };
@@ -36,13 +35,13 @@ describe('scene-only gesture routing', () => {
     f.pointer('pointerup', 1, 125, 150);
     expect(f.command).toHaveBeenLastCalledWith({ type: 'navigate', rotate: -0.2, tilt: 0.3 });
     expect(down.defaultPrevented).toBe(true);
-    expect(f.select).not.toHaveBeenCalled();
+    expect(f.command).toHaveBeenCalledTimes(1);
     expect(f.captured.size).toBe(0);
     expect(f.canvas.dataset.dragging).toBeUndefined();
     f.dispose();
   });
 
-  it('uses the same orbit for right-drag and never selects on a modified click', () => {
+  it('uses the same orbit for right-drag and ignores a modified click', () => {
     const f = fixture();
     f.pointer('pointerdown', 1, 100, 100, 2);
     f.pointer('pointermove', 1, 125, 150, 2);
@@ -50,7 +49,7 @@ describe('scene-only gesture routing', () => {
     expect(f.command).toHaveBeenLastCalledWith({ type: 'navigate', rotate: -0.2, tilt: 0.3 });
     f.pointer('pointerdown', 2, 100, 100, 0, { metaKey: true });
     f.pointer('pointerup', 2, 100, 100);
-    expect(f.select).not.toHaveBeenCalled();
+    expect(f.command).toHaveBeenCalledTimes(1);
     f.dispose();
   });
 
@@ -65,16 +64,16 @@ describe('scene-only gesture routing', () => {
     f.dispose();
   });
 
-  it('distinguishes click selection and pan, and releases capture', () => {
+  it('focuses the region without issuing a command on click, while drag still pans and releases capture', () => {
     const f = fixture();
     f.pointer('pointerdown', 1, 10, 10);
     f.pointer('pointerup', 1, 10, 10);
-    expect(f.select).toHaveBeenCalledWith(10, 10);
+    expect(f.command).not.toHaveBeenCalled();
     f.pointer('pointerdown', 2, 10, 10);
     f.pointer('pointermove', 2, 30, 10);
     f.pointer('pointerup', 2, 30, 10);
     expect(f.command).toHaveBeenCalledWith({ type: 'navigate', panX: -2, panZ: -0 });
-    expect(f.select).toHaveBeenCalledTimes(1);
+    expect(f.command).toHaveBeenCalledTimes(1);
     expect(f.captured.size).toBe(0);
     expect(document.activeElement).toBe(f.region);
     f.dispose();

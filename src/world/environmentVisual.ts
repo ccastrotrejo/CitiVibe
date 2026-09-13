@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CAMERA_PROJECTION, LANDMARKS } from '../content/city';
+import { CAMERA_PROJECTION } from '../content/city';
 import { CITY_EXTENT } from '../content/streets';
 import { PARK_RESERVOIR } from '../content/park';
 import type { EnvironmentColor, EnvironmentFrame } from './environment';
@@ -63,7 +63,6 @@ export class EnvironmentVisual {
   private readonly snowVolume: SnowVolumeVisual;
   private readonly groundWater = new GroundWaterVisual();
   private readonly foliageWind = new FoliageWind();
-  private readonly garden = LANDMARKS.find(({ id }) => id === 'reed-garden');
   private readonly lights: {
     light: THREE.HemisphereLight | THREE.DirectionalLight;
     color: THREE.Color;
@@ -93,7 +92,6 @@ export class EnvironmentVisual {
   private lastRainIntensity = -1;
 
   constructor(private readonly scene: THREE.Scene, surface = new WeatherSurface(), private readonly foliage: readonly FoliageBatch[] = [], snowMeshes: readonly THREE.Mesh[] = []) {
-    if (!this.garden) throw new Error('Weather ripples require the original reed garden.');
     this.originalBackground = scene.background;
     this.originalFog = scene.fog;
     this.surfaces = new SurfaceVisual(scene, surface);
@@ -256,14 +254,14 @@ export class EnvironmentVisual {
     this.ripples.visible = !options.reducedMotion;
     this.ripples.count = options.lightweight ? 4 : RIPPLE_COUNT;
     this.rippleMaterial.opacity = Math.min(0.35, 0.04 + frame.windSpeed * 0.025 + frame.rain * 0.15);
-    if (this.ripples.visible && changed && this.garden) {
+    if (this.ripples.visible && changed) {
       for (let index = 0; index < this.ripples.count; index++) {
         const phase = (physics.time * RIPPLE_SPEED / 0.5 + index / RIPPLE_COUNT) % 1;
         const radius = 0.1 + phase * 0.9;
         const angle = index / RIPPLE_COUNT * Math.PI * 2;
         const spread = index % 2 ? 0.6 : 0.35;
-        this.dummy.position.set(this.garden.position.x + Math.cos(angle) * PARK_RESERVOIR.radiusX * spread,
-          0.018, this.garden.position.z + Math.sin(angle) * PARK_RESERVOIR.radiusZ * spread);
+        this.dummy.position.set(PARK_RESERVOIR.x + Math.cos(angle) * PARK_RESERVOIR.radiusX * spread,
+          0.018, PARK_RESERVOIR.z + Math.sin(angle) * PARK_RESERVOIR.radiusZ * spread);
         this.dummy.scale.set(radius, radius * 0.7, radius);
         this.dummy.updateMatrix();
         this.ripples.setMatrixAt(index, this.dummy.matrix);

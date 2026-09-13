@@ -2,7 +2,6 @@ import type { WorldCommand } from './types';
 
 interface InputOptions {
   command: (command: WorldCommand) => void;
-  select: (x: number, y: number) => void;
   enabled: () => boolean;
   scale: () => { x: number; y: number };
 }
@@ -90,11 +89,9 @@ export function bindSceneInput(canvas: HTMLCanvasElement, options: InputOptions)
 
   canvas.addEventListener('pointerup', (event) => {
     if (!pointers.has(event.pointerId)) return;
-    const select = !dragged && !rotated && pointers.size === 1 && options.enabled();
     pointers.delete(event.pointerId);
     release(event.pointerId);
     if (pointers.size === 0) delete canvas.dataset.dragging;
-    if (select) options.select(event.clientX, event.clientY);
     if (pointers.size === 1) {
       const [remaining] = pointers.values();
       previous = { ...remaining };

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CITY, CONTENT, LANDMARKS, validateLandmarks } from '../content/city';
+import { CITY, CONTENT } from '../content/city';
 import { PARK_ACTORS, PARK_PICNICS } from '../content/park';
 import { createPersonProfile } from '../content/people';
 import { PLAY_PEOPLE } from '../content/play';
@@ -25,8 +25,6 @@ export interface CityScene {
   scene: THREE.Scene;
   bus: THREE.Group;
   actors: Map<string, THREE.Group>;
-  hitTargets: THREE.Object3D[];
-  marker: THREE.Object3D;
   weatherSurface: WeatherSurface;
   snowMeshes: THREE.Mesh[];
   foliage: FoliageBatch[];
@@ -100,14 +98,7 @@ function patchedWindowMaterial(source: THREE.MeshStandardMaterial): THREE.MeshSt
 /** Original, deterministic Rainlight Square art; the caller owns actor movement. */
 export function buildCityScene(): CityScene {
   validateArtInputs(ART_INPUTS);
-  validateLandmarks(LANDMARKS);
   validateLighting();
-  const landmark = (id: string) => {
-    const result = LANDMARKS.find((point) => point.id === id);
-    if (!result) throw new Error(`Missing original landmark: ${id}.`);
-    return result;
-  };
-  const pavilion = landmark(CITY.landmark.id);
   const scene = new THREE.Scene();
   scene.name = CITY.name;
   scene.background = new THREE.Color('#e9e2d3');
@@ -572,35 +563,6 @@ export function buildCityScene(): CityScene {
   const bus = actors.get(CITY.busId)!;
   actors.forEach((actor) => actor.traverse((part) => { part.castShadow = false; }));
 
-  const invisible = material(new THREE.MeshBasicMaterial({
-    transparent: true, opacity: 0, colorWrite: false, depthWrite: false,
-  }));
-  const hitTargets: THREE.Object3D[] = [];
-  for (const point of LANDMARKS) {
-    const height = point.id === pavilion.id ? 4 : 1.6;
-    const isCourt = point.id === 'juniper-court';
-    const target = new THREE.Mesh(isCourt ? box : cylinder, invisible);
-    target.name = `${point.name} semantic hit volume`;
-    target.userData.semanticId = point.id;
-    target.position.set(point.position.x, point.position.y + height / 2, point.position.z);
-    target.scale.set(point.hitRadius, height, point.hitRadius);
-    if (isCourt) {
-      const minX = BASKETBALL_COURT.x - BASKETBALL_COURT.runoffWidth / 2;
-      const maxX = PICKLEBALL_COURT.x + PICKLEBALL_COURT.runoffWidth / 2;
-      target.position.x = (minX + maxX) / 2;
-      target.scale.set(maxX - minX, height, BASKETBALL_COURT.runoffDepth);
-    }
-    scene.add(target);
-    hitTargets.push(target);
-  }
-  const marker = mesh(
-    geometry(new THREE.RingGeometry(5.05, 5.24, 64)),
-    material(new THREE.MeshBasicMaterial({ color: '#93532f', depthWrite: false })),
-    'Landmark selection ring',
-  );
-  marker.rotation.x = -Math.PI / 2;
-  marker.visible = false;
-
   scene.add(new THREE.HemisphereLight('#fff1d8', '#a99f87', 2.4));
   const sun = new THREE.DirectionalLight('#fff1d6', 3);
   sun.position.set(-130, 200, 140);
@@ -618,7 +580,7 @@ export function buildCityScene(): CityScene {
 
   let disposed = false;
   return {
-    scene, bus, actors, hitTargets, marker, weatherSurface, snowMeshes, foliage,
+    scene, bus, actors, weatherSurface, snowMeshes, foliage,
     setTrafficSignals: (signals) => streetscape.setSignals(signals),
     updateActors: () => actorInstances.update(),
     updateCourtActivity: (elapsedSeconds, reducedMotion, groundLift = 0) => {
@@ -643,7 +605,6 @@ export function buildCityScene(): CityScene {
       foliage.length = 0;
       geometries.clear();
       materials.clear();
-      hitTargets.length = 0;
       actors.forEach((actor) => actor.clear());
       actors.clear();
       scene.clear();

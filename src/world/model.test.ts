@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CAMERA_PROJECTION, CITY, CONTENT, LANDMARKS, validateLandmarks } from '../content/city';
+import { CAMERA_ANCHORS, CAMERA_PROJECTION, CITY, validateCameraAnchors } from '../content/city';
 import { CameraController, OVERVIEW } from './camera';
 import { FrameClock, STEP } from './clock';
 import { WorldModel } from './model';
@@ -54,7 +54,7 @@ describe('single camera owner', () => {
 
   it('orbits through every azimuth with bounded tilt and resets the full pose', () => {
     const model = new WorldModel(true);
-    model.command({ type: 'focus-landmark', id: CITY.landmark.id });
+    model.command({ type: 'navigate', panZ: 20 });
     const pivot = { x: model.camera.pose.x, z: model.camera.pose.z };
     for (let i = 0; i < 80; i++) {
       model.command({ type: 'navigate', rotate: 0.2, tilt: 0.1 });
@@ -62,7 +62,7 @@ describe('single camera owner', () => {
       expect(model.camera.pose.z).toBe(pivot.z);
     }
     expect(model.camera.pose.pitch).toBe(CAMERA_PROJECTION.maxPitch);
-    expect(model.snapshot()).toMatchObject({ cameraMode: 'free', selectedId: CITY.landmark.id, paused: true });
+    expect(model.snapshot()).toMatchObject({ cameraMode: 'free', paused: true });
     model.command({ type: 'navigate', tilt: -100 });
     expect(model.camera.pose.pitch).toBe(CAMERA_PROJECTION.minPitch);
     expect(() => model.command({ type: 'navigate', tilt: NaN })).toThrow('finite');
@@ -87,34 +87,37 @@ describe('single camera owner', () => {
     }
   });
 
-  it('cancels transitions on manual input and retains selection', () => {
+  it('cancels overview transitions on manual input', () => {
     const model = new WorldModel(false);
-    model.command({ type: 'focus-landmark', id: CITY.landmark.id });
+    model.command({ type: 'navigate', panX: 20 });
+    model.command({ type: 'reset' });
     model.step(0.03);
     model.command({ type: 'navigate', panX: 2 });
     const pose = { ...model.camera.pose };
     for (let i = 0; i < 100; i++) model.step(STEP);
     expect(model.camera.pose).toEqual(pose);
-    expect(model.snapshot()).toMatchObject({ cameraMode: 'free', selectedId: CITY.landmark.id });
+    expect(model.snapshot()).toMatchObject({ cameraMode: 'free' });
   });
 
-  it('manual navigation stops focus at the current pose without clearing its target', () => {
+  it('manual zoom stops a tour at its current position', () => {
     const model = new WorldModel(false);
-    model.command({ type: 'focus-landmark', id: CITY.landmark.id });
+    model.command({ type: 'navigate', panX: 20 });
+    model.command({ type: 'start-tour' });
     model.step(STEP);
     const before = { ...model.camera.pose };
     model.command({ type: 'navigate', zoom: 0.1 });
     expect(model.camera.pose.x).toBe(before.x);
     expect(model.camera.pose.z).toBe(before.z);
-    expect(model.snapshot()).toMatchObject({ cameraMode: 'free', selectedId: CITY.landmark.id });
+    expect(model.snapshot()).toMatchObject({ cameraMode: 'free', view: null });
     const stopped = { ...model.camera.pose };
     for (let i = 0; i < 50; i++) model.step(STEP);
     expect(model.camera.pose).toEqual(stopped);
   });
 
-  it('freezes actors and an in-flight focus for 30 seconds, then resumes without catch-up', () => {
+  it('freezes actors and an overview transition for 30 seconds, then resumes without catch-up', () => {
     const model = new WorldModel(false);
-    model.command({ type: 'focus-landmark', id: CITY.landmark.id });
+    model.command({ type: 'navigate', panX: 20 });
+    model.command({ type: 'reset' });
     model.step(STEP);
     model.command({ type: 'set-paused', paused: true });
     const camera = { ...model.camera.pose };
@@ -130,18 +133,20 @@ describe('single camera owner', () => {
 
   it('allows static navigation while paused', () => {
     const model = new WorldModel(true);
-    model.command({ type: 'focus-landmark', id: LANDMARKS[1].id });
-    expect(model.camera.pose.x).toBe(LANDMARKS[1].position.x);
+    model.command({ type: 'navigate', panX: 20 });
+    expect(model.camera.pose).not.toEqual(OVERVIEW);
+    expect(model.simulation.elapsed).toBe(0);
     model.command({ type: 'reset' });
     expect(model.camera.pose).toEqual(OVERVIEW);
-    expect(model.snapshot()).toMatchObject({ paused: true, selectedId: null });
+    expect(model.snapshot()).toMatchObject({ paused: true });
   });
 
-  it('preserves a focus transition through pause but never through modal dismissal', () => {
+  it('preserves an overview transition through pause but never through modal dismissal', () => {
     const model = new WorldModel(false);
-    model.command({ type: 'focus-landmark', id: CITY.landmark.id });
+    model.command({ type: 'navigate', panX: 20 });
+    model.command({ type: 'reset' });
     model.command({ type: 'set-paused', paused: true });
-    expect(model.camera.mode).toBe('focus');
+    expect(model.camera.mode).toBe('overview');
     model.command({ type: 'set-paused', paused: false });
     model.command({ type: 'open-panel' });
     const pose = { ...model.camera.pose };
@@ -154,15 +159,28 @@ describe('single camera owner', () => {
     expect(model.camera.pose).toEqual(pose);
   });
 
-  it('rejects invalid POI without silently switching targets', () => {
-    const model = new WorldModel(false);
-    model.command({ type: 'focus-landmark', id: CITY.landmark.id });
-    model.command({ type: 'focus-landmark', id: 'missing' });
-    expect(model.snapshot().message).toBe('Landmark unavailable.');
-    expect(model.snapshot().selectedId).toBe(CITY.landmark.id);
+  it('keeps every city-wide guided view in its original order without selection state', () => {
+    const model = new WorldModel(true);
+    expect(model).not.toHaveProperty('selectedId');
+    expect(model.snapshot()).not.toHaveProperty('selectedId');
+    expect(CAMERA_ANCHORS.map(({ subject }) => subject)).toEqual([
+      'District overview', 'Rainlight Pavilion', 'Crosstown Steps', 'Terrace Steps', 'Reservoir Walk', 'Juniper Court',
+    ]);
+    model.command({ type: 'start-tour' });
+    for (const [index, anchor] of CAMERA_ANCHORS.entries()) {
+      expect(model.snapshot()).toMatchObject({
+        cameraMode: 'guided', paused: true,
+        view: { guided: true, index, total: CAMERA_ANCHORS.length, subject: anchor.subject },
+      });
+      expect(model.camera.pose).toEqual(anchor.pose);
+      model.step(STEP);
+      expect(model.camera.pose).toEqual(anchor.pose);
+      model.command({ type: 'guided-step', direction: 1 });
+    }
+    expect(model.camera.pose).toEqual(OVERVIEW);
   });
 
-  it('bounds all manual camera directions and immediate focus', () => {
+  it('bounds all manual camera directions', () => {
     const camera = new CameraController();
     for (let i = 0; i < 100; i++) camera.navigate({ type: 'navigate', panX: 20, panZ: -20, rotate: 1, zoom: 0.5 });
     expect(Math.abs(camera.pose.x)).toBeLessThanOrEqual(CITY.bounds.x);
@@ -177,13 +195,14 @@ describe('single camera owner', () => {
 
   it('starts reduced motion paused and cancels automation on a live preference change', () => {
     const model = new WorldModel(false);
-    model.command({ type: 'focus-landmark', id: CITY.landmark.id });
+    model.command({ type: 'start-tour' });
     model.command({ type: 'set-reduced-motion', reduced: true });
     expect(model.snapshot()).toMatchObject({ paused: true, reducedMotion: true, cameraMode: 'free' });
     model.command({ type: 'set-paused', paused: false });
-    model.command({ type: 'focus-landmark', id: CITY.landmark.id });
+    model.command({ type: 'start-tour' });
+    model.command({ type: 'guided-step', direction: 1 });
     model.step(STEP);
-    expect(model.camera.pose.x).toBe(CITY.landmark.position.x);
+    expect(model.camera.pose).toEqual(CAMERA_ANCHORS[1].pose);
   });
 
   it('freezes an interrupted weather blend while paused and resumes without catching up', () => {
@@ -222,11 +241,17 @@ describe('single camera owner', () => {
 });
 
 describe('authored content', () => {
-  it('validates stable, bounded semantic IDs', () => {
-    expect(() => validateLandmarks(LANDMARKS)).not.toThrow();
-    expect(() => validateLandmarks([])).toThrow();
-    expect(() => validateLandmarks([LANDMARKS[0], LANDMARKS[0]])).toThrow('unique');
-    expect(() => validateLandmarks([{ ...LANDMARKS[0], position: { x: Infinity, y: 0, z: 0 } }])).toThrow('anchor');
+  it('validates nonempty, unique and bounded city-wide tour anchors', () => {
+    expect(() => validateCameraAnchors(CAMERA_ANCHORS)).not.toThrow();
+    expect(() => validateCameraAnchors([])).toThrow('no camera anchors');
+    expect(() => validateCameraAnchors([CAMERA_ANCHORS[0], CAMERA_ANCHORS[0]])).toThrow('Invalid camera anchor');
+    for (const change of [{ id: '' }, { subject: ' ' }]) {
+      expect(() => validateCameraAnchors([{ ...CAMERA_ANCHORS[0], ...change }])).toThrow('Invalid camera anchor');
+    }
+    for (const change of [{ x: Infinity }, { x: CITY.bounds.x + 1 }, { z: CITY.bounds.z + 1 },
+      { yaw: NaN }, { zoom: 0 }, { zoom: CAMERA_PROJECTION.maxZoom + 1 }, { pitch: 0 }, { pitch: Math.PI }]) {
+      expect(() => validateCameraAnchors([{ ...CAMERA_ANCHORS[0], pose: { ...OVERVIEW, ...change } }])).toThrow('Invalid camera anchor');
+    }
   });
 
   describe('tour arbitration and guided views', () => {
@@ -249,12 +274,12 @@ describe('authored content', () => {
         expect(Math.abs(a.camera.pose.z)).toBeLessThanOrEqual(CITY.bounds.z);
       }
       expect(a.camera.revision).toBeGreaterThan(10);
-      expect(a.snapshot().view).toMatchObject({ guided: false, total: CONTENT.tourAnchorIds.length });
+      expect(a.snapshot().view).toMatchObject({ guided: false, total: CAMERA_ANCHORS.length });
     }, 20000);
 
-    it('uses selected-landmark compositions and preserves them through pause', () => {
+    it('preserves the city-wide tour through pause and resumes from its retained pose', () => {
       const model = new WorldModel(false);
-      model.command({ type: 'focus-landmark', id: LANDMARKS[1].id });
+      model.command({ type: 'navigate', panX: 20 });
       model.command({ type: 'start-tour' });
       advance(model, 3);
       const before = { ...model.camera.pose };
@@ -266,10 +291,10 @@ describe('authored content', () => {
       model.command({ type: 'set-paused', paused: false });
       advance(model, 1);
       expect(model.camera.pose).not.toEqual(before);
-      expect(model.snapshot().view?.subject).toBe(LANDMARKS[1].name);
+      expect(model.snapshot().view?.subject).toBe('District overview');
     });
 
-    it.each(['navigate', 'reset', 'stop', 'clear-selection', 'open-panel'] as const)('cancels automation on %s without restarting it later', (type) => {
+    it.each(['navigate', 'reset', 'stop', 'open-panel'] as const)('cancels automation on %s without restarting it later', (type) => {
       const model = new WorldModel(false);
       model.command({ type: 'start-tour' });
       advance(model, 1);
@@ -296,10 +321,10 @@ describe('authored content', () => {
       advance(model, 120);
       expect(model.camera.pose).toEqual(pose);
       model.command({ type: 'guided-step', direction: -1 });
-      expect(model.snapshot().view?.index).toBe(CONTENT.tourAnchorIds.length - 1);
+      expect(model.snapshot().view?.index).toBe(CAMERA_ANCHORS.length - 1);
       model.command({ type: 'guided-step', direction: 1 });
       expect(model.snapshot().view?.index).toBe(0);
-      model.command({ type: 'focus-landmark', id: LANDMARKS[2].id });
+      model.command({ type: 'navigate', panX: 2 });
       expect(model.snapshot().view).toBeNull();
     });
   });
