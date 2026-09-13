@@ -3,7 +3,7 @@ import { CatmullRomCurve3, Vector3 } from 'three';
 export const PARK_BOUNDS = { x: 39, z: 88 } as const;
 export const PARK_RESERVOIR = { x: 0, z: -49.5, radiusX: 24.3, radiusZ: 22.5 } as const;
 export const PARK_ACTORS = [
-  ...Array.from({ length: 18 }, (_, index) => ({ id: `walker-${index + 1}`, gait: 'walk' as const })),
+  ...Array.from({ length: 24 }, (_, index) => ({ id: `walker-${index + 1}`, gait: 'walk' as const })),
   ...Array.from({ length: 12 }, (_, index) => ({ id: `runner-${index + 1}`, gait: 'run' as const })),
 ];
 type Point = readonly [number, number];

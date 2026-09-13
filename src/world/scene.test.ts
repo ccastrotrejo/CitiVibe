@@ -1,14 +1,17 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
-import poster from '../../public/city/rainlight-004.svg?raw';
+import poster from '../../public/city/rainlight-005.svg?raw';
 import shell from '../../index.html?raw';
 import { CAMERA_ANCHORS, CAMERA_PROJECTION, CITY, LANDMARKS } from '../content/city';
-import { BASKETBALL_COURT, PICKLEBALL_COURT } from '../content/courts';
+import { BASKETBALL_COURT, COURT_PLAYERS, PICKLEBALL_COURT } from '../content/courts';
+import { METRO_ENTRANCES, METRO_GEOMETRY } from '../content/metro';
+import { PARK_LAMPS, STREET_LAMPS } from '../content/lighting';
 import { PARK_ACTORS, PARK_BOUNDS, PARK_PATHS } from '../content/park';
 import { STOP_LINE_OFFSET, STREET_X, STREET_Z, TRAFFIC_ACTORS } from '../content/streets';
 import { BIKE_MARKINGS, WALK_MARKINGS } from './pavement';
 import { ART_INPUTS, buildCityScene, validateArtInputs, type CityScene } from './scene';
+import { SIDEWALK_SHEDS } from './streetscape';
 
 const worlds: CityScene[] = [];
 function createScene() { const world = buildCityScene(); worlds.push(world); return world; }
@@ -40,15 +43,15 @@ describe('original car-free park district', () => {
     expect(world.marker.position).toEqual(new THREE.Vector3());
   });
 
-  it('has neighborhood vehicles, eighteen park walkers and twelve runner rigs', () => {
+  it('has 180 traveling actors, twenty-four park walkers and twelve runner rigs', () => {
     const { actors, bus } = createScene();
     expect([...actors.keys()]).toEqual([
       ...PARK_ACTORS.map(({ id }) => id),
       ...TRAFFIC_ACTORS.map(({ id }) => id),
     ]);
     expect(bus).toBe(actors.get(CITY.busId));
-    expect(actors.size).toBe(126);
-    expect(PARK_ACTORS.filter(({ gait }) => gait === 'walk')).toHaveLength(18);
+    expect(actors.size).toBe(180);
+    expect(PARK_ACTORS.filter(({ gait }) => gait === 'walk')).toHaveLength(24);
     expect(PARK_ACTORS.filter(({ gait }) => gait === 'run')).toHaveLength(12);
     expect(actors.has('square-bus')).toBe(false);
     actors.forEach((actor) => {
@@ -57,6 +60,111 @@ describe('original car-free park district', () => {
       expect(bounds.min.y).toBeGreaterThan(-0.05);
       expect(bounds.min.y).toBeLessThanOrEqual(0.01);
     });
+  });
+
+  it('selects both full-size courts without turning neighboring streets into landmark targets', () => {
+    const world = createScene();
+    const ray = new THREE.Raycaster();
+    for (const court of [BASKETBALL_COURT, PICKLEBALL_COURT]) {
+      for (const sideX of [-1, 1]) for (const sideZ of [-1, 1]) {
+        const x = court.x + sideX * (court.runoffWidth / 2 - 0.01);
+        const z = court.z + sideZ * (court.runoffDepth / 2 - 0.01);
+        ray.set(new THREE.Vector3(x, 20, z), new THREE.Vector3(0, -1, 0));
+        expect(ray.intersectObjects(world.hitTargets)[0]?.object.userData.semanticId).toBe('juniper-court');
+      }
+    }
+    for (const z of [95, 125.8, 132]) {
+      ray.set(new THREE.Vector3(-5, 20, z), new THREE.Vector3(0, -1, 0));
+      expect(ray.intersectObjects(world.hitTargets)).toHaveLength(0);
+    }
+  });
+
+  it('retains human-sized players and a compact paddle with the same moving contact center', () => {
+    const { scene } = createScene();
+    expect(PICKLEBALL_COURT.ballRadius).toBe(0.037);
+    expect(BASKETBALL_COURT.ballRadius).toBe(0.12);
+    const paddles: THREE.Mesh[] = [];
+    scene.traverse((object) => {
+      if (object instanceof THREE.Mesh && object.name === 'Pickleball paddle') paddles.push(object);
+    });
+    expect(paddles).toHaveLength(2);
+    for (const paddle of paddles) {
+      paddle.geometry.computeBoundingBox();
+      paddle.updateMatrix();
+      const size = paddle.geometry.boundingBox!.clone().applyMatrix4(paddle.matrix).getSize(new THREE.Vector3());
+      expect(paddle.position.toArray()).toEqual([0, -0.65, 0]);
+      expect(size.x).toBeGreaterThanOrEqual(0.19);
+      expect(size.x).toBeLessThanOrEqual(0.201);
+      expect(size.y).toBeCloseTo(0.26);
+      expect(size.z).toBeCloseTo(0.016);
+    }
+    for (const player of COURT_PLAYERS) {
+      const group = scene.getObjectByName(player.id)!;
+      const size = new THREE.Box3().setFromObject(group).getSize(new THREE.Vector3());
+      expect(group.scale.toArray()).toEqual([1, 1, 1]);
+      expect(size.y).toBeGreaterThan(1.4);
+      expect(size.y).toBeLessThan(2.2);
+    }
+  });
+
+  it('frames both full-size playing and runoff areas in the relocated court view', () => {
+    const pose = CAMERA_ANCHORS.find(({ id }) => id === 'court-view')!.pose;
+    for (const aspect of [4 / 3, 16 / 10, 16 / 9]) {
+      const height = Math.max(CAMERA_PROJECTION.overviewHeight, CAMERA_PROJECTION.overviewWidth / aspect);
+      const camera = new THREE.OrthographicCamera(-height * aspect / 2, height * aspect / 2,
+        height / 2, -height / 2, 0.1, CAMERA_PROJECTION.far);
+      const radius = CAMERA_PROJECTION.distance * Math.cos(pose.pitch);
+      camera.position.set(pose.x + Math.sin(pose.yaw) * radius, CAMERA_PROJECTION.distance * Math.sin(pose.pitch),
+        pose.z + Math.cos(pose.yaw) * radius);
+      camera.lookAt(pose.x, 0, pose.z);
+      camera.zoom = pose.zoom;
+      camera.updateProjectionMatrix();
+      camera.updateMatrixWorld(true);
+      for (const court of [BASKETBALL_COURT, PICKLEBALL_COURT]) {
+        for (const sideX of [-1, 1]) for (const sideZ of [-1, 1]) for (const y of [0, 3.2]) {
+          const point = new THREE.Vector3(court.x + sideX * court.runoffWidth / 2, y,
+            court.z + sideZ * court.runoffDepth / 2).project(camera);
+          expect(Math.abs(point.x)).toBeLessThan(0.9);
+          expect(Math.abs(point.y)).toBeLessThan(0.85);
+          expect(Math.abs(point.z)).toBeLessThan(1);
+        }
+      }
+    }
+  });
+
+  it('opens all eight subway wells through the island and backdrop to real descending treads', () => {
+    const { scene, hitTargets, weatherSurface } = createScene();
+    const ground = scene.getObjectByName('Miniature ground')!;
+    const backdrop = scene.getObjectByName('City backdrop')!;
+    const staticRoots = scene.children.filter((object) => !hitTargets.includes(object));
+    const ray = new THREE.Raycaster();
+    const up = new THREE.Vector3(0, 1, 0);
+    expect(METRO_ENTRANCES).toHaveLength(8);
+    for (const entrance of METRO_ENTRANCES) {
+      const samples = [0, 5, 11].map((step) => ({
+        z: METRO_GEOMETRY.openingDepth / 2 - (step + 0.5) * METRO_GEOMETRY.treadDepth,
+        y: METRO_GEOMETRY.surfaceY - (step + 1) * METRO_GEOMETRY.stepRise,
+      }));
+      samples.push({
+        z: -METRO_GEOMETRY.openingDepth / 2 + METRO_GEOMETRY.landingDepth / 2,
+        y: METRO_GEOMETRY.surfaceY - METRO_GEOMETRY.stepCount * METRO_GEOMETRY.stepRise,
+      });
+      for (const sample of samples) {
+        const origin = new THREE.Vector3(0, 10, sample.z).applyAxisAngle(up, entrance.yaw);
+        origin.x += entrance.x;
+        origin.z += entrance.z;
+        ray.set(origin, new THREE.Vector3(0, -1, 0));
+        expect(ray.intersectObjects([ground, backdrop])).toHaveLength(0);
+        expect(ray.intersectObjects(staticRoots, true)[0]?.point.y).toBeCloseTo(sample.y, 4);
+      }
+      const size = weatherSurface.cellSize;
+      const x = Math.floor(entrance.x / size) * size + size / 2;
+      const z = Math.floor(entrance.z / size) * size + size / 2;
+      ray.set(new THREE.Vector3(x, 10, z), new THREE.Vector3(0, -1, 0));
+      const tread = ray.intersectObjects(staticRoots, true)[0];
+      expect(tread.point.y).toBeLessThan(-0.96);
+      expect(weatherSurface.heightAt(x, z)).toBeCloseTo(tread.point.y, 4);
+    }
   });
 
   it('removes the asphalt circuit, stop and signals and fills the center with a park', () => {
@@ -113,6 +221,11 @@ describe('original car-free park district', () => {
     const sun = scene.children.find((object): object is THREE.DirectionalLight => object instanceof THREE.DirectionalLight)!;
     sun.shadow.updateMatrices(sun);
     const shadow = sun.shadow.getFrustum();
+    const shadowTexel = (sun.shadow.camera.right - sun.shadow.camera.left) / sun.shadow.mapSize.x;
+    const worldDepthBias = -sun.shadow.bias * (sun.shadow.camera.far - sun.shadow.camera.near);
+    expect(worldDepthBias / shadowTexel).toBeCloseTo(1.25);
+    expect(worldDepthBias).toBeLessThan(0.7);
+    expect(sun.shadow.normalBias).toBe(0.06);
     const pose = CAMERA_ANCHORS[0].pose;
     for (const aspect of [4 / 3, 16 / 10, 16 / 9]) {
       const height = Math.max(CAMERA_PROJECTION.overviewHeight, CAMERA_PROJECTION.overviewWidth / aspect);
@@ -311,10 +424,28 @@ describe('original car-free park district', () => {
     expect(document.documentElement.getAttribute('viewBox')).toBe('0 0 1200 900');
     expect(document.querySelector('title')?.textContent).toContain('Rainlight Square');
     expect(document.querySelector('script, image, foreignObject, style')).toBeNull();
-    const courtSurfaces = document.querySelectorAll('#juniper-court > rect');
+    const courtSurfaces = document.querySelectorAll('#juniper-court > [data-court]');
     for (const [index, court] of [[0, BASKETBALL_COURT], [1, PICKLEBALL_COURT]] as const) {
       expect(Number(courtSurfaces[index].getAttribute('width'))).toBe(court.width);
       expect(Number(courtSurfaces[index].getAttribute('height'))).toBe(court.depth);
+      expect(Number(courtSurfaces[index].getAttribute('x'))).toBeCloseTo(court.x - court.width / 2, 5);
+      expect(Number(courtSurfaces[index].getAttribute('y'))).toBeCloseTo(court.z - court.depth / 2, 5);
+    }
+    expect(document.querySelectorAll('[data-metro]')).toHaveLength(METRO_ENTRANCES.length);
+    for (const entrance of METRO_ENTRANCES) {
+      const symbol = document.querySelector(`[data-metro="${entrance.id}"]`)!;
+      const transform = symbol.getAttribute('transform')!.match(/translate\(([-\d.]+) ([-\d.]+)\) rotate\(([-\d.]+)\)/)!;
+      expect(Number(transform[1])).toBeCloseTo(entrance.x, 5);
+      expect(Number(transform[2])).toBeCloseTo(entrance.z, 5);
+      expect(Number(transform[3])).toBeCloseTo(-entrance.yaw * 180 / Math.PI);
+    }
+    expect(document.querySelectorAll('[data-shed]')).toHaveLength(SIDEWALK_SHEDS.length);
+    for (const shed of SIDEWALK_SHEDS) {
+      const symbol = document.querySelector(`[data-shed="${shed.id}"]`)!;
+      const transform = symbol.getAttribute('transform')!.match(/translate\(([-\d.]+) ([-\d.]+)\) scale\(1 ([-\d.]+)\)/)!;
+      expect(Number(transform[1])).toBeCloseTo(shed.x, 5);
+      expect(Number(transform[2])).toBeCloseTo(shed.z, 5);
+      expect(Number(transform[3])).toBeCloseTo(shed.length, 5);
     }
     document.querySelectorAll('[href]').forEach((element) => {
       expect(element.getAttribute('href')).toMatch(/^#/);
@@ -325,13 +456,52 @@ describe('original car-free park district', () => {
     expect(html.querySelector('img')?.getAttribute('src')).toBe(`/city/${CITY.version}.svg`);
     expect(html.title).toBe('CitiVibe - Rainlight Square');
     const styles = readFileSync('src/styles.css', 'utf8');
-    for (const { id } of LANDMARKS) {
+    for (const { id, position: anchor } of LANDMARKS) {
       const position = poster.match(new RegExp(`${id} (\\d+(?:\\.\\d+)?),(\\d+(?:\\.\\d+)?)`));
       const marker = styles.match(new RegExp(`\\.marker-${id} \\{ left: ([\\d.]+)%; top: ([\\d.]+)%; \\}`));
       expect(position).not.toBeNull();
       expect(marker).not.toBeNull();
+      expect(Number(position![1])).toBeCloseTo(600 + 2 * (anchor.x - anchor.z), 3);
+      expect(Number(position![2])).toBeCloseTo(480 + 0.95 * (anchor.x + anchor.z), 3);
       expect(Number(marker![1])).toBeCloseTo(Number(position![1]) / 12, 3);
       expect(Number(marker![2])).toBeCloseTo(Number(position![2]) / 9, 3);
     }
+  });
+});
+
+describe('public street and park lighting fixtures', () => {
+  it('emits dusk-driven lamp heads and ground pools tagged for the night ramp', () => {
+    const { scene } = createScene();
+    const { materials, instances } = resources(scene);
+    const glow = [...materials].find((material) => material.userData.nightLight === true) as THREE.MeshStandardMaterial;
+    const pool = [...materials].find((material) => material.userData.nightPool === true) as THREE.MeshBasicMaterial;
+    expect(glow).toBeInstanceOf(THREE.MeshStandardMaterial);
+    expect(glow.emissiveIntensity).toBe(0);
+    expect(pool).toBeInstanceOf(THREE.MeshBasicMaterial);
+    expect(pool.transparent).toBe(true);
+    const poolMeshes = instances.filter((mesh) => mesh.material === pool);
+    expect(poolMeshes.length).toBeGreaterThan(0);
+    poolMeshes.forEach((mesh) => {
+      expect(mesh.castShadow).toBe(false);
+      expect(mesh.count).toBe(STREET_LAMPS.length + PARK_LAMPS.length);
+    });
+  });
+
+  it('gives building windows per-instance glow with dark and multiple lit tints', () => {
+    const { scene } = createScene();
+    const glazing = resources(scene).instances.find((mesh) =>
+      mesh.geometry.getAttribute('windowGlow') !== undefined)!;
+    expect(glazing).toBeDefined();
+    const attribute = glazing.geometry.getAttribute('windowGlow');
+    expect(attribute.count).toBe(glazing.count);
+    const swatches = new Set<string>();
+    let dark = 0;
+    for (let index = 0; index < attribute.count; index++) {
+      const r = attribute.getX(index), g = attribute.getY(index), b = attribute.getZ(index);
+      if (r < 0.1 && g < 0.1 && b < 0.1) { dark++; continue; }
+      swatches.add(`${r.toFixed(2)},${g.toFixed(2)},${b.toFixed(2)}`);
+    }
+    expect(dark).toBeGreaterThan(0);
+    expect(swatches.size).toBeGreaterThanOrEqual(3);
   });
 });

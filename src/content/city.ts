@@ -1,4 +1,8 @@
 import { CITY_EXTENT } from './streets';
+import { METRO_ENTRANCES } from './metro';
+
+const crosstown = METRO_ENTRANCES.find(({ id }) => id === 'crosstown-entrance');
+if (!crosstown) throw new Error('Crosstown landmark requires its authored subway entrance.');
 
 export interface Position {
   x: number;
@@ -16,7 +20,7 @@ export interface Landmark {
 }
 
 export const CITY = {
-  version: 'rainlight-004',
+  version: 'rainlight-005',
   name: 'Rainlight Square',
   bounds: CITY_EXTENT,
   busId: 'city-vehicle-6',
@@ -51,17 +55,17 @@ export const LANDMARKS: readonly Landmark[] = [
   {
     id: 'juniper-court',
     name: 'Juniper Court',
-    description: 'Neighbors pass, dribble and shoot on the basketball court. Beside it, two pickleball players trade shots across a low net.',
-    position: { x: -63, y: 0, z: 118 },
+    description: 'Neighbors practice on a full-size basketball court beside a full-size pickleball court. Clear runoffs and a shared walking passage surround the games.',
+    position: { x: -5, y: 0, z: 113.5 },
     hitRadius: 6,
     focusAnchorId: 'court-view',
   },
   {
     id: 'crosstown-steps',
     name: 'Crosstown Steps',
-    description: 'Subway stairs open onto a small public plaza. Buses and yellow cabs pass near the park-side two-way cycling track.',
-    position: { x: 63, y: 0, z: -118 },
-    hitRadius: 5,
+    description: 'A compact subway stairwell descends beside the sidewalk, marked by low green railings and globe lamps. Similar entrances appear around the neighborhood.',
+    position: { x: crosstown.x, y: 0, z: crosstown.z },
+    hitRadius: 2.6,
     focusAnchorId: 'crosstown-view',
   },
 ];
@@ -82,8 +86,8 @@ export const CAMERA_ANCHORS = [
   { id: 'pavilion-view', pose: { x: 0, z: 33.3, yaw: Math.PI / 4, pitch: CAMERA_PROJECTION.defaultPitch, zoom: 4.8 } },
   { id: 'terrace-view', pose: { x: 10.8, z: 18, yaw: Math.PI / 4, pitch: CAMERA_PROJECTION.defaultPitch, zoom: 4.5 } },
   { id: 'garden-view', pose: { x: 0, z: -49.5, yaw: Math.PI / 4, pitch: CAMERA_PROJECTION.defaultPitch, zoom: 3.5 } },
-  { id: 'court-view', pose: { x: -63, z: 118, yaw: Math.PI / 4, pitch: CAMERA_PROJECTION.defaultPitch, zoom: 5.2 } },
-  { id: 'crosstown-view', pose: { x: 63, z: -118, yaw: Math.PI / 4, pitch: CAMERA_PROJECTION.defaultPitch, zoom: 5.2 } },
+  { id: 'court-view', pose: { x: -5, z: 113.5, yaw: Math.PI / 4, pitch: CAMERA_PROJECTION.defaultPitch, zoom: 5.2 } },
+  { id: 'crosstown-view', pose: { x: crosstown.x, z: crosstown.z, yaw: Math.PI / 4, pitch: CAMERA_PROJECTION.defaultPitch, zoom: 5.2 } },
 ] as const;
 
 export const CONTENT = {

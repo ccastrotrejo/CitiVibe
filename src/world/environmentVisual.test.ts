@@ -4,6 +4,7 @@ import { EnvironmentController } from './environment';
 import { EnvironmentVisual } from './environmentVisual';
 import { buildCityScene } from './scene';
 import { SurfaceVisual } from './surfaceVisual';
+import { captureWeatherSurface } from './weatherArt';
 import { SURFACE_RESOLUTION, WeatherSurface } from './weatherSurface';
 import { PRECIPITATION_HEIGHT, WEATHER_EXTENT } from './weatherPhysics';
 import { CAMERA_PROJECTION } from '../content/city';
@@ -243,6 +244,29 @@ describe('bounded environment GPU adapter', () => {
     world.dispose();
   });
 
+  it('captures below-grade stair surfaces without clamping them to the city backdrop', () => {
+    const scene = new THREE.Scene();
+    const geometry = new THREE.BoxGeometry(3, 0.1, 3);
+    const material = new THREE.MeshStandardMaterial();
+    material.userData.weatherSurface = true;
+    material.userData.snowRetention = 0.7;
+    const upper = new THREE.Mesh(geometry, material);
+    upper.position.y = -2.15;
+    const lower = new THREE.Mesh(geometry, material);
+    lower.position.y = -3;
+    scene.add(upper, lower);
+    for (const reverse of [false, true]) {
+      if (reverse) scene.children.reverse();
+      const surface = captureWeatherSurface(scene);
+      expect(surface.heightAt(0.25, 0.25)).toBeCloseTo(-2.1, 5);
+      expect(surface.snowRetentionAt(0.25, 0.25)).toBeCloseTo(0.7);
+    }
+    expect(captureWeatherSurface(new THREE.Scene()).heightAt(0, 0)).toBeCloseTo(-0.96);
+    expect(() => new WeatherSurface(Number.NaN)).toThrow('finite');
+    geometry.dispose();
+    material.dispose();
+  });
+
   it('bends only marked vegetation, retains rooftop collisions and restores all rest poses', () => {
     const art = buildCityScene();
     const environment = new EnvironmentController();
@@ -306,5 +330,43 @@ describe('bounded environment GPU adapter', () => {
     expect(material.customProgramCacheKey).toBe(key);
     geometry.dispose();
     material.dispose();
+  });
+});
+
+describe('public lighting night ramp', () => {
+  it('drives tagged lamp emissive and pool opacity by night and restores on dispose', () => {
+    const scene = new THREE.Scene();
+    const geometry = new THREE.BoxGeometry();
+    const lamp = new THREE.MeshStandardMaterial({ emissive: '#000000', emissiveIntensity: 0 });
+    lamp.userData.nightLight = true;
+    lamp.userData.nightColor = '#ffd68f';
+    lamp.userData.nightIntensity = 1.2;
+    const pool = new THREE.MeshBasicMaterial({ color: '#ffe7bb', transparent: true, opacity: 0 });
+    pool.userData.nightPool = true;
+    pool.userData.nightOpacity = 0.4;
+    scene.add(new THREE.Mesh(geometry, lamp), new THREE.Mesh(geometry, pool));
+    const visual = new EnvironmentVisual(scene);
+    const environment = new EnvironmentController();
+    const draw = () => visual.update(environment.frame, OPTIONS, environment.physics);
+
+    environment.setTime('afternoon', DATE);
+    draw();
+    expect(environment.frame.night).toBeLessThan(0.05);
+    expect(lamp.emissiveIntensity).toBeLessThan(0.05);
+    expect(pool.opacity).toBeLessThan(0.05);
+
+    environment.setTime('night', DATE);
+    draw();
+    expect(environment.frame.night).toBeGreaterThan(0.8);
+    expect(lamp.emissive.getHexString()).toBe('ffd68f');
+    expect(lamp.emissiveIntensity).toBeCloseTo(environment.frame.night * 1.2, 5);
+    expect(pool.opacity).toBeCloseTo(environment.frame.night * 0.4, 5);
+
+    visual.dispose();
+    expect(lamp.emissiveIntensity).toBe(0);
+    expect(pool.opacity).toBe(0);
+    geometry.dispose();
+    lamp.dispose();
+    pool.dispose();
   });
 });

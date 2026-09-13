@@ -60,6 +60,6 @@ export const TRAFFIC_ACTORS: readonly TrafficActorDefinition[] = Object.freeze([
   }),
   ...Array.from({ length: 12 }, (_, index): TrafficActorDefinition =>
     ({ id: `city-cyclist-${index + 1}`, kind: 'cyclist', vehicleType: 'bicycle' })),
-  ...Array.from({ length: 48 }, (_, index): TrafficActorDefinition =>
+  ...Array.from({ length: STREET_BLOCKS.length * 4 }, (_, index): TrafficActorDefinition =>
     ({ id: `city-walker-${index + 1}`, kind: 'pedestrian' })),
 ]);

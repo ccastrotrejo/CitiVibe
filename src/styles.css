@@ -125,8 +125,8 @@ h1 { font-family: Georgia, serif; font-weight: 400; font-size: clamp(1.65rem, 3v
 .marker-rainlight-pavilion { left: 44.45%; top: 56.8483%; }
 .marker-terrace-steps { left: 48.8%; top: 56.3733%; }
 .marker-reed-garden { left: 58.25%; top: 48.1083%; }
-.marker-juniper-court { left: 19.8333%; top: 59.1389%; }
-.marker-crosstown-steps { left: 80.1667%; top: 47.5278%; }
+.marker-juniper-court { left: 30.25%; top: 64.7861%; }
+.marker-crosstown-steps { left: 80.8667%; top: 48.0133%; }
 .help-dialog { border: 1px solid var(--line); border-radius: 14px; padding: 1.5rem; color: var(--ink); background: var(--surface); width: min(560px, calc(100% - 2rem)); max-height: calc(100dvh - 2rem); overflow: auto; }
 .help-dialog::backdrop { background: #23352a70; }
 .dialog-heading { display: flex; gap: 1rem; align-items: flex-start; justify-content: space-between; margin-bottom: 1rem; }

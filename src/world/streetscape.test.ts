@@ -1,14 +1,15 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
-import { BASKETBALL_COURT, PICKLEBALL_COURT } from '../content/courts';
+import { BASKETBALL_COURT, COURT_PLAYERS, PICKLEBALL_COURT, RECREATION_AREA, netHeightAt } from '../content/courts';
 import { CAMERA_ANCHORS, CAMERA_PROJECTION, LANDMARKS } from '../content/city';
+import { METRO_ENTRANCES, METRO_GEOMETRY, METRO_OPENINGS, type MetroEntrance } from '../content/metro';
 import {
   BIKE_OFFSET, CITY_EXTENT, INTERSECTIONS, ROAD_HALF_WIDTH, SIDEWALK_HALF_WIDTH, SIDEWALK_OFFSET,
   STOP_LINE_OFFSET, STREET_X, STREET_Z, TWO_WAY_BIKE_STREETS, TWO_WAY_BIKE_TRACK,
   VEHICLE_OFFSET, bikeLaneOffset,
 } from '../content/streets';
 import {
-  buildStreetscape, STREET_BLOCKS, STREET_BUILDINGS, SUBWAY_ENTRANCES, validateStreetscape,
+  buildStreetscape, SIDEWALK_SHEDS, STREET_BLOCKS, STREET_BUILDINGS, SUBWAY_ENTRANCES, validateStreetscape,
   type Streetscape, type StreetscapeBuilder, type StreetscapeSignalState,
 } from './streetscape';
 
@@ -30,6 +31,16 @@ const parkHalfX = STREET_X[centerColumn + 1] - SIDEWALK_HALF_WIDTH;
 const parkHalfZ = STREET_Z[centerRow + 1] - SIDEWALK_HALF_WIDTH;
 const sideScale = parkHalfZ / 98;
 const approachCount = INTERSECTIONS.length * 4 - 2 * (STREET_X.length + STREET_Z.length);
+
+function metroPoint({ x, z, yaw }: MetroEntrance, lx: number, y: number, lz: number) {
+  return new THREE.Vector3(x + lx * Math.cos(yaw) + lz * Math.sin(yaw), METRO_GEOMETRY.surfaceY + y,
+    z - lx * Math.sin(yaw) + lz * Math.cos(yaw));
+}
+
+function metroRelative({ x, z, yaw }: MetroEntrance, point: THREE.Vector3) {
+  return new THREE.Vector3((point.x - x) * Math.cos(yaw) - (point.z - z) * Math.sin(yaw),
+    point.y - METRO_GEOMETRY.surfaceY, (point.x - x) * Math.sin(yaw) + (point.z - z) * Math.cos(yaw));
+}
 
 function createArt(build = buildStreetscape) {
   const box = new THREE.BoxGeometry();
@@ -95,40 +106,31 @@ afterEach(() => {
 });
 
 describe('original connected-city streetscape', () => {
-  it('keeps the prior four-street input buildable without moving the public anchors', async () => {
-    vi.resetModules();
-    vi.doMock('../content/streets', async () => {
-      const actual = await vi.importActual<typeof import('../content/streets')>('../content/streets');
-      const x = [-76, -46, 46, 76] as const;
-      const z = [-132, -95, 95, 132] as const;
-      return {
-        ...actual, STREET_X: x, STREET_Z: z, CITY_EXTENT: { x: 84, z: 140 },
-        TWO_WAY_BIKE_STREETS: [{ z: -95, side: 1 }, { z: 95, side: -1 }],
-        INTERSECTIONS: z.flatMap((roadZ, row) => x.map((roadX, column) =>
-          ({ id: `intersection-${column}-${row}`, x: roadX, z: roadZ }))),
-      };
-    });
-    try {
-      const finalGrid = await import('./streetscape');
-      expect(finalGrid.STREET_BLOCKS).toHaveLength(8);
-      expect(finalGrid.STREET_BUILDINGS).toHaveLength(58);
-      expect(() => finalGrid.validateStreetscape()).not.toThrow();
-      const { parts, builder } = createArt(finalGrid.buildStreetscape);
-      expect(parts.some(({ surface, position, scale }) => surface === builder.palette.teal &&
-        position[0] === BASKETBALL_COURT.x && position[2] === BASKETBALL_COURT.z &&
-        scale[0] === BASKETBALL_COURT.width)).toBe(true);
-      expect(parts.some(({ surface, position, scale }) => surface === builder.palette.rubber &&
-        position[0] === finalGrid.SUBWAY_ENTRANCES[0].x &&
-        position[2] === finalGrid.SUBWAY_ENTRANCES[0].z && scale[0] === 3.55)).toBe(true);
-      expect(parts.every(({ bounds }) => bounds.min.x >= -84 && bounds.max.x <= 84 &&
-        bounds.min.z >= -140 && bounds.max.z <= 140)).toBe(true);
-      expect(parts.filter(({ bounds }) => bounds.max.y > 0.05 && bounds.max.x > -39 &&
-        bounds.min.x < 39 && bounds.max.z > -88 && bounds.min.z < 88)
-        .map(({ surface, position }) => `${surface.name} at ${position.join(',')}`)).toEqual([]);
-    } finally {
-      vi.doUnmock('../content/streets');
-      vi.resetModules();
-    }
+  it('uses full-size courts and clear runoff in the existing six-street city, not miniature or half courts', () => {
+    const feet = 0.3048;
+    expect(STREET_X).toEqual([-102, -76, -46, 46, 76, 102]);
+    expect(STREET_Z).toEqual([-162, -132, -95, 95, 132, 162]);
+    expect(CITY_EXTENT).toEqual({ x: 110, z: 170 });
+    expect(BASKETBALL_COURT.width).toBeCloseTo(94 * feet, 8);
+    expect(BASKETBALL_COURT.depth).toBeCloseTo(50 * feet, 8);
+    expect(BASKETBALL_COURT.hoopHeight).toBeCloseTo(10 * feet, 8);
+    expect(BASKETBALL_COURT.hoopOffset).toBeCloseTo((47 - 4 - 1.25) * feet, 8);
+    expect(BASKETBALL_COURT.backboardOffset).toBeCloseTo(43 * feet, 8);
+    expect(BASKETBALL_COURT.rimRadius * 2).toBeCloseTo(1.5 * feet, 8);
+    expect(BASKETBALL_COURT.backboardWidth).toBeCloseTo(6 * feet, 8);
+    expect(BASKETBALL_COURT.backboardHeight).toBeCloseTo(3.5 * feet, 8);
+    expect(BASKETBALL_COURT.runoffWidth - BASKETBALL_COURT.width).toBeCloseTo(4, 8);
+    expect(BASKETBALL_COURT.runoffDepth - BASKETBALL_COURT.depth).toBeCloseTo(4, 8);
+    expect(PICKLEBALL_COURT.width).toBeCloseTo(44 * feet, 8);
+    expect(PICKLEBALL_COURT.depth).toBeCloseTo(20 * feet, 8);
+    expect(PICKLEBALL_COURT.runoffWidth).toBeCloseTo(60 * feet, 8);
+    expect(PICKLEBALL_COURT.runoffDepth).toBeCloseTo(30 * feet, 8);
+    expect(PICKLEBALL_COURT.kitchenDepth).toBeCloseTo(7 * feet, 8);
+    expect(PICKLEBALL_COURT.netHeight).toBeCloseTo(3 * feet, 8);
+    expect(PICKLEBALL_COURT.netCenterHeight).toBeCloseTo(34 / 12 * feet, 8);
+    expect(PICKLEBALL_COURT.netSpan).toBeCloseTo(22 * feet, 8);
+    expect(STREET_BLOCKS.find(({ id }) => id === `block-${centerColumn}-${centerRow + 1}`))
+      .toMatchObject({ minX: -39, maxX: 39, minZ: 102, maxZ: 125 });
   });
 
   it('fits a bounded inner-ring neighborhood into the shared parcels without touching the park', () => {
@@ -165,14 +167,47 @@ describe('original connected-city streetscape', () => {
       const buildings = STREET_BUILDINGS.filter(({ blockId }) => blockId === parcel.id);
       const width = parcel.maxX - parcel.minX;
       const depth = parcel.maxZ - parcel.minZ;
-      expect(buildings).toHaveLength(depth > width * 3 ? 8 : width > depth * 3 ? 4 : 1);
+      expect(buildings).toHaveLength(depth > width * 3 ? 8 : width > depth * 3 ? 6 : 1);
       outerBuildings += buildings.length;
     }
-    expect(outerBuildings).toBe(36);
+    expect(outerBuildings).toBe(40);
     for (const side of [-1, 1]) {
       const masonry = STREET_BUILDINGS.filter(({ blockId, brownstone }) => !brownstone &&
         blockId === `block-${centerColumn + side}-${centerRow}`);
       expect(masonry.every(({ width }) => width >= 12.8)).toBe(true);
+    }
+  });
+
+  it('relocates every displaced frontage building without shrinking or losing its architectural identity', () => {
+    expect(STREET_BUILDINGS.map(({ id }) => id)).toEqual(
+      Array.from({ length: 94 }, (_, index) => `street-building-${index + 1}`));
+    const destinations = [
+      'block-2-0', 'block-1-3', 'block-2-0', 'block-1-3', 'block-2-3',
+      'block-1-3', 'block-2-4', 'block-1-3', 'block-2-4', 'block-2-3',
+    ];
+    for (let column = 0; column < 10; column++) {
+      const building = STREET_BUILDINGS[10 + column];
+      const brownstone = column === 0 || column === 4;
+      expect(building.blockId).toBe(destinations[column]);
+      expect(building.width).toBeCloseTo(column % 2 ? 6.6 : 6.3);
+      expect(building.depth).toBeCloseTo(7.6 + column % 3 * 0.6);
+      expect(building.floors).toBe(Math.min(3 + (column * 3 + 2) % 5, brownstone ? 5 : 7));
+      expect(building.skin).toBe(brownstone ? 'clay' : ['clay', 'cream', 'teal', 'stone'][(10 + column) % 4]);
+      expect(building.roof).toBe(['tank', 'chimneys', 'garden', 'plant'][(10 + column) % 4]);
+      expect(building.brownstone).toBe(brownstone);
+      expect(building.stoop).toBe(column % 2 === 0);
+      expect(building.fireEscape).toBe((10 + column) % 3 === 0);
+      expect(building.setbackFloors).toBe(column === 5 ? 2 : 0);
+    }
+    for (const row of [0, 4]) {
+      const wall = STREET_BUILDINGS.filter(({ blockId }) => blockId === `block-2-${row}`).sort((a, b) => a.x - b.x);
+      expect(wall).toHaveLength(6);
+      expect(wall[0].width).toBeCloseTo(6.3);
+      expect(wall[5].width).toBeCloseTo(6.3);
+      for (let index = 1; index < wall.length; index++) {
+        expect(wall[index].x - wall[index].width / 2 - wall[index - 1].x - wall[index - 1].width / 2)
+          .toBeCloseTo(0.8);
+      }
     }
   });
 
@@ -187,6 +222,7 @@ describe('original connected-city streetscape', () => {
       [{ ...first, setbackFloors: 5 }],
       [{ ...first, blockId: 'not-a-parcel' }],
       [{ ...first, z: -33, stoop: true }],
+      [{ ...first, x: -39 + first.width / 2 + 0.4 - 0.0001 }],
       [first, { ...first, id: 'overlapping-neighbor' }],
     ]) expect(() => validateStreetscape(buildings)).toThrow();
   });
@@ -412,10 +448,10 @@ describe('original connected-city streetscape', () => {
       position[0] === BASKETBALL_COURT.x && position[2] === BASKETBALL_COURT.z &&
       scale[0] === BASKETBALL_COURT.width && surface === builder.palette.teal)).toBe(true);
     expect(parts.some(({ position, scale, surface }) => position[0] === SUBWAY_ENTRANCES[0].x &&
-      position[2] === SUBWAY_ENTRANCES[0].z + 2.86 && scale[0] === 3.7 &&
+      position[2] === SUBWAY_ENTRANCES[0].z + METRO_GEOMETRY.openingDepth / 2 && scale[0] === 2.06 &&
       surface === builder.palette.rubber)).toBe(true);
     expect(parts.some(({ position, scale }) => position[0] === westX - 0.5 && position[1] === 18.5 && scale[0] === 10.3)).toBe(true);
-    for (const [x, z] of [[-63, 118], [63, -118]]) {
+    for (const [x, z] of [[BASKETBALL_COURT.x, BASKETBALL_COURT.z], [PICKLEBALL_COURT.x, PICKLEBALL_COURT.z], [63, -118]]) {
       expect(STREET_BUILDINGS.every((building) => Math.abs(x - building.x) > building.width / 2 ||
         Math.abs(z - building.z) > building.depth / 2)).toBe(true);
     }
@@ -423,6 +459,11 @@ describe('original connected-city streetscape', () => {
     expect(parts.some(({ shape, surface }) => shape === builder.crown && surface === builder.palette.leafLight)).toBe(true);
     const trunks = parts.filter(({ shape, surface, scale }) =>
       shape === builder.cylinder && surface === builder.palette.wood && scale[0] === 0.14);
+    expect(trunks).toHaveLength(39);
+    expect(parts.filter(({ surface, scale, position }) => surface === builder.palette.wood &&
+      position[1] === 0.58 && scale[0] === 2.1)).toHaveLength(11 * 3);
+    expect(parts.filter(({ surface, scale, position }) => surface === builder.palette.paving &&
+      position[1] === 0.68 && scale[0] === 1.65)).toHaveLength(2);
     for (const { bounds } of trunks) {
       for (const building of STREET_BUILDINGS) {
         const footprint = new THREE.Box3(
@@ -451,18 +492,31 @@ describe('original connected-city streetscape', () => {
       const rimY = basketball.surfaceY + basketball.hoopHeight;
       const rim = parts.filter(({ surface, position, scale }) => surface === builder.palette.copper &&
         Math.abs(position[0] - rimX) < 0.25 && position[1] === rimY &&
-        Math.abs(position[2] - basketball.z) < 0.25 && scale[0] === 0.15 && scale[1] === 0.035);
-      expect(rim).toHaveLength(10);
+        Math.abs(position[2] - basketball.z) < 0.25 && scale[1] === 0.019 && scale[2] === 0.019);
+      expect(rim).toHaveLength(24);
       expect(rim.reduce((sum, part) => sum + part.position[0], 0) / rim.length).toBeCloseTo(rimX);
       expect(rim.reduce((sum, part) => sum + part.position[2], 0) / rim.length).toBeCloseTo(basketball.z);
+      rim.forEach(({ position, scale }) =>
+        expect(Math.hypot(position[0] - rimX, position[2] - basketball.z) - scale[2] / 2)
+          .toBeCloseTo(basketball.rimRadius, 6));
       expect(parts.some(({ shape, surface, position }) => shape === builder.cylinder &&
         surface === builder.palette.copperEdge && position[2] === basketball.z &&
-        Math.abs(position[0] - rimX - side * 0.65) < 0.001)).toBe(true);
+        Math.abs(position[0] - basketball.x - side * basketball.supportOffset) < 0.001)).toBe(true);
       const board = parts.find(({ surface, position, scale }) => surface === builder.palette.paving &&
-        Math.abs(position[0] - rimX - side * 0.35) < 0.001 && position[2] === basketball.z &&
-        scale[0] === 0.09 && scale[2] === 1.3)!;
+        Math.abs(position[0] - basketball.x - side * (basketball.backboardOffset + 0.02)) < 0.001 &&
+        position[2] === basketball.z && scale[0] === 0.04 && scale[2] === basketball.backboardWidth)!;
       expect(board).toBeDefined();
-      expect(side * (board.position[0] - rimX)).toBeGreaterThan(0);
+      expect(board.scale[1]).toBe(basketball.backboardHeight);
+      expect(board.bounds.min.y).toBeCloseTo(basketball.surfaceY + basketball.backboardBottom);
+      expect(side * (board.position[0] - rimX) - board.scale[0] / 2).toBeCloseTo(0.381);
+      expect(parts.some(({ surface, position, scale }) => surface === builder.palette.line &&
+        position[0] === basketball.x + side * basketball.freeThrowOffset &&
+        position[2] === basketball.z && scale[0] === basketball.lineWidth && scale[2] === basketball.keyWidth))
+        .toBe(true);
+      const threePointArc = parts.filter(({ surface, position, scale }) => surface === builder.palette.line &&
+        scale[1] === 0.008 && scale[2] === basketball.lineWidth &&
+        Math.abs(Math.hypot(position[0] - rimX, position[2] - basketball.z) - basketball.threePointRadius) < 0.005);
+      expect(threePointArc).toHaveLength(48);
     }
     const panels = parts.filter(({ surface, position, scale }) =>
       (surface === builder.palette.roof || surface === builder.palette.teal) &&
@@ -481,158 +535,269 @@ describe('original connected-city streetscape', () => {
     }
   });
 
-  it('uses the shared pickleball kitchen, service lines and a full-width open net', () => {
+  it('uses full-size pickleball lines, 22-foot post clearance and a shared sagged open net', () => {
     const { parts, builder } = createArt();
     const court = PICKLEBALL_COURT;
-    const tape = parts.find(({ surface, position, scale }) => surface === builder.palette.line &&
-      position[0] === court.x && position[2] === court.z && scale[0] === 0.045 && scale[2] === court.depth)!;
-    expect(tape).toBeDefined();
-    expect(tape.bounds.max.y).toBeCloseTo(court.surfaceY + court.netHeight);
+    const tape = parts.filter(({ surface, position, scale }) => surface === builder.palette.line &&
+      position[0] === court.x && Math.abs(position[2] - court.z) < court.netSpan / 2 &&
+      position[1] > 0.8 && scale[0] === 0.04 && scale[2] === 0.04);
+    expect(tape.length).toBeGreaterThan(20);
+    const topPoints = tape.flatMap(({ matrix }) => [-0.5, 0.5].map((end) =>
+      new THREE.Vector3(0, end, 0).applyMatrix4(matrix).add(new THREE.Vector3(0, 0.02, 0))));
+    expect(Math.min(...topPoints.map(({ z }) => z))).toBeCloseTo(court.z - court.netSpan / 2, 6);
+    expect(Math.max(...topPoints.map(({ z }) => z))).toBeCloseTo(court.z + court.netSpan / 2, 6);
+    for (const point of topPoints) expect(point.y).toBeCloseTo(court.surfaceY + netHeightAt(point.z - court.z), 6);
+    expect(topPoints.some(({ y, z }) => Math.abs(z - court.z) < 1e-6 &&
+      Math.abs(y - court.surfaceY - court.netCenterHeight) < 1e-6)).toBe(true);
+    expect(netHeightAt(0)).toBe(court.netCenterHeight);
+    expect(netHeightAt(court.depth / 2)).toBe(court.netHeight);
+    expect(netHeightAt(-court.depth / 2)).toBe(court.netHeight);
+    expect(netHeightAt(court.depth)).toBe(court.netHeight);
+    expect(netHeightAt(-1)).toBe(netHeightAt(1));
     const threads = parts.filter(({ surface, position, scale }) => surface === builder.palette.rubber &&
-      position[0] === court.x && Math.abs(position[2] - court.z) <= court.depth / 2 + 0.001 &&
-      scale[0] === 0.02 && scale[2] === 0.02 && scale[1] > 0.5);
-    expect(threads).toHaveLength(Math.ceil(court.depth / 0.25) + 1);
-    expect(threads.every(({ bounds }) => bounds.max.y <= tape.bounds.min.y + 0.001)).toBe(true);
+      position[0] === court.x && Math.abs(position[2] - court.z) <= court.netSpan / 2 + 0.001 &&
+      scale[0] === 0.015 && scale[2] === 0.015 && scale[1] > 0.5);
+    expect(threads).toHaveLength(tape.length + 1);
+    for (const thread of threads) expect(thread.bounds.max.y)
+      .toBeCloseTo(court.surfaceY + netHeightAt(thread.position[2] - court.z) - 0.04, 6);
     for (const side of [-1, 1]) {
       expect(parts.some(({ surface, position, scale }) => surface === builder.palette.line &&
         position[0] === court.x + side * court.kitchenDepth && position[2] === court.z &&
-        scale[0] === 0.055 && scale[2] === court.depth - 0.07)).toBe(true);
+        scale[0] === court.lineWidth && scale[2] === court.depth - court.lineWidth)).toBe(true);
       expect(parts.some(({ surface, position, scale }) => surface === builder.palette.line &&
         side * (position[0] - court.x) > court.kitchenDepth && position[2] === court.z &&
-        scale[2] === 0.055)).toBe(true);
-      expect(parts.some(({ shape, surface, position, scale }) => shape === builder.cylinder &&
+        scale[2] === court.lineWidth)).toBe(true);
+      const post = parts.find(({ shape, surface, position, scale }) => shape === builder.cylinder &&
         surface === builder.palette.rubber && position[0] === court.x &&
-        position[2] === court.z + side * (court.depth / 2 + 0.17) && scale[0] === 0.05)).toBe(true);
+        position[2] === court.z + side * court.netPostOffset && scale[0] === court.netPostRadius)!;
+      expect(post).toBeDefined();
+      expect(post.bounds.max.y).toBeCloseTo(court.surfaceY + court.netHeight, 6);
+      expect(Math.abs(post.position[2] - court.z) - post.scale[0]).toBeCloseTo(court.netSpan / 2, 6);
     }
   });
 
-  it('reserves both playing surfaces and the intervening entrance without buildings or furniture', () => {
+  it('reserves both complete runoff areas and a continuous two-metre public passage without clutter', () => {
     const { parts, builder } = createArt();
-    const parcel = STREET_BLOCKS.find(({ id }) => id === `block-${centerColumn - 1}-${centerRow + 1}`)!;
-    expect(STREET_BUILDINGS.filter(({ blockId }) => blockId === parcel.id)).toEqual([]);
+    const parcel = STREET_BLOCKS.find(({ id }) => id === `block-${centerColumn}-${centerRow + 1}`)!;
+    expect(STREET_BUILDINGS.filter(({ blockId }) => blockId === parcel.id)).toHaveLength(2);
     const describe = ({ surface, position }: Part) => `${surface.name} at ${position.join(',')}`;
-    const obstacles = parts.filter(({ bounds }) => bounds.max.y > 0.35 && bounds.min.y < 1.8);
+    const obstacles = parts.filter(({ bounds }) => bounds.max.y > 0.12 && bounds.min.y < 2.4);
     for (const court of [BASKETBALL_COURT, PICKLEBALL_COURT]) {
       const playing = new THREE.Box3(
-        new THREE.Vector3(court.x - court.width / 2, court.surfaceY + 0.1, court.z - court.depth / 2),
-        new THREE.Vector3(court.x + court.width / 2, 1.8, court.z + court.depth / 2),
+        new THREE.Vector3(court.x - court.runoffWidth / 2, court.surfaceY + 0.1, court.z - court.runoffDepth / 2),
+        new THREE.Vector3(court.x + court.runoffWidth / 2, 2.4, court.z + court.runoffDepth / 2),
       );
       expect(playing.min.x).toBeGreaterThan(parcel.minX);
       expect(playing.max.x).toBeLessThan(parcel.maxX);
       expect(playing.min.z).toBeGreaterThan(parcel.minZ);
       expect(playing.max.z).toBeLessThan(parcel.maxZ);
-      const clutter = obstacles.filter(({ bounds, surface, shape, position }) => {
+      const clutter = obstacles.filter(({ bounds, surface, position }) => {
         if (!bounds.intersectsBox(playing)) return false;
         if (court === PICKLEBALL_COURT) return Math.abs(position[0] - court.x) > 0.08 ||
           (surface !== builder.palette.rubber && surface !== builder.palette.line);
-        return shape !== builder.cylinder || surface !== builder.palette.copperEdge ||
-          Math.abs(Math.abs(position[0] - court.x) - BASKETBALL_COURT.hoopOffset - 0.65) > 0.001;
+        return true;
       });
       expect(clutter.map(describe)).toEqual([]);
+      const runoff = parts.filter(({ surface, position, bounds }) => surface === builder.palette.road &&
+        Math.abs(position[1] - court.surfaceY + 0.015) < 1e-6 &&
+        bounds.min.x >= playing.min.x - 1e-6 && bounds.max.x <= playing.max.x + 1e-6 &&
+        bounds.min.z >= playing.min.z - 1e-6 && bounds.max.z <= playing.max.z + 1e-6);
+      expect(runoff).toHaveLength(4);
+      expect(runoff.reduce((sum, { scale }) => sum + scale[0] * scale[2], 0))
+        .toBeCloseTo(court.runoffWidth * court.runoffDepth - court.width * court.depth, 6);
+      for (const { bounds } of runoff) expect(bounds.max.y).toBeCloseTo(court.surfaceY, 6);
     }
     const passage = new THREE.Box3(
-      new THREE.Vector3(BASKETBALL_COURT.x - 1, 0.1, PICKLEBALL_COURT.z + PICKLEBALL_COURT.depth / 2 + 0.35),
-      new THREE.Vector3(BASKETBALL_COURT.x + 1, 1.8, BASKETBALL_COURT.z - BASKETBALL_COURT.depth / 2 - 0.1),
+      new THREE.Vector3(RECREATION_AREA.passageMinX, 0.12, RECREATION_AREA.minZ),
+      new THREE.Vector3(RECREATION_AREA.passageMaxX, 2.4, RECREATION_AREA.maxZ),
     );
+    expect(passage.max.x - passage.min.x).toBe(2);
     expect(obstacles.filter(({ bounds }) => bounds.intersectsBox(passage)).map(describe)).toEqual([]);
   });
 
-  it('leaves both shallow subway flights visibly recessed instead of covering their lower treads with paving', () => {
+  it('keeps players visible from the ordinary camera and baskets clear from front-facing orbits', () => {
+    const { parts } = createArt();
+    const { pose } = CAMERA_ANCHORS[0];
+    const direction = new THREE.Vector3(
+      Math.sin(pose.yaw) * Math.cos(pose.pitch), Math.sin(pose.pitch),
+      Math.cos(pose.yaw) * Math.cos(pose.pitch),
+    );
+    const targets = COURT_PLAYERS.flatMap((player) => {
+      const court = player.sport === 'basketball' ? BASKETBALL_COURT : PICKLEBALL_COURT;
+      return [0.08, 1.65].map((height) => ({
+        point: new THREE.Vector3(court.x + player.x, court.surfaceY + height, court.z + player.z), direction,
+      }));
+    });
+    for (const side of [-1, 1]) targets.push({
+      point: new THREE.Vector3(BASKETBALL_COURT.x + side * BASKETBALL_COURT.hoopOffset,
+        BASKETBALL_COURT.surfaceY + BASKETBALL_COURT.hoopHeight + 0.05, BASKETBALL_COURT.z),
+      direction: new THREE.Vector3(-side * direction.x, direction.y, direction.z),
+    });
+    for (const { point, direction: view } of targets) {
+      const ray = new THREE.Raycaster(point, view, 0.05, CAMERA_PROJECTION.distance);
+      const candidates = parts.filter(({ bounds }) => ray.ray.intersectsBox(bounds)).map((part) => {
+        const mesh = new THREE.Mesh(part.shape, part.surface);
+        mesh.name = `${part.surface.name} ${part.position.join(',')}`;
+        mesh.matrixWorld.copy(part.matrix);
+        return mesh;
+      });
+      expect(ray.intersectObjects(candidates, false).map(({ object }) => object.name), point.toArray().join(','))
+        .toEqual([]);
+    }
+  });
+
+  it('distributes eight compact openings beside sidewalks without occupying buildings or walking channels', () => {
+    expect(METRO_ENTRANCES).toHaveLength(8);
+    expect(new Set(METRO_ENTRANCES.map(({ id }) => id)).size).toBe(8);
+    expect(new Set(METRO_ENTRANCES.map(({ x, z }) => `${Math.sign(x)},${Math.sign(z)}`)).size).toBe(4);
+    expect(SUBWAY_ENTRANCES).toBe(METRO_ENTRANCES);
+    expect(METRO_GEOMETRY.openingWidth).toBe(1.9);
+    expect(METRO_GEOMETRY.openingDepth).toBe(4.5);
+    expect(METRO_GEOMETRY.stepCount * METRO_GEOMETRY.treadDepth + METRO_GEOMETRY.landingDepth).toBeCloseTo(4.5);
+    for (const hole of METRO_OPENINGS) {
+      expect((hole.maxX - hole.minX) * (hole.maxZ - hole.minZ)).toBeCloseTo(8.55);
+      expect(STREET_BLOCKS.some((parcel) => hole.minX > parcel.minX && hole.maxX < parcel.maxX &&
+        hole.minZ > parcel.minZ && hole.maxZ < parcel.maxZ)).toBe(true);
+      const envelope = new THREE.Box3(
+        new THREE.Vector3(hole.minX - 0.3, -3, hole.minZ - 0.3),
+        new THREE.Vector3(hole.maxX + 0.3, 3, hole.maxZ + 0.3),
+      );
+      const distances: number[] = [];
+      for (const [roads, min, max] of [[STREET_X, envelope.min.x, envelope.max.x], [STREET_Z, envelope.min.z, envelope.max.z]] as const) {
+        for (const road of roads) for (const side of [-1, 1]) {
+          const walk = road + side * SIDEWALK_OFFSET;
+          const distance = Math.max(min - walk, walk - max);
+          expect(distance, `${hole.id}: walkway ${walk}`).toBeGreaterThan(1);
+          distances.push(distance);
+        }
+      }
+      expect(Math.min(...distances)).toBeLessThan(1.3);
+      for (const building of STREET_BUILDINGS) {
+        const footprint = new THREE.Box3(
+          new THREE.Vector3(building.x - building.width / 2 - 0.15, -3, building.z - building.depth / 2 - 0.15),
+          new THREE.Vector3(building.x + building.width / 2 + 0.15, 24, building.z + building.depth / 2 + 0.15),
+        );
+        expect(envelope.intersectsBox(footprint), `${hole.id}: ${building.id}`).toBe(false);
+      }
+    }
+  });
+
+  it('places every tread below sidewalk and island level and leaves local paving genuinely open', () => {
     const { parts, builder } = createArt();
-    for (const { x, z } of SUBWAY_ENTRANCES) {
+    const g = METRO_GEOMETRY;
+    expect(g.surfaceY).toBe(-0.08);
+    for (const entrance of METRO_ENTRANCES) {
       const floor = parts.find(({ surface, position, scale }) => surface === builder.palette.rubber &&
-        position[0] === x && position[2] === z && scale[0] === 3.55)!;
+        metroRelative(entrance, new THREE.Vector3(...position)).length() < 4 &&
+        scale[0] === g.openingWidth && scale[2] === g.landingDepth)!;
       expect(floor).toBeDefined();
-      expect(floor.bounds.max.y).toBeLessThan(0);
-      expect(floor.bounds.min.y).toBeGreaterThan(-0.14);
+      expect(floor.bounds.max.y).toBeCloseTo(-2.24);
       const steps = parts.filter(({ surface, position, scale }) => surface === builder.palette.stone &&
-        position[0] === x && Math.abs(position[2] - z) < 2.5 && scale[0] === 2.9 && scale[2] === 0.7)
-        .sort((a, b) => b.position[2] - a.position[2]);
-      expect(steps).toHaveLength(7);
+        metroRelative(entrance, new THREE.Vector3(...position)).length() < 4 &&
+        scale[0] === g.openingWidth && scale[2] === g.treadDepth)
+        .map((part) => ({ ...part, local: metroRelative(entrance, new THREE.Vector3(...part.position)) }))
+        .sort((a, b) => b.local.z - a.local.z);
+      expect(steps).toHaveLength(g.stepCount);
       for (const [index, step] of steps.entries()) {
-        expect(step.bounds.max.y).toBeCloseTo(0.47 - index * 0.085);
-        expect(step.bounds.min.y).toBeGreaterThan(-0.14);
-        if (index > 0) expect(steps[index - 1].bounds.min.z).toBeCloseTo(step.bounds.max.z);
-        const treadZ = step.position[2];
+        expect(step.bounds.max.y).toBeCloseTo(g.surfaceY - (index + 1) * g.stepRise);
+        expect(step.bounds.max.y).toBeLessThan(-0.14);
+        expect(step.local.x).toBeCloseTo(0);
+        if (index > 0) expect(steps[index - 1].local.z - g.treadDepth / 2).toBeCloseTo(step.local.z + g.treadDepth / 2);
+        const [x, , z] = step.position;
         const covering = parts.filter(({ bounds }) => bounds.min.x < x && bounds.max.x > x &&
-          bounds.min.z < treadZ && bounds.max.z > treadZ).map((part) => {
+          bounds.min.z < z && bounds.max.z > z).map((part) => {
           const mesh = new THREE.Mesh(part.shape, part.surface);
           mesh.matrixWorld.copy(part.matrix);
           return mesh;
         });
-        const ray = new THREE.Raycaster(new THREE.Vector3(x, 4, treadZ), new THREE.Vector3(0, -1, 0), 0, 5);
+        const ray = new THREE.Raycaster(new THREE.Vector3(x, 4, z), new THREE.Vector3(0, -1, 0), 0, 8);
         const hits = ray.intersectObjects(covering, false);
         expect(hits.length).toBeGreaterThan(0);
         expect(hits[0].point.y).toBeCloseTo(step.bounds.max.y);
       }
-      expect(steps.at(-1)!.bounds.max.y).toBeLessThan(0);
-      expect(parts.some(({ surface, position, scale }) => surface === builder.palette.taxi &&
-        position[0] === x && position[2] === z + 2.5 && scale[0] === 2.9)).toBe(true);
+      expect(steps.at(-1)!.bounds.max.y).toBeCloseTo(floor.bounds.max.y);
     }
   });
 
   it('frames open subway mouths with green ironwork, paired globes and genuinely descending handrails', () => {
     const { parts, builder } = createArt();
-    for (const { x, z } of SUBWAY_ENTRANCES) {
-      const railings = parts.filter(({ surface, position, scale }) => surface === builder.palette.rubber &&
-        Math.abs(position[0] - x) < 1.8 && Math.abs(position[2] - z) < 3 &&
-        scale[0] === 0.04 && scale[1] === 0.75);
-      expect(railings).toHaveLength(33);
-      expect(parts.filter(({ shape, surface, position, scale }) => shape === builder.crown &&
-        surface === builder.palette.taxi && scale[0] === 0.38 &&
-        Math.abs(position[0] - x) < 1.8 && position[2] === z + 2.86)).toHaveLength(2);
-      expect(parts.filter(({ shape, surface, position, scale }) => shape === builder.crown &&
-        surface === builder.palette.leaf && scale[1] === 0.11 &&
-        Math.abs(position[0] - x) < 1.8 && position[2] === z + 2.86)).toHaveLength(2);
-      const rails = parts.filter(({ surface, position, scale }) => surface === builder.palette.stone &&
-        Math.abs(Math.abs(position[0] - x) - 1.25) < 0.001 &&
-        Math.abs(position[2] - z + 0.11) < 0.001 && scale[0] === 0.06);
+    const g = METRO_GEOMETRY;
+    for (const entrance of METRO_ENTRANCES) {
+      const nearby = parts.filter(({ position }) => {
+        const point = metroRelative(entrance, new THREE.Vector3(...position));
+        return Math.abs(point.x) < 1.4 && Math.abs(point.z) < 2.6;
+      });
+      const railings = nearby.filter(({ surface, scale }) => surface === builder.palette.rubber &&
+        scale[0] === 0.03 && scale[1] === 0.82);
+      expect(railings).toHaveLength(29);
+      expect(railings.every(({ bounds }) => bounds.max.y < 1.1)).toBe(true);
+      const globes = nearby.filter(({ shape, surface, scale }) => shape === builder.crown &&
+        surface === builder.palette.taxi && scale[0] === 0.18);
+      expect(globes).toHaveLength(2);
+      expect(globes.every(({ bounds }) => bounds.max.y < 3)).toBe(true);
+      expect(nearby.filter(({ shape, surface, scale }) => shape === builder.crown &&
+        surface === builder.palette.leaf && scale[1] === 0.065)).toHaveLength(2);
+      const rails = nearby.filter(({ surface, scale }) => surface === builder.palette.stone &&
+        scale[0] === 0.045 && scale[1] > 3);
       expect(rails).toHaveLength(2);
       for (const rail of rails) {
-        const ends = [-0.5, 0.5].map((y) => new THREE.Vector3(0, y, 0).applyMatrix4(rail.matrix))
+        const ends = [-0.5, 0.5].map((y) => metroRelative(entrance, new THREE.Vector3(0, y, 0).applyMatrix4(rail.matrix)))
           .sort((a, b) => a.z - b.z);
-        expect(ends[0].y).toBeCloseTo(0.585);
-        expect(ends[1].y).toBeCloseTo(1.18);
-        expect(ends[1].z - ends[0].z).toBeCloseTo(4.9);
+        expect(ends[0].y).toBeCloseTo(-g.stepCount * g.stepRise + 0.86);
+        expect(ends[1].y).toBeCloseTo(-g.stepRise + 0.86);
+        expect(ends[1].z - ends[0].z).toBeCloseTo((g.stepCount - 1) * g.treadDepth);
       }
-      const entrance = new THREE.Box3(
-        new THREE.Vector3(x - 0.9, 0.65, z + 2.75),
-        new THREE.Vector3(x + 0.9, 2.3, z + 4.35),
-      );
-      expect(parts.filter(({ bounds }) => bounds.intersectsBox(entrance))
+      const approach = new THREE.Box3().setFromPoints([
+        metroPoint(entrance, -0.75, 0.2, g.openingDepth / 2 + 0.12),
+        metroPoint(entrance, 0.75, 2.1, g.openingDepth / 2 + 1.1),
+      ]);
+      expect(parts.filter(({ bounds }) => bounds.intersectsBox(approach))
         .map(({ surface, position }) => `${surface.name} at ${position.join(',')}`)).toEqual([]);
     }
   });
 
   it('renders original double-sided SUBWAY lettering on an unobstructed entrance header', () => {
     const { parts, builder } = createArt();
-    const rows = [
-      '111 101 110 10001 010 101',
-      '100 101 101 10001 101 101',
-      '111 101 110 10101 111 010',
-      '001 101 101 10101 101 010',
-      '111 111 110 01010 101 010',
-    ].map((row) => row.replaceAll(' ', '0'));
-    for (const { x, z } of SUBWAY_ENTRANCES) {
+    const g = METRO_GEOMETRY;
+    const starts = [0, 4, 8, 12, 18, 22];
+    for (const entrance of METRO_ENTRANCES) {
+      const faces: string[][] = [];
       for (const face of [-1, 1]) {
-        const pixels = parts.filter(({ surface, position, scale }) => surface === builder.palette.line &&
-          Math.abs(position[0] - x) < 1.6 && Math.abs(position[1] - 2.95) < 0.3 &&
-          Math.abs(position[2] - z - 2.86 - face * 0.095) < 0.001 &&
-          scale[0] === 0.1 && scale[1] === 0.1 && scale[2] === 0.025);
-        const cells = new Set(pixels.map(({ position }) =>
-          `${Math.round(2 - (position[1] - 2.95) / 0.12)}:${Math.round((position[0] - x) / (face * 0.12) + 12)}`));
-        expect(rows.map((row, y) => [...row].map((_, column) => cells.has(`${y}:${column}`) ? '1' : '0').join('')))
-          .toEqual(rows);
-        expect(cells.size).toBe(rows.join('').replaceAll('0', '').length);
+        const strokes = parts.filter(({ surface, position, scale }) => {
+          const local = metroRelative(entrance, new THREE.Vector3(...position));
+          return surface === builder.palette.line && Math.abs(local.x) < 1 &&
+            Math.abs(local.y - g.signHeight) < 0.2 &&
+            Math.abs(local.z - g.openingDepth / 2 - face * 0.055) < 0.001 &&
+            scale[0] === 0.022 && scale[2] === 0.022;
+        });
+        expect(strokes).toHaveLength(24);
+        const counts = starts.map(() => 0);
+        faces.push(strokes.map(({ matrix }) => {
+          const ends = [-0.5, 0.5].map((end) => {
+            const point = metroRelative(entrance, new THREE.Vector3(0, end, 0).applyMatrix4(matrix));
+            return [Number((point.x * face / 0.065 + 12.5).toFixed(4)),
+              Number((2 - (point.y - g.signHeight) / 0.065).toFixed(4))];
+          });
+          const middle = (ends[0][0] + ends[1][0]) / 2;
+          const letter = starts.filter((start) => middle >= start).length - 1;
+          counts[letter]++;
+          expect(ends.every(([x, y]) => x >= starts[letter] && x <= (starts[letter + 1] ?? 26) - 1 && y >= 0 && y <= 4)).toBe(true);
+          return ends.map((point) => point.join(',')).sort().join(':');
+        }).sort());
+        expect(counts).toEqual([5, 3, 6, 4, 3, 3]);
       }
+      expect(faces[0]).toEqual(faces[1]);
       const header = parts.find(({ surface, position, scale }) => surface === builder.palette.rubber &&
-        position[0] === x && position[1] === 2.95 && position[2] === z + 2.86 && scale[0] === 3.7)!;
-      expect(header.bounds.min.y).toBeGreaterThan(2.5);
+        metroRelative(entrance, new THREE.Vector3(...position)).distanceTo(new THREE.Vector3(0, g.signHeight, g.openingDepth / 2)) < 0.001 &&
+        scale[0] === 2.06)!;
+      expect(header.bounds.min.y).toBeGreaterThan(2.1);
+      expect(header.scale[0]).toBeLessThan(2.1);
     }
   });
 
-  it('keeps subway signs, globes and most stairs visible along the ordinary camera sightline', () => {
+  it('keeps compact metro signs, globes and upper descending treads visible from the ordinary camera', () => {
     const { parts } = createArt();
+    const g = METRO_GEOMETRY;
     const { pose } = CAMERA_ANCHORS[0];
     const direction = new THREE.Vector3(
       Math.sin(pose.yaw) * Math.cos(pose.pitch), Math.sin(pose.pitch),
@@ -642,22 +807,29 @@ describe('original connected-city streetscape', () => {
       const ray = new THREE.Raycaster(point, direction, 0.015, CAMERA_PROJECTION.distance);
       const candidates = parts.filter(({ bounds }) => ray.ray.intersectsBox(bounds)).map((part) => {
         const mesh = new THREE.Mesh(part.shape, part.surface);
+        mesh.name = `${part.surface.name} ${part.position}`;
         mesh.matrixWorld.copy(part.matrix);
         return mesh;
       });
       return ray.intersectObjects(candidates, false);
     };
-    for (const { id, x, z } of SUBWAY_ENTRANCES) {
-      expect(occluders(new THREE.Vector3(x, 2.95, z + 2.98)).length, `${id} sign`).toBe(0);
+    for (const entrance of METRO_ENTRANCES) {
+      const sign = metroPoint(entrance, 0, g.signHeight, g.openingDepth / 2 + 0.07);
+      expect(occluders(sign).map(({ object }) => object.name), `${entrance.id} sign`).toEqual([]);
       for (const side of [-1, 1]) {
-        const globe = new THREE.Vector3(x + side * 1.75, 3.75, z + 2.86).addScaledVector(direction, 0.6);
-        expect(occluders(globe).length, `${id} globe ${side}`).toBe(0);
+        const globe = metroPoint(entrance, side * (g.openingWidth / 2 + g.wallThickness / 2),
+          g.globeHeight, g.openingDepth / 2).addScaledVector(direction, 0.25);
+        expect(occluders(globe).map(({ object }) => object.name), `${entrance.id} globe ${side}`).toEqual([]);
       }
       let visibleSteps = 0;
-      for (let step = 0; step < 7; step++) {
-        if (occluders(new THREE.Vector3(x, 0.495 - step * 0.085, z + 1.99 - step * 0.7)).length === 0) visibleSteps++;
+      const blocked: string[] = [];
+      for (let step = 0; step < g.stepCount; step++) {
+        const hits = occluders(metroPoint(entrance, 0, -(step + 1) * g.stepRise + 0.02,
+          g.openingDepth / 2 - (step + 0.9) * g.treadDepth));
+        if (hits.length === 0) visibleSteps++;
+        else if (step < 3) blocked.push(`${step + 1}: ${hits[0].object.name}`);
       }
-      expect(visibleSteps, `${id} stair flight`).toBeGreaterThanOrEqual(5);
+      expect(visibleSteps, `${entrance.id} stair flight ${blocked.join('; ')}`).toBeGreaterThanOrEqual(3);
     }
     const entrance = SUBWAY_ENTRANCES[0];
     const landmark = LANDMARKS.find(({ id }) => id === 'crosstown-steps')!;
@@ -671,9 +843,9 @@ describe('original connected-city streetscape', () => {
     camera.position.copy(target).addScaledVector(direction, CAMERA_PROJECTION.distance);
     camera.lookAt(target);
     camera.updateMatrixWorld(true);
-    const signEdges = [-1, 1].map((side) => new THREE.Vector3(entrance.x + side * 1.85, 2.95, entrance.z + 2.86).project(camera));
+    const signEdges = [-1, 1].map((side) => metroPoint(entrance, side * 1.03, g.signHeight, g.openingDepth / 2).project(camera));
     expect(signEdges.every(({ x, y, z }) => Math.abs(x) < 1 && Math.abs(y) < 1 && Math.abs(z) < 1)).toBe(true);
-    expect(Math.abs(signEdges[1].x - signEdges[0].x) * 1440 / 2).toBeGreaterThan(40);
+    expect(Math.abs(signEdges[1].x - signEdges[0].x) * 1440 / 2).toBeGreaterThan(24);
   });
 
   it('separates braced facade scaffolding from a continuous protective shed with clear headroom', () => {
@@ -681,12 +853,12 @@ describe('original connected-city streetscape', () => {
     const walkZ = STREET_Z[centerRow] - SIDEWALK_OFFSET;
     const shedX = westX + 1.05;
     const deck = parts.find(({ surface, position, scale }) => surface === builder.palette.roof &&
-      position[0] === shedX && position[1] === 2.78 && scale[0] === 7.3 && scale[2] === 2.5)!;
+      position[0] === shedX && position[1] === 2.78 && scale[0] === 7.3 && scale[2] === 2.7)!;
     expect(deck).toBeDefined();
     expect(deck.bounds.min.y).toBeGreaterThan(2.6);
     const corridor = new THREE.Box3(
-      new THREE.Vector3(shedX - 3.4, 0.12, walkZ - 0.7),
-      new THREE.Vector3(shedX + 3.4, 2.45, walkZ + 0.7),
+      new THREE.Vector3(shedX - 3.4, 0.12, walkZ - 1),
+      new THREE.Vector3(shedX + 3.4, 2.45, walkZ + 1),
     );
     parts.forEach(({ bounds, surface, position }) =>
       expect(bounds.intersectsBox(corridor), `Covered-walk obstruction ${surface.name} ${position}`).toBe(false));
@@ -699,7 +871,40 @@ describe('original connected-city streetscape', () => {
     expect(parts.filter(({ surface, position, scale }) => surface === builder.palette.teal &&
       position[0] === shedX && scale[1] === 0.48)).toHaveLength(2);
     expect(parts.filter(({ surface, position, scale }) => surface === builder.palette.line &&
-      position[1] === 2.66 && scale[0] === 0.65)).toHaveLength(3);
+      position[1] === 2.66 && scale[0] === 0.65)).toHaveLength(24);
+  });
+
+  it('adds seven sheds and four upper scaffold sections on occupied buildings with clear two-metre passages', () => {
+    const { parts, builder } = createArt();
+    expect(SIDEWALK_SHEDS).toHaveLength(7);
+    expect(SIDEWALK_SHEDS.filter(({ scaffold }) => scaffold)).toHaveLength(4);
+    for (const shed of SIDEWALK_SHEDS) {
+      expect(STREET_BUILDINGS.some(({ id }) => id === shed.buildingId)).toBe(true);
+      const deck = parts.find(({ surface, position, scale }) => surface === builder.palette.roof &&
+        Math.abs(position[0] - shed.x) < 2 && position[2] === shed.z &&
+        position[1] === 2.78 && scale[0] === shed.length)!;
+      expect(deck).toBeDefined();
+      expect(deck.bounds.min.y).toBeGreaterThan(2.6);
+      const corridor = new THREE.Box3(
+        new THREE.Vector3(shed.x - 1, 0.12, shed.z - shed.length / 2),
+        new THREE.Vector3(shed.x + 1, 2.4, shed.z + shed.length / 2),
+      );
+      expect(parts.filter(({ bounds }) => bounds.intersectsBox(corridor))
+        .map(({ surface, position }) => `${surface.name} ${position}`), shed.id).toEqual([]);
+      const building = STREET_BUILDINGS.find(({ id }) => id === shed.buildingId)!;
+      const entryX = building.brownstone ? building.x - building.width * 0.26 : building.x;
+      const front = building.z + building.depth / 2;
+      expect(corridor.intersectsBox(new THREE.Box3(
+        new THREE.Vector3(entryX - 0.9, 0, front),
+        new THREE.Vector3(entryX + 0.9, 2.4, front + 1.8),
+      ))).toBe(false);
+      if (!shed.scaffold) continue;
+      const frames = parts.filter(({ surface, scale, position }) => surface === builder.palette.roof &&
+        scale[0] === 0.07 && scale[1] > 4 && Math.abs(position[0] - shed.x) < 3.5 &&
+        Math.abs(position[2] - shed.z) < shed.length / 2);
+      expect(frames).toHaveLength(6);
+      expect(frames.every(({ bounds }) => bounds.min.y >= 2.89)).toBe(true);
+    }
   });
 
   it('uses borrowed yellow signal housings with three dark lenses, projecting visors and braced arms', () => {
@@ -733,9 +938,9 @@ describe('original connected-city streetscape', () => {
     const second = createArt();
     const batches = new Set(first.parts.map(({ shape, surface }) => `${shape.type}:${surface.name}`));
     expect(batches.size + first.art.group.children.length).toBeLessThanOrEqual(31);
-    expect(first.parts.length).toBeLessThan(31_000);
+    expect(first.parts.length).toBeLessThan(32_000);
     const triangles = first.parts.reduce((sum, { shape }) => sum + (shape.index?.count ?? shape.getAttribute('position').count) / 3, 0);
-    expect(triangles).toBeLessThan(430_000);
+    expect(triangles).toBeLessThan(440_000);
     expect(first.parts.map(({ shape, surface, matrix }) => [shape.type, surface.name, matrix.elements]))
       .toEqual(second.parts.map(({ shape, surface, matrix }) => [shape.type, surface.name, matrix.elements]));
   });

@@ -1,0 +1,146 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900" viewBox="0 0 1200 900" role="img" aria-labelledby="title description">
+  <title id="title">Rainlight Square and its park</title>
+  <desc id="description">Original static illustration of a fictional NYC-inspired miniature city, not a map of New York. Six avenues and six cross streets frame twenty-four blocks and a car-free park with a reservoir running loop, lawns, woodland, lake and pale bridge, fountain terrace and tree-lined mall. Two-way protected cycling tracks follow the park edges. Neighbors fill the sidewalks and play on full-size basketball and pickleball courts south of the park.</desc>
+  <metadata>Original LivingCity vectors, 2026-09-13. Asset rainlight-005. No imported photographs, models, maps or fonts. Simplified companion illustration, not an exact renderer export. Focus points: rainlight-pavilion 533.4,511.635; terrace-steps 585.6,507.36; reed-garden 699,432.975; juniper-court 363,583.075; crosstown-steps 970.4,432.12.</metadata>
+  <defs>
+    <g id="building">
+      <path d="M-13 0 0 7 13 0V-37L0-30-13-37Z" fill="currentColor"/>
+      <path d="M0 7V-30L13-37V0Z" fill="#546c65"/>
+      <path d="M-14-37 0-45 14-37 0-29Z" fill="#e1dcca"/>
+      <path d="M-10-37 0-43 10-37 0-31Z" fill="#68716a"/>
+      <path d="M-10-30-2-26M-10-20-2-16M-10-10-2-6M3-25 11-29M3-15 11-19M3-5 11-9" stroke="#304d4e" stroke-width="4" stroke-dasharray="3 2"/>
+      <path d="M-13-23 0-16 13-23M-13-13 0-6 13-13" stroke="#d5c4a6" stroke-width="1" fill="none"/>
+    </g>
+    <g id="tree"><path d="M0 0V-16" stroke="#896e4f" stroke-width="2"/><path d="M-8-12-9-22-2-29 7-25 10-16 3-9Z" fill="#77915f"/><path d="M-9-22-2-29 7-25 0-17Z" fill="#a1b67c"/></g>
+    <g id="runner"><circle cy="-7" r="1.6" fill="#d6ad86"/><path d="M0-5-1-1-4 2M-1-1 2 0 4 3M-3-3 0-4 3-2" fill="none" stroke="#db8b57" stroke-width="1.8"/></g>
+    <g id="world-building" transform="matrix(.25 -.25 .526315789 .526315789 0 0)"><use href="#building"/></g>
+    <g id="world-tree" transform="matrix(.25 -.25 .526315789 .526315789 0 0)"><use href="#tree"/></g>
+    <g id="world-runner" transform="matrix(.2 -.2 .421052632 .421052632 0 0)"><use href="#runner"/></g>
+    <g id="world-player" transform="matrix(.2 -.2 .421052632 .421052632 0 0)"><circle cy="-7" r="1.6" fill="#d6ad86"/><path d="M0-5V-1M-2 3 0-1 2 3M-3-5 0-3 3-5" fill="none" stroke="#bc745b" stroke-width="1.6"/></g>
+    <g id="car"><rect x="-.7" y="-1.35" width="1.4" height="2.7" rx=".18" fill="currentColor"/><rect x="-.55" y="-.75" width="1.1" height="1.35" fill="#354f53"/><rect x="-.5" y="-.35" width="1" height=".6" fill="currentColor"/></g>
+    <g id="bike" fill="none" stroke="#f4e7cb" stroke-width=".11"><circle cx="-.3" cy="0" r=".25"/><circle cx=".3" cy="0" r=".25"/><path d="M-.3 0 0-.5.3 0H-.3M0-.8V-2M-.3-1.6 0-2 .3-1.6"/></g>
+    <g id="metro-entry">
+      <rect x="-.95" y="-2.25" width="1.9" height="4.5" fill="#354f53"/>
+      <path d="M-.85 1.95H.85M-.85 1.65H.85M-.85 1.35H.85M-.85 1.05H.85M-.85 .75H.85M-.85 .45H.85M-.85 .15H.85M-.85-.15H.85M-.85-.45H.85M-.85-.75H.85M-.85-1.05H.85M-.85-1.35H.85" stroke="#b9bdac" stroke-width=".1"/>
+      <path d="M-1.07 2.25V-2.37H1.07V2.25" fill="none" stroke="#3c5144" stroke-width=".12"/>
+      <circle cx="-1.16" cy="2.35" r=".16" fill="#77a56c"/><circle cx="1.16" cy="2.35" r=".16" fill="#77a56c"/>
+    </g>
+    <g id="sidewalk-shed">
+      <rect x="-1.35" y="-.5" width="2.7" height="1" fill="#3c5144"/>
+      <path d="M-1.25-.46V.46M1.25-.46V.46" stroke="#deddd0" stroke-width=".1"/>
+    </g>
+    <g id="facade-scaffold" transform="matrix(.25 -.25 .526315789 .526315789 0 0)" fill="none" stroke="#3c5144" stroke-width=".65">
+      <path d="M-8 0V-28M0 0V-28M8 0V-28M-8-7H8M-8-14H8M-8-21H8M-8-28H8M-8-7 0-14 8-7M-8-21 0-28 8-21"/>
+    </g>
+    <g id="crossing"><path d="M-5-6H5M-5 6H5M-6-5V5M6-5V5" fill="none" stroke="#f4e7cb" stroke-width="1.2" stroke-dasharray=".8 .6"/></g>
+    <g id="crossing-row"><use href="#crossing" x="-102"/><use href="#crossing" x="-76"/><use href="#crossing" x="-46"/><use href="#crossing" x="46"/><use href="#crossing" x="76"/><use href="#crossing" x="102"/></g>
+    <g id="edge-blocks"><use href="#world-building" x="-89" y="-4"/><use href="#world-building" x="-89" y="4"/><use href="#world-building" x="-61" y="-4"/><use href="#world-building" x="-61" y="4"/><use href="#world-building" x="61" y="-4"/><use href="#world-building" x="61" y="4"/><use href="#world-building" x="89" y="-4"/><use href="#world-building" x="89" y="4"/></g>
+    <g id="wide-block"><use href="#world-building" x="-34"/><use href="#world-building" x="-17"/><use href="#world-building"/><use href="#world-building" x="17"/><use href="#world-building" x="34"/></g>
+    <g id="long-block"><use href="#world-building" y="-79"/><use href="#world-building" y="-61"/><use href="#world-building" y="-43"/><use href="#world-building" y="-25"/><use href="#world-building" y="-7"/><use href="#world-building" y="11"/><use href="#world-building" y="29"/><use href="#world-building" y="47"/><use href="#world-building" y="65"/><use href="#world-building" y="83"/></g>
+  </defs>
+  <rect width="1200" height="900" fill="#dfe5df"/>
+  <g transform="matrix(2 .95 -2 .95 600 480)">
+    <rect x="-110" y="-170" width="220" height="340" fill="#c2ccba"/>
+    <path d="M-102-170V170M-76-170V170M-46-170V170M46-170V170M76-170V170M102-170V170M-110-162H110M-110-132H110M-110-95H110M-110 95H110M-110 132H110M-110 162H110" stroke="#e1dfd1" stroke-width="14"/>
+    <path d="M-102-170V170M-76-170V170M-46-170V170M46-170V170M76-170V170M102-170V170M-110-162H110M-110-132H110M-110-95H110M-110 95H110M-110 132H110M-110 162H110" stroke="#74847c" stroke-width="10"/>
+    <path d="M-106-170V170M-98-170V170M-80-170V170M-72-170V170M-50-170V170M-42-170V170M42-170V170M50-170V170M72-170V170M80-170V170M98-170V170M106-170V170M-110-166H110M-110-158H110M-110-136H110M-110-128H110M-110 128H110M-110 136H110M-110 158H110M-110 166H110" stroke="#568581" stroke-width="1.28"/>
+    <path d="M-110-91.05H110M-110 91.05H110" stroke="#568581" stroke-width="2.1"/>
+    <path d="M-110-91.05H110M-110 91.05H110" stroke="#e7b94d" stroke-width=".1" stroke-dasharray="2 2"/>
+    <use href="#crossing-row" y="-162"/><use href="#crossing-row" y="-132"/><use href="#crossing-row" y="-95"/>
+    <use href="#crossing-row" y="95"/><use href="#crossing-row" y="132"/><use href="#crossing-row" y="162"/>
+    <rect x="-39" y="-88" width="78" height="176" fill="#829868" stroke="#3c5144" stroke-width=".4"/>
+    <g transform="scale(.9)">
+      <ellipse cx="9" cy="-3" rx="23" ry="20" fill="#a6ba80"/>
+      <ellipse cx="19" cy="66" rx="15" ry="18" fill="#a6ba80"/>
+      <ellipse cy="-55" rx="30" ry="28" fill="none" stroke="#bd9b79" stroke-width="2.5"/>
+      <g id="reed-garden"><ellipse cy="-55" rx="27" ry="25" fill="#739d98" stroke="#4c655b" stroke-width=".6"/></g>
+      <path d="M0-98V-89L-34-88Q-42-48-36 0H-44M0 99V46Q25 33 36 0H44M36 0Q30-31 4-22T-12 12Q3 30 29 20M-36 0Q-45 49-13 61L0 45M0 88Q45 95 32 48L16 33" fill="none" stroke="#cdbd9e" stroke-width="2.4"/>
+      <path d="M0 88V46" stroke="#cdbd9e" stroke-width="4.8"/>
+      <path d="M-33 25Q-15 8-5 27T-2 43Q-17 58-33 44T-33 25Z" fill="#739d98" stroke="#b9bdac" stroke-width=".6"/>
+      <path d="M-35 35H1" stroke="#c5b695" stroke-width="2.5"/>
+      <g id="rainlight-pavilion"><rect x="-10" y="29" width="20" height="16" rx="2" fill="#ded4bc"/><circle cx="-2" cy="37" r="3.3" fill="#739d98" stroke="#b9bdac" stroke-width=".8"/></g>
+      <g id="terrace-steps"><path d="M7 18H17M7 19H17M7 20H17M7 21H17" stroke="#e6d6b7" stroke-width=".65"/></g>
+    </g>
+    <g id="juniper-court">
+      <g fill="#b9bdac">
+        <rect x="-34.3256" y="103.88" width="32.6512" height="19.24"/>
+        <rect x="5.856" y="108.928" width="18.288" height="9.144"/>
+      </g>
+      <rect data-court="basketball" x="-32.3256" y="105.88" width="28.6512" height="15.24" fill="#568581" stroke="#eee3cb" stroke-width=".15"/>
+      <path d="M-18 105.88V121.12M-32.3256 111.0616H-26.5344V115.9384H-32.3256M-3.6744 111.0616H-9.4656V115.9384H-3.6744" fill="none" stroke="#eee3cb" stroke-width=".12"/>
+      <circle cx="-18" cy="113.5" r="1.8288" fill="none" stroke="#eee3cb" stroke-width=".12"/>
+      <rect data-court="pickleball" x="8.2944" y="110.452" width="13.4112" height="6.096" fill="#626c67" stroke="#eee3cb" stroke-width=".15"/>
+      <rect x="12.8664" y="110.452" width="4.2672" height="6.096" fill="#739d98"/>
+      <path d="M12.8664 110.452V116.548M17.1336 110.452V116.548M8.2944 113.5H12.8664M17.1336 113.5H21.7056" stroke="#eee3cb" stroke-width=".12"/>
+      <path d="M15 110.1472V116.8528" stroke="#354f53" stroke-width=".15"/>
+      <use href="#world-player" x="-13.8" y="113.5"/><use href="#world-player" x="-16.7" y="115.7"/>
+      <use href="#world-player" x="-20" y="110.9"/><use href="#world-player" x="-24.1" y="113.2"/>
+      <use href="#world-player" x="11.1" y="113.5"/><use href="#world-player" x="18.9" y="113.5"/>
+      <circle cx="-23.7" cy="113.4" r=".12" fill="#db8b57"/><circle cx="15" cy="113.5" r=".037" fill="#e7b94d"/>
+    </g>
+    <g id="crosstown-steps"><use data-metro="crosstown-entrance" href="#metro-entry" transform="translate(67.4 -117.8) rotate(0)"/></g>
+    <use data-metro="west-entrance" href="#metro-entry" transform="translate(-54.6 46.244898) rotate(0)"/>
+    <use data-metro="west-north-entrance" href="#metro-entry" transform="translate(-54.6 -45.346939) rotate(0)"/>
+    <use data-metro="west-middle-entrance" href="#metro-entry" transform="translate(-54.6 .448980) rotate(0)"/>
+    <use data-metro="east-north-entrance" href="#metro-entry" transform="translate(67.4 -43.346939) rotate(0)"/>
+    <use data-metro="east-south-entrance" href="#metro-entry" transform="translate(67.4 46.244898) rotate(0)"/>
+    <use data-metro="north-frontage-entrance" href="#metro-entry" transform="translate(-17.5 -103.6) rotate(-90)"/>
+    <use data-metro="south-frontage-entrance" href="#metro-entry" transform="translate(16 123.4) rotate(-90)"/>
+    <use href="#bike" transform="translate(0 -90.55) rotate(90)"/><use href="#bike" transform="translate(0 -91.55) rotate(-90)"/>
+    <use href="#bike" transform="translate(0 91.55) rotate(90)"/><use href="#bike" transform="translate(0 90.55) rotate(-90)"/>
+    <g color="#b58b6e"><use href="#edge-blocks" y="-147"/><use href="#wide-block" y="-147"/><use href="#edge-blocks" y="147"/><use href="#wide-block" y="147"/></g>
+    <g color="#cfc4a6">
+      <use href="#wide-block" y="-113.5"/>
+      <use href="#world-building" x="32" y="106.5"/><use href="#world-building" x="32" y="118.5"/>
+      <use href="#world-building" x="-89" y="-119"/><use href="#world-building" x="-89" y="-108"/>
+      <use href="#world-building" x="-61" y="-119"/><use href="#world-building" x="-61" y="-108"/>
+      <use href="#world-building" x="61" y="-108"/><use href="#world-building" x="89" y="-119"/><use href="#world-building" x="89" y="-108"/>
+      <use href="#world-building" x="-89" y="119"/><use href="#world-building" x="-89" y="108"/>
+      <use href="#world-building" x="-64.4" y="108"/><use href="#world-building" x="-57.6" y="108"/>
+      <use href="#world-building" x="-64.4" y="119"/><use href="#world-building" x="-57.6" y="119"/>
+      <use href="#world-building" x="61" y="119"/><use href="#world-building" x="61" y="108"/>
+      <use href="#world-building" x="89" y="119"/><use href="#world-building" x="89" y="108"/>
+      <use href="#long-block" x="-89"/><use href="#long-block" x="-61"/>
+    </g>
+    <g color="#7b9588"><use href="#long-block" x="61"/><use href="#long-block" x="89"/></g>
+    <use data-shed="sidewalk-shed-22" href="#sidewalk-shed" transform="translate(-69.8 -72.824490) scale(1 8.163265)"/>
+    <use data-shed="sidewalk-shed-27" href="#sidewalk-shed" transform="translate(-52.2 -17.869388) scale(1 7.624490)"/>
+    <use data-shed="sidewalk-shed-35" href="#sidewalk-shed" transform="translate(-69.8 73.722449) scale(1 7.624490)"/>
+    <use data-shed="sidewalk-shed-38" href="#sidewalk-shed" transform="translate(69.8 -72.824490) scale(1 8.163265)"/>
+    <use data-shed="sidewalk-shed-44" href="#sidewalk-shed" transform="translate(52.2 -8.710204) scale(1 8.163265)"/>
+    <use data-shed="sidewalk-shed-46" href="#sidewalk-shed" transform="translate(69.8 18.767347) scale(1 8.163265)"/>
+    <use data-shed="sidewalk-shed-51" href="#sidewalk-shed" transform="translate(69.8 73.722449) scale(1 7.624490)"/>
+    <use href="#facade-scaffold" x="-69.8" y="-72.824490"/><use href="#facade-scaffold" x="-52.2" y="-17.869388"/>
+    <use href="#facade-scaffold" x="52.2" y="-8.710204"/><use href="#facade-scaffold" x="69.8" y="73.722449"/>
+    <use href="#world-tree" x="-30" y="-84"/><use href="#world-tree" x="-20" y="-84"/><use href="#world-tree" x="-10" y="-84"/>
+    <use href="#world-tree" x="10" y="-84"/><use href="#world-tree" x="20" y="-84"/><use href="#world-tree" x="30" y="-84"/>
+    <use href="#world-tree" x="-35" y="-68"/><use href="#world-tree" x="-35" y="-50"/><use href="#world-tree" x="-35" y="-32"/>
+    <use href="#world-tree" x="35" y="-68"/><use href="#world-tree" x="35" y="-50"/><use href="#world-tree" x="35" y="-32"/>
+    <use href="#world-tree" x="-27" y="-10"/><use href="#world-tree" x="-24" y="0"/><use href="#world-tree" x="-22" y="9"/>
+    <use href="#world-tree" x="34" y="-12"/><use href="#world-tree" x="34" y="12"/><use href="#world-tree" x="30" y="28"/>
+    <use href="#world-tree" x="-36" y="15"/><use href="#world-tree" x="-36" y="35"/><use href="#world-tree" x="-32" y="55"/>
+    <use href="#world-tree" x="-24" y="64"/><use href="#world-tree" x="-18" y="75"/><use href="#world-tree" x="-30" y="82"/>
+    <use href="#world-tree" x="-5.4" y="46.8"/><use href="#world-tree" x="5.4" y="46.8"/>
+    <use href="#world-tree" x="-5.4" y="55.8"/><use href="#world-tree" x="5.4" y="55.8"/>
+    <use href="#world-tree" x="-5.4" y="64.8"/><use href="#world-tree" x="5.4" y="64.8"/>
+    <use href="#world-tree" x="-5.4" y="73.8"/><use href="#world-tree" x="5.4" y="73.8"/>
+    <use href="#world-tree" x="35" y="48"/><use href="#world-tree" x="35" y="66"/><use href="#world-tree" x="28" y="84"/>
+    <use href="#world-runner" x="27" y="-49.5"/><use href="#world-runner" x="-27" y="-49.5"/>
+    <use href="#world-runner" x="0" y="-74.7"/><use href="#world-runner" x="0" y="-24.3"/>
+    <use href="#world-runner" x="19" y="-67.3"/><use href="#world-runner" x="-19" y="-67.3"/>
+    <use href="#world-runner" x="19" y="-31.7"/><use href="#world-runner" x="-19" y="-31.7"/>
+    <use href="#world-player" x="0" y="68"/><use href="#world-player" x="0" y="53"/>
+    <use href="#world-player" x="-32.4" y="-25"/><use href="#world-player" x="-33" y="-64"/>
+    <use href="#world-player" x="-69.8" y="-45"/><use href="#world-player" x="-82.2" y="75"/>
+    <use href="#world-player" x="82.2" y="-35"/><use href="#world-player" x="69.8" y="58"/>
+    <use href="#world-player" x="-52.2" y="-74"/><use href="#world-player" x="-39.8" y="38"/>
+    <use href="#world-player" x="39.8" y="-59"/><use href="#world-player" x="52.2" y="70"/>
+    <use href="#world-player" x="-69.8" y="-112"/><use href="#world-player" x="-82.2" y="116"/>
+    <use href="#world-player" x="82.2" y="-147"/><use href="#world-player" x="69.8" y="150"/>
+    <use href="#world-player" x="-14" y="125.8"/><use href="#world-player" x="21" y="-125.8"/>
+    <use href="#world-player" x="0" y="63"/><use href="#world-player" x="31" y="16"/>
+    <g color="#e7b94d"><use href="#car" x="-74.4" y="40"/><use href="#car" x="100.4" y="-40"/><use href="#car" transform="translate(15 -133.6) rotate(90)"/></g>
+    <g color="#bc745b"><use href="#car" x="-100.4" y="-70"/><use href="#car" x="47.6" y="62"/><use href="#car" transform="translate(-18 96.6) rotate(90)"/></g>
+    <g color="#deddd0"><use href="#car" x="74.4" y="-58"/><use href="#car" x="-47.6" y="70"/><use href="#car" transform="translate(22 163.6) rotate(90)"/></g>
+  </g>
+</svg>

@@ -9,13 +9,14 @@ export interface FoliageBatch {
 
 /** Capture only static art, before actors and semantic hit volumes are attached. */
 export function captureWeatherSurface(scene: THREE.Scene): WeatherSurface {
-  const surface = new WeatherSurface();
+  scene.updateMatrixWorld(true);
+  const bounds = new THREE.Box3().setFromObject(scene);
+  const surface = new WeatherSurface(Math.min(-0.96, bounds.min.y));
   const transform = new THREE.Matrix4();
   const instance = new THREE.Matrix4();
   const a = new THREE.Vector3();
   const b = new THREE.Vector3();
   const c = new THREE.Vector3();
-  scene.updateMatrixWorld(true);
   scene.traverse((object) => {
     if (!(object instanceof THREE.Mesh)) return;
     const positions = object.geometry.getAttribute('position');

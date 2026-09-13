@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { CITY, CONTENT, LANDMARKS, validateLandmarks } from '../content/city';
 import { PARK_ACTORS } from '../content/park';
+import { METRO_OPENINGS } from '../content/metro';
+import { LAMP_GEOMETRY, PARK_LAMPS, STREET_LAMPS, validateLighting } from '../content/lighting';
 import { BASKETBALL_COURT, COURT_PLAYERS, PICKLEBALL_COURT } from '../content/courts';
 import { CITY_EXTENT, TRAFFIC_ACTORS, type TrafficSignalState } from '../content/streets';
 import { ActorInstances } from './actorInstances';
@@ -57,10 +59,44 @@ export function validateArtInputs(inputs: ArtInputs): void {
   }
 }
 
+/** Warm tungsten through cool fluorescent; the last entry is a bluish television glow. */
+const WINDOW_TINTS: readonly (readonly [number, number, number])[] = [
+  [1.0, 0.74, 0.4], [1.0, 0.82, 0.55], [0.96, 0.86, 0.66], [0.86, 0.88, 0.94], [0.78, 0.85, 1.0],
+];
+const WINDOW_OFF: readonly [number, number, number] = [0.02, 0.02, 0.03];
+
+/** Deterministic per-window stream: quantised world position keeps occupancy stable across builds. */
+function windowHash(x: number, y: number, z: number): number {
+  let hash = 2166136261 >>> 0;
+  for (const value of [Math.round(x * 13), Math.round(y * 13), Math.round(z * 13)]) {
+    hash = Math.imul(hash ^ (value & 0xffff), 16777619) >>> 0;
+    hash = Math.imul(hash ^ ((value >> 16) & 0xffff), 16777619) >>> 0;
+  }
+  return hash / 0x100000000;
+}
+
+/**
+ * Clone the glazing material and reinterpret its night emissive per instance: the shader keeps the
+ * environment layer's day->night ramp (via the emissive magnitude) but recolours each window from a
+ * per-instance attribute, so occupancy and light colour vary building to building.
+ */
+function patchedWindowMaterial(source: THREE.MeshStandardMaterial): THREE.MeshStandardMaterial {
+  const clone = source.clone();
+  clone.onBeforeCompile = (shader) => {
+    shader.vertexShader = `attribute vec3 windowGlow;\nvarying vec3 vWindowGlow;\n${shader.vertexShader}`
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\n\tvWindowGlow = windowGlow;');
+    shader.fragmentShader = `varying vec3 vWindowGlow;\n${shader.fragmentShader}`
+      .replace('vec3 totalEmissiveRadiance = emissive;', 'vec3 totalEmissiveRadiance = vWindowGlow * length( emissive );');
+  };
+  clone.customProgramCacheKey = () => 'rainlight-window-glow';
+  return clone;
+}
+
 /** Original, deterministic Rainlight Square art; the caller owns actor movement. */
 export function buildCityScene(): CityScene {
   validateArtInputs(ART_INPUTS);
   validateLandmarks(LANDMARKS);
+  validateLighting();
   const landmark = (id: string) => {
     const result = LANDMARKS.find((point) => point.id === id);
     if (!result) throw new Error(`Missing original landmark: ${id}.`);
@@ -109,6 +145,18 @@ export function buildCityScene(): CityScene {
   };
   // Tag glazing so the environment layer can light windows warmly after dark.
   palette.glass.userData.window = true;
+  // Public lighting: luminaire heads emit and pools brighten only after dusk (driven by frame.night).
+  const lampGlow = material(new THREE.MeshStandardMaterial({
+    color: '#ffe7bb', emissive: '#ffd68f', emissiveIntensity: 0, roughness: 0.5,
+  }));
+  lampGlow.userData.nightLight = true;
+  lampGlow.userData.nightColor = '#ffd68f';
+  lampGlow.userData.nightIntensity = 1.2;
+  const lampPool = material(new THREE.MeshBasicMaterial({
+    color: '#ffdca0', transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending,
+  }));
+  lampPool.userData.nightPool = true;
+  lampPool.userData.nightOpacity = 0.4;
   for (const surface of [palette.stone, palette.paving, palette.road, palette.line, palette.cream, palette.clay,
     palette.teal, palette.roof, palette.copper, palette.copperEdge, palette.wood, palette.leaf, palette.leafLight]) {
     surface.userData.weatherSurface = true;
@@ -118,6 +166,8 @@ export function buildCityScene(): CityScene {
   const box = geometry(new THREE.BoxGeometry());
   const cylinder = geometry(new THREE.CylinderGeometry(1, 1, 1, 10));
   const crown = geometry(new THREE.DodecahedronGeometry(1));
+  const disc = geometry(new THREE.CircleGeometry(1, 18));
+  disc.rotateX(-Math.PI / 2);
   const dummy = new THREE.Object3D();
 
   function batcher(parent: THREE.Object3D) {
@@ -175,12 +225,25 @@ export function buildCityScene(): CityScene {
     return object;
   }
 
-  const groundOutline = new THREE.Shape();
-  groundOutline.moveTo(-CITY_EXTENT.x, -CITY_EXTENT.z);
-  groundOutline.lineTo(CITY_EXTENT.x, -CITY_EXTENT.z);
-  groundOutline.lineTo(CITY_EXTENT.x, CITY_EXTENT.z);
-  groundOutline.lineTo(-CITY_EXTENT.x, CITY_EXTENT.z);
-  groundOutline.closePath();
+  function groundShape(halfWidth: number, halfDepth: number): THREE.Shape {
+    const outline = new THREE.Shape();
+    outline.moveTo(-halfWidth, -halfDepth);
+    outline.lineTo(halfWidth, -halfDepth);
+    outline.lineTo(halfWidth, halfDepth);
+    outline.lineTo(-halfWidth, halfDepth);
+    outline.closePath();
+    for (const { minX, maxX, minZ, maxZ } of METRO_OPENINGS) {
+      const hole = new THREE.Path();
+      hole.moveTo(minX, -minZ);
+      hole.lineTo(maxX, -minZ);
+      hole.lineTo(maxX, -maxZ);
+      hole.lineTo(minX, -maxZ);
+      hole.closePath();
+      outline.holes.push(hole);
+    }
+    return outline;
+  }
+  const groundOutline = groundShape(CITY_EXTENT.x, CITY_EXTENT.z);
   for (const basin of GROUND_PUDDLES) {
     const hole = new THREE.Path();
     hole.absellipse(basin.x, -basin.z, basin.radiusX, basin.radiusZ, 0, Math.PI * 2, true);
@@ -212,7 +275,7 @@ export function buildCityScene(): CityScene {
   })), palette.stone, 'Miniature ground');
   ground.rotation.x = -Math.PI / 2;
   ground.position.y = -0.94;
-  const backdrop = mesh(geometry(new THREE.PlaneGeometry(900, 900)),
+  const backdrop = mesh(geometry(new THREE.ShapeGeometry(groundShape(450, 450))),
     material(new THREE.MeshBasicMaterial({ color: '#dfe5df' })), 'City backdrop');
   backdrop.material.userData.environmentBackdrop = true;
   backdrop.rotation.x = -Math.PI / 2;
@@ -223,7 +286,45 @@ export function buildCityScene(): CityScene {
   const streetscape = buildStreetscape({ block, add: district.add, box, cylinder, crown, palette });
   scene.add(streetscape.group);
   const pavement = buildPavementMarkings({ block, add: district.add, box, cylinder, crown, palette });
+  const { streetHeight, parkHeight, poleRadius, armLength, armHeight, headSize, headDrop,
+    parkGlobeRadius, streetPoolRadius, parkPoolRadius, surfaceY } = LAMP_GEOMETRY;
+  for (const { x, z, arm } of STREET_LAMPS) {
+    district.add(cylinder, palette.rubber, [x, streetHeight / 2, z], [poleRadius, streetHeight, poleRadius]);
+    const headX = x + arm * armLength;
+    block(palette.rubber, (x + headX) / 2, armHeight, z, armLength, 0.09, 0.09);
+    block(lampGlow, headX, armHeight - headDrop, z, headSize[0], headSize[1], headSize[2]);
+    district.add(disc, lampPool, [headX, surfaceY, z], [streetPoolRadius, 1, streetPoolRadius]);
+  }
+  for (const { x, z } of PARK_LAMPS) {
+    district.add(cylinder, palette.rubber, [x, parkHeight / 2, z], [poleRadius, parkHeight, poleRadius]);
+    district.add(crown, lampGlow, [x, parkHeight + parkGlobeRadius, z], [parkGlobeRadius, parkGlobeRadius, parkGlobeRadius]);
+    district.add(disc, lampPool, [x, surfaceY, z], [parkPoolRadius, 1, parkPoolRadius]);
+  }
   district.finish();
+  for (const object of scene.children) {
+    if (object instanceof THREE.InstancedMesh && object.material === palette.glass) {
+      const glow = new Float32Array(object.count * 3);
+      const instance = new THREE.Matrix4();
+      const anchor = new THREE.Vector3();
+      for (let index = 0; index < object.count; index++) {
+        object.getMatrixAt(index, instance);
+        anchor.setFromMatrixPosition(instance);
+        const occupancy = windowHash(anchor.x, anchor.y, anchor.z);
+        const hue = windowHash(anchor.z + 91, anchor.x - 47, anchor.y + 19);
+        const tint = occupancy < 0.34 ? WINDOW_OFF
+          : WINDOW_TINTS[hue < 0.4 ? 0 : hue < 0.68 ? 1 : hue < 0.85 ? 2 : hue < 0.95 ? 3 : 4];
+        glow.set(tint, index * 3);
+      }
+      const glazing = geometry(object.geometry.clone());
+      glazing.setAttribute('windowGlow', new THREE.InstancedBufferAttribute(glow, 3));
+      object.geometry = glazing;
+      object.material = material(patchedWindowMaterial(palette.glass));
+    }
+    if (object instanceof THREE.InstancedMesh && object.material === lampPool) {
+      object.castShadow = false;
+      object.renderOrder = 2;
+    }
+  }
   const weatherSurface = captureWeatherSurface(scene);
   const snowMeshes: THREE.Mesh[] = [];
   scene.traverse((object) => {
@@ -444,8 +545,9 @@ export function buildCityScene(): CityScene {
     const rig = buildWalkerRig(group, [palette.bus, palette.teal, palette.clay, palette.cream][index % 4],
       index % 2 ? palette.skin : palette.skinLight);
     if (definition.sport === 'pickleball') {
-      rig.arms[0].add(limb(box, palette.wood, [0, -0.51, 0], [0.06, 0.22, 0.06]));
-      const paddle = limb(cylinder, palette.teal, [0, -0.65, 0], [0.17, 0.035, 0.22]);
+      rig.arms[0].add(limb(box, palette.wood, [0, -0.49, 0], [0.032, 0.18, 0.032]));
+      const paddle = limb(cylinder, palette.teal, [0, -0.65, 0], [0.1, 0.016, 0.13]);
+      paddle.rotation.x = Math.PI / 2;
       paddle.name = 'Pickleball paddle';
       rig.arms[0].add(paddle);
     }
@@ -473,11 +575,18 @@ export function buildCityScene(): CityScene {
   const hitTargets: THREE.Object3D[] = [];
   for (const point of LANDMARKS) {
     const height = point.id === pavilion.id ? 4 : 1.6;
-    const target = new THREE.Mesh(cylinder, invisible);
+    const isCourt = point.id === 'juniper-court';
+    const target = new THREE.Mesh(isCourt ? box : cylinder, invisible);
     target.name = `${point.name} semantic hit volume`;
     target.userData.semanticId = point.id;
     target.position.set(point.position.x, point.position.y + height / 2, point.position.z);
     target.scale.set(point.hitRadius, height, point.hitRadius);
+    if (isCourt) {
+      const minX = BASKETBALL_COURT.x - BASKETBALL_COURT.runoffWidth / 2;
+      const maxX = PICKLEBALL_COURT.x + PICKLEBALL_COURT.runoffWidth / 2;
+      target.position.x = (minX + maxX) / 2;
+      target.scale.set(maxX - minX, height, BASKETBALL_COURT.runoffDepth);
+    }
     scene.add(target);
     hitTargets.push(target);
   }
@@ -498,7 +607,9 @@ export function buildCityScene(): CityScene {
   Object.assign(sun.shadow.camera, { left: -shadowExtent, right: shadowExtent, top: shadowExtent, bottom: -shadowExtent, near: 1, far: 700 });
   sun.shadow.camera.updateProjectionMatrix();
   sun.shadow.normalBias = 0.06;
-  sun.shadow.bias = -0.00015;
+  // PCF samples span more world space after the district expansion.
+  const shadowTexel = shadowExtent * 2 / sun.shadow.mapSize.x;
+  sun.shadow.bias = -1.25 * shadowTexel / (sun.shadow.camera.far - sun.shadow.camera.near);
   scene.add(sun);
   scene.updateMatrixWorld(true);
 

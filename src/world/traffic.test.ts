@@ -19,9 +19,15 @@ const MOTOR_COUNT = TRAFFIC_ACTORS.filter(({ kind }) => kind === 'car' || kind =
 const CYCLIST_COUNT = TRAFFIC_ACTORS.filter(({ kind }) => kind === 'cyclist').length;
 const MOTION_COUNT = MOTOR_COUNT + CYCLIST_COUNT;
 const DRY_FINGERPRINTS: Readonly<Record<number, string>> = {
-  0: 'f89b0d4d914b8d95a34755ba8f4e7d51d22676d05906682fbb117e52537a10e2',
-  2401: '386809661e9091d735742ade05d073f4b21502d033960c8513acc9f494a0e6dd',
-  0xffffffff: 'ab555b5be02dc0f8858f5f6f659b2088af502f76be8148ba328da0e2d22fbb09',
+  0: '03a1895743f06fafb4acb5cd10cd2cff980f64bd55aea2c95e4fdbda6e1755d9',
+  2401: '0d3934ace47b927994d6c828e31cc8edaebad2c243438645d37c6735a8d6447f',
+  0xffffffff: '5e07320650bd2d02398c62140472458cd1b44106bf08d89e7dbdcd77b2c4d3d6',
+};
+// Captured before the pedestrian increase: motor/cycling behavior must remain byte-identical.
+const DRY_ROAD_FINGERPRINTS: Readonly<Record<number, string>> = {
+  0: '62dbbfd15beb972ceb300465c342d50d29ced529464c7f4bdf850980773af0f5',
+  2401: '63d08dde03489027be8c14ad42409a556e6d5692270b5da6d6578293cf9d4305',
+  0xffffffff: 'dbb753e1bbe9a45d3ecd5d2a201fe816a1e7ec192bdafae3da6c3cf130fb420b',
 };
 const GRIP_SOAKS = [
   ...[0, 1, 4, 14, 42, 91, 2401, 0xffffffff].map((seed) => ({ seed, traction: 1, changing: false })),
@@ -123,12 +129,14 @@ describe('shared connected street graph', () => {
     expect(new Set(INTERSECTIONS.map(({ id }) => id)).size).toBe(36);
     expect(STREET_BLOCKS).toHaveLength(24);
     expect(STREET_BLOCKS.some(({ id }) => id === 'block-2-2')).toBe(false);
-    expect(TRAFFIC_ACTORS).toHaveLength(96);
+    expect(TRAFFIC_ACTORS).toHaveLength(144);
     expect(TRAFFIC_ACTORS.filter(({ kind }) => kind === 'car')).toHaveLength(30);
     expect(TRAFFIC_ACTORS.filter(({ kind }) => kind === 'bus')).toHaveLength(6);
     expect(TRAFFIC_ACTORS.filter(({ kind }) => kind === 'cyclist')).toHaveLength(12);
-    expect(TRAFFIC_ACTORS.filter(({ kind }) => kind === 'pedestrian')).toHaveLength(48);
-    expect(new Set(TRAFFIC_ACTORS.map(({ id }) => id)).size).toBe(96);
+    expect(TRAFFIC_ACTORS.filter(({ kind }) => kind === 'pedestrian')).toHaveLength(96);
+    expect(new Set(TRAFFIC_ACTORS.map(({ id }) => id)).size).toBe(144);
+    expect(TRAFFIC_ACTORS.filter(({ kind }) => kind === 'pedestrian').map(({ id }) => id))
+      .toEqual(Array.from({ length: 96 }, (_, index) => `city-walker-${index + 1}`));
     expect(new Set(TRAFFIC_ACTORS.map(({ vehicleType }) => vehicleType).filter(Boolean)))
       .toEqual(new Set(['sedan', 'taxi', 'van', 'truck', 'bus', 'bicycle']));
   });
@@ -317,8 +325,8 @@ describe('shared connected street graph', () => {
 });
 
 describe('CityTraffic', () => {
-  it('places two spaced walkers on each peripheral sidewalk outside the central park', () => {
-    const traffic = new CityTraffic();
+  it.each([0, 1, 42, 91, 2401, 0xffffffff])('places four spaced walkers on every peripheral sidewalk for seed %s', (seed) => {
+    const traffic = new CityTraffic(seed);
     const occupied = new Map<string, number>();
     for (const actor of traffic.actors) {
       if (actor.kind !== 'pedestrian') continue;
@@ -329,15 +337,17 @@ describe('CityTraffic', () => {
       occupied.set(block!.id, (occupied.get(block!.id) ?? 0) + 1);
     }
     expect(occupied.size).toBe(STREET_BLOCKS.length);
-    for (const count of occupied.values()) expect(count).toBe(2);
+    for (const count of occupied.values()) expect(count).toBe(4);
     for (let first = MOTION_COUNT; first < traffic.actors.length; first += 1) {
       for (let second = first + 1; second < traffic.actors.length; second += 1) {
         if (actorRoute(first) !== actorRoute(second)) continue;
         const a = traffic.actors[first];
         const b = traffic.actors[second];
         const gap = Math.min(travel(a.distance, b.distance, a.routeLength), travel(b.distance, a.distance, a.routeLength));
-        expect(gap).toBeGreaterThanOrEqual(a.routeLength / 2 - 1);
+        expect(gap).toBeGreaterThanOrEqual(a.routeLength / 4 - 1);
         expect(Math.hypot(a.position.x - b.position.x, a.position.z - b.position.z)).toBeGreaterThan(1.2);
+        expect(overlap(a.position.x, a.position.z, a.heading, 0.35, 0.35,
+          b.position.x, b.position.z, b.heading, 0.35, 0.35)).toBe(false);
       }
     }
   });
@@ -733,6 +743,9 @@ describe('CityTraffic', () => {
       if (index < MOTION_COUNT) {
         expect(waits[index], `${actors[index].id} must stop at a light`).toBeGreaterThan(0);
         expect(stopLines[index], `${actors[index].id} must stop with its bumper at a painted line`).toBeGreaterThan(0);
+      } else {
+        expect(totals[index] / SOAK_SECONDS, `${actors[index].id} must maintain walking progress`).toBeGreaterThan(0.8);
+        expect(longestIdle[index], `${actors[index].id} must not queue indefinitely`).toBeLessThan(1);
       }
     }
     for (let index = 0; index < crossings.length; index += 1) {
@@ -748,6 +761,8 @@ describe('CityTraffic', () => {
     if (!changing && initialTraction === 1 && DRY_FINGERPRINTS[seed]) {
       const snapshot = { actors: traffic.actors, signals: traffic.signals.map(({ id, phase }) => ({ id, phase })), elapsed: traffic.elapsed };
       expect(createHash('sha256').update(JSON.stringify(snapshot)).digest('hex')).toBe(DRY_FINGERPRINTS[seed]);
+      expect(createHash('sha256').update(JSON.stringify({ ...snapshot, actors: actors.slice(0, MOTION_COUNT) })).digest('hex'))
+        .toBe(DRY_ROAD_FINGERPRINTS[seed]);
     }
   }, 30_000);
 });

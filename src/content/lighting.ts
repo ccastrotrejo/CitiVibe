@@ -1,0 +1,112 @@
+import { CITY_EXTENT, INTERSECTIONS, ROAD_HALF_WIDTH, STREET_X } from './streets';
+import { PARK_BOUNDS, PARK_PATHS } from './park';
+import { Vector3 } from 'three';
+
+/** A cantilevered cobra-head street lamp on the sidewalk; `arm` points its luminaire over the road. */
+export interface StreetLamp {
+  id: string;
+  x: number;
+  z: number;
+  arm: 1 | -1;
+}
+
+/** A short globe lamp lighting a park path. */
+export interface ParkLamp {
+  id: string;
+  x: number;
+  z: number;
+}
+
+/** Shared fixture proportions; heads and pools are driven on at dusk by the environment layer. */
+export const LAMP_GEOMETRY = {
+  streetHeight: 5,
+  parkHeight: 3.4,
+  poleRadius: 0.08,
+  armLength: 2.4,
+  armHeight: 4.72,
+  headSize: [0.44, 0.2, 0.72],
+  headDrop: 0.32,
+  parkGlobeRadius: 0.34,
+  streetPoolRadius: 3,
+  parkPoolRadius: 2.1,
+  surfaceY: 0.02,
+} as const;
+
+/** Sidewalk offset from the road centreline: just past the kerb, clear of the traffic lane. */
+const SIDEWALK_LAMP_OFFSET = ROAD_HALF_WIDTH + 1.6;
+/** North-south fill positions so long avenue blocks are not left dark between corners. */
+const AVENUE_FILL_Z = [-63, -31, 0, 31, 63] as const;
+
+function buildStreetLamps(): readonly StreetLamp[] {
+  const lamps: StreetLamp[] = [];
+  INTERSECTIONS.forEach(({ id, x, z }, index) => {
+    const cornerX = index % 2 === 0 ? 1 : -1;
+    const cornerZ = Math.floor(index / STREET_X.length) % 2 === 0 ? 1 : -1;
+    lamps.push({ id: `${id}-corner-lamp`, x: x + cornerX * SIDEWALK_LAMP_OFFSET, z: z + cornerZ * SIDEWALK_LAMP_OFFSET, arm: cornerX === 1 ? -1 : 1 });
+  });
+  STREET_X.forEach((x, column) => {
+    AVENUE_FILL_Z.forEach((z, row) => {
+      const side = (column + row) % 2 === 0 ? 1 : -1;
+      lamps.push({ id: `avenue-${column}-fill-${row}-lamp`, x: x + side * SIDEWALK_LAMP_OFFSET, z, arm: side === 1 ? -1 : 1 });
+    });
+  });
+  return lamps;
+}
+
+export const STREET_LAMPS: readonly StreetLamp[] = Object.freeze(buildStreetLamps());
+
+export const PARK_LAMPS: readonly ParkLamp[] = Object.freeze([
+  { id: 'mall-north-lamp', x: 3.1, z: 76.2 },
+  { id: 'mall-mid-lamp', x: 3.1, z: 58 },
+  { id: 'mall-south-lamp', x: 3.1, z: 42 },
+  { id: 'east-walk-a-lamp', x: 29.6, z: 5.2 },
+  { id: 'east-walk-b-lamp', x: 21.2, z: 18.2 },
+  { id: 'east-walk-c-lamp', x: 12.2, z: 27.4 },
+  { id: 'lake-walk-a-lamp', x: -29.4, z: 3.6 },
+  { id: 'lake-walk-b-lamp', x: -31, z: 24.6 },
+  { id: 'lake-walk-c-lamp', x: -27.4, z: 45.6 },
+  { id: 'ramble-a-lamp', x: 2.6, z: -78.4 },
+  { id: 'ramble-b-lamp', x: -28.4, z: -77 },
+  { id: 'ramble-c-lamp', x: -31.2, z: -48.7 },
+  { id: 'ramble-d-lamp', x: -29.4, z: -14.8 },
+  { id: 'meadow-a-lamp', x: 26.3, z: 81.6 },
+  { id: 'meadow-b-lamp', x: 26.4, z: 45.2 },
+]);
+
+/** Fail before allocating fixtures if any lamp leaves the island or intrudes on the park lawn. */
+export function validateLighting(
+  streetLamps: readonly StreetLamp[] = STREET_LAMPS,
+  parkLamps: readonly ParkLamp[] = PARK_LAMPS,
+): void {
+  const ids = new Set<string>();
+  for (const lamp of [...streetLamps, ...parkLamps]) {
+    if (ids.has(lamp.id)) throw new Error(`Duplicate lamp id: ${lamp.id}.`);
+    ids.add(lamp.id);
+    if (Math.abs(lamp.x) > CITY_EXTENT.x || Math.abs(lamp.z) > CITY_EXTENT.z) {
+      throw new Error(`Lamp ${lamp.id} falls outside the island.`);
+    }
+  }
+  for (const lamp of streetLamps) {
+    if (Math.abs(lamp.x) < PARK_BOUNDS.x - 0.5 && Math.abs(lamp.z) < PARK_BOUNDS.z - 0.5) {
+      throw new Error(`Street lamp ${lamp.id} intrudes on the park lawn.`);
+    }
+  }
+  for (const lamp of parkLamps) {
+    if (Math.abs(lamp.x) > PARK_BOUNDS.x || Math.abs(lamp.z) > PARK_BOUNDS.z) {
+      throw new Error(`Park lamp ${lamp.id} is outside the park.`);
+    }
+  }
+  const sample = new Vector3();
+  for (const lamp of parkLamps) {
+    for (const path of PARK_PATHS) {
+      const clearance = path.width / 2 + 0.05 + LAMP_GEOMETRY.poleRadius;
+      const steps = 400;
+      for (let i = 0; i <= steps; i += 1) {
+        path.curve.getPointAt(i / steps, sample);
+        if (Math.hypot(sample.x - lamp.x, sample.z - lamp.z) < clearance) {
+          throw new Error(`Park lamp ${lamp.id} blocks the ${path.id} path.`);
+        }
+      }
+    }
+  }
+}

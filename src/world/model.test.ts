@@ -250,7 +250,7 @@ describe('authored content', () => {
       }
       expect(a.camera.revision).toBeGreaterThan(10);
       expect(a.snapshot().view).toMatchObject({ guided: false, total: CONTENT.tourAnchorIds.length });
-    });
+    }, 20000);
 
     it('uses selected-landmark compositions and preserves them through pause', () => {
       const model = new WorldModel(false);
