@@ -26,6 +26,8 @@ A duty factor of `DUTY = 0.6` splits the cycle into ~60% stance and ~40% swing, 
 
 For the diversified on-foot population, `WalkerRig.scale` is stature / 1.7. Divide world travel distance and speed by that scale before evaluating the local gait/IK, then let the rig root scale the result back into world space. Scaling only the visible body would make children's feet slide. Build varies laterally without changing forward stride length. The authored stature ranges and walking-purpose biases are described in [people and activity](PEOPLE_AND_ACTIVITY.md); they are not biological predictions or measured occupational walking speeds.
 
+Connected street trips use a separate continuous `travelDistance` odometer so changing block-local route coordinates never resets walking phase. Seeded destination rests use the retained simulation's activity timer for a small torso turn, suppressed under reduced motion. Routes and speed bounds remain geometric constraints; randomness chooses trips and activities, not per-tick position jitter.
+
 ### No-slip stance (the core guarantee)
 
 During stance (`phase < DUTY`) the foot's forward position relative to the hips is:
