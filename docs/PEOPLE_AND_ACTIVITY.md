@@ -1,5 +1,21 @@
 # People and activity
 
+## Street-life population and bicycle activity - 2026-09-13
+
+The bounded population increases from 232 to **277 people**, including eight unchanged picnic neighbors. There are 168 street walkers (was 144), 48 park walkers (was 36), 24 runners (was eighteen), twelve road cyclists, six court players, eight meadow family figures and three additional station users. Moving motor vehicles increase from 36 to **48**, preserving the six original buses. The older 464-person doubling target remains planned; the current increase is smaller.
+
+Three original bike stations hold ten persistent bicycles each in parallel side-by-side rows, not end-to-end. Each has eleven docks and one adult user. Two stations occupy inter-building paved pockets and the third sits on the apron beside Juniper Court, clear of playing runoffs and the shared passage. Each dephased 48-second vignette unlocks one bike, walks it out 0.8 m, checks it and returns it to the same dock. The same person and all ten bicycles remain visible throughout; occupancy follows the bike, and green lock confirmation appears only after reinsertion and locking. Users walk behind the saddle rather than cycling on the sidewalk. Twelve existing traffic-controlled riders use matching blue step-through frames, fenders and baskets. **The station vignettes and road cyclists are separate activities, not simulated station-to-station journeys.**
+
+Station poses sample retained simulation time, including tire/foot support under snow. Pause and hidden suspension freeze the sample, graphics recovery reconstructs it, and reduced motion holds a still. Rigs join the existing shared actor batches with no new timers, React frame state or geometry/material owners. The [source study](NYC_CITY_RESEARCH.md#street-life-reference-study---2026-09-13) distinguishes the actual operator's unlock/ride/dock guidance from the authored miniature cycle.
+
+### Two-way sidewalk movement
+
+All 24 neighborhood blocks support genuine clockwise and counterclockwise travel on the same sidewalk, with a retained direction per person. Lane centers sit 6.2 and 7.2 m from road centers; the straight swept-body band is 5.8-7.6 m, with a 7.7 m building-side reservation through bends. The graph now has 144 directed crossing links, each 15.8 m long with a further two-metre protected landing. Crossing admission, the eight-person destination cap, seeded trip/rest choices and uninterrupted gait distance remain.
+
+Local paving and zebra paint widen without changing the street grid, park-facing strips or cycle tracks. Building/stoop reductions, one small annex shift, adjusted shed supports, retained-ID street-lamp relocations, eight 0.30 m metro shifts, raised tree crowns and a 0.40 m court-fence shift keep the new lane clear. The road population uses deterministic bounded initial-lane reassignment when a seeded preferred lane is full; it does not silently omit vehicles.
+
+The historical movement and population checkpoints below describe their earlier baseline, including the former one-way sidewalk graph; current verification belongs in [acceptance criteria](ACCEPTANCE_CRITERIA.md).
+
 ## Connected movement follow-up - 2026-09-13
 
 Previously, all 144 neighborhood walkers repeated one clockwise loop around their assigned block. Their pace varied by profile, but they did not use the existing pedestrian signals or crosswalks. Park walkers used two fixed gate-connected circuits, runners used the reservoir loop, court players repeated bounded practice choreography, and meadow children followed small play circles. Those park, sports and family systems are preserved.

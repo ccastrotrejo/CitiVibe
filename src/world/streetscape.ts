@@ -58,6 +58,9 @@ export interface StreetBuilding {
   z: number;
   width: number;
   depth: number;
+  /** Original footprint reservations keep planting and sidewalk sheds unchanged. */
+  reservedWidth: number;
+  reservedDepth: number;
   floors: number;
   skin: 'clay' | 'cream' | 'teal' | 'stone';
   roof: 'tank' | 'garden' | 'chimneys' | 'plant';
@@ -65,10 +68,24 @@ export interface StreetBuilding {
   fireEscape: boolean;
   stoop: boolean;
   brownstone: boolean;
+  architecture: {
+    family: 'brownstone' | 'masonry' | 'loft' | 'terrace';
+    windowWidth: number;
+    windowHeight: number;
+    baySpacing: number;
+    floorHeight: number;
+    mullions: 'sash' | 'cross' | 'none';
+    parapetHeight: number;
+  };
 }
 
 const CENTER_COLUMN = Math.floor((STREET_X.length - 1) / 2);
 const CENTER_ROW = Math.floor((STREET_Z.length - 1) / 2);
+/** Widen only the sidewalk facing an occupied block, not the park or island edge. */
+export const BUILDING_SIDEWALK_INSET = 7.7;
+const SIDEWALK_EXTENSION = BUILDING_SIDEWALK_INSET - SIDEWALK_HALF_WIDTH;
+const CROSSWALK_CENTER = 6.7;
+const CROSSWALK_WIDTH = 2;
 
 /** Interior parcels exclude the shared sidewalks and the retained garden block. */
 export const STREET_BLOCKS: readonly StreetBlock[] = STREET_Z.slice(0, -1).flatMap((south, row) =>
@@ -111,9 +128,18 @@ const SUBWAY_LETTERS = [
   { width: 3, strokes: [[0, 0, 1.5, 2], [3, 0, 1.5, 2], [1.5, 2, 1.5, 4]] },
 ] as const;
 
-/** Authored silhouettes repeat architectural vocabulary, not identical towers. */
-export const STREET_BUILDINGS: readonly StreetBuilding[] = (() => {
-  const buildings: StreetBuilding[] = [];
+/** Independent feature hashes keep one building's choices out of its neighbors' streams. */
+function architectureSample(seed: number, id: string, feature: string): number {
+  let hash = 2166136261;
+  for (const char of `${seed}:${id}:${feature}`) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619);
+  hash = Math.imul(hash ^ hash >>> 16, 0x85ebca6b);
+  hash = Math.imul(hash ^ hash >>> 13, 0xc2b2ae35);
+  return ((hash ^ hash >>> 16) >>> 0) / 4294967296;
+}
+
+/** Retain authored parcels, then reduce footprints and dress each stable ID independently. */
+export function createStreetBuildings(seed = 2401): readonly StreetBuilding[] {
+  const buildings: Omit<StreetBuilding, 'architecture' | 'skin' | 'roof'>[] = [];
   const skins = ['clay', 'cream', 'teal', 'stone'] as const;
   const roofs = ['tank', 'chimneys', 'garden', 'plant'] as const;
   const add = (
@@ -125,8 +151,8 @@ export const STREET_BUILDINGS: readonly StreetBuilding[] = (() => {
     buildings.push({
       id: `street-building-${index + 1}`, blockId, x, z,
       width: brownstone ? Math.min(width, 8.15) : width, depth,
+      reservedWidth: brownstone ? Math.min(width, 8.15) : width, reservedDepth: depth,
       floors: brownstone ? Math.min(floors, 5) : floors,
-      skin: brownstone ? 'clay' : skins[index % skins.length], roof: roofs[index % roofs.length],
       setbackFloors: accent ? 2 : 0, fireEscape: index % 3 === 0,
       stoop: width > 4 && index % 2 === 0, brownstone,
     });
@@ -213,8 +239,51 @@ export const STREET_BUILDINGS: readonly StreetBuilding[] = (() => {
       cursor += building.width + 0.8;
     }
   }
-  return buildings;
-})();
+  return buildings.map((building) => {
+    const sample = (feature: string) => architectureSample(seed, building.id, feature);
+    const family = building.brownstone ? 'brownstone' :
+      (['masonry', 'loft', 'terrace'] as const)[Math.floor(sample('family') * 3)];
+    const proportions = {
+      brownstone: { width: 0.7, height: 1.22, spacing: 1.9, mullions: 'sash' },
+      masonry: { width: 0.82, height: 1.15, spacing: 2.4, mullions: 'sash' },
+      loft: { width: 1.25, height: 1.2, spacing: 3.1, mullions: 'cross' },
+      terrace: { width: 1.1, height: 0.95, spacing: 2.8, mullions: 'none' },
+    } as const;
+    const profile = proportions[family];
+    const floors = Math.max(3, building.floors - Math.floor(sample('floors') * 2));
+    const roof = roofs[Math.floor(sample('roof') * roofs.length)];
+    const parcel = STREET_BLOCKS.find(({ id }) => id === building.blockId)!;
+    const frontClearance = building.stoop ? 1.2 : 0.35;
+    // The shallow transit annex needs a 0.55 m shift rather than sub-three-metre depth.
+    const z = Math.max(parcel.minZ + SIDEWALK_EXTENSION + 0.35 + 1.5,
+      Math.min(building.z, parcel.maxZ - SIDEWALK_EXTENSION - frontClearance - 1.5));
+    return {
+      ...building,
+      z,
+      // Resize only after relocation, so seeded variation never shifts a neighboring parcel.
+      width: Math.max(3, Math.min(building.width * (0.9 + sample('width') * 0.1),
+        2 * (building.x - parcel.minX - SIDEWALK_EXTENSION - 0.4),
+        2 * (parcel.maxX - building.x - SIDEWALK_EXTENSION - 0.4))),
+      depth: Math.max(3, Math.min(building.depth * (0.9 + sample('depth') * 0.1),
+        2 * (z - parcel.minZ - SIDEWALK_EXTENSION - 0.35),
+        2 * (parcel.maxZ - z - SIDEWALK_EXTENSION - frontClearance))),
+      floors,
+      skin: building.brownstone ? 'clay' : skins[Math.floor(sample('skin') * skins.length)],
+      roof: roof === 'tank' && building.setbackFloors ? 'plant' : roof,
+      architecture: {
+        family,
+        windowWidth: profile.width + sample('window-width') * (building.brownstone ? 0.14 : 0.25),
+        windowHeight: profile.height + sample('window-height') * (building.brownstone ? 0.08 : 0.2),
+        baySpacing: profile.spacing + sample('bays') * 0.35,
+        floorHeight: building.brownstone ? 2.4 : 2.3 + sample('floor-height') * 0.1,
+        mullions: profile.mullions,
+        parapetHeight: 0.22 + sample('parapet') * 0.2,
+      },
+    };
+  });
+}
+
+export const STREET_BUILDINGS = createStreetBuildings();
 
 /** Protective sheds on occupied buildings; four also carry open upper-facade scaffolding. */
 export const SIDEWALK_SHEDS = [
@@ -227,7 +296,7 @@ export const SIDEWALK_SHEDS = [
   { building: 51, x: 69.8, scaffold: true },
 ].map(({ building: number, x, scaffold }) => {
   const building = STREET_BUILDINGS.find(({ id }) => id === `street-building-${number}`)!;
-  return { id: `sidewalk-shed-${number}`, buildingId: building.id, x, z: building.z, length: building.depth + 0.8, scaffold };
+  return { id: `sidewalk-shed-${number}`, buildingId: building.id, x, z: building.z, length: building.reservedDepth + 0.8, scaffold };
 });
 
 /** Fail before resource allocation if facades, cornices or stoops invade sidewalks. */
@@ -235,17 +304,32 @@ export function validateStreetscape(buildings: readonly StreetBuilding[] = STREE
   const ids = new Set<string>();
   const epsilon = 1e-9;
   for (const building of buildings) {
-    const { id, blockId, x, z, width, depth, floors, setbackFloors } = building;
+    const { id, blockId, x, z, width, depth, reservedWidth, reservedDepth, floors, setbackFloors, architecture } = building;
     const parcel = STREET_BLOCKS.find((block) => block.id === blockId);
     if (!parcel || !id || ids.has(id) ||
-      ![x, z, width, depth, floors, setbackFloors].every(Number.isFinite) ||
+      ![x, z, width, depth, reservedWidth, reservedDepth, floors, setbackFloors].every(Number.isFinite) ||
       typeof building.brownstone !== 'boolean' ||
       width < 3 || depth < 3 || !Number.isInteger(floors) || floors < 3 || floors > 7 ||
+      width > reservedWidth || depth > reservedDepth ||
       !Number.isInteger(setbackFloors) || setbackFloors < 0 || setbackFloors > 2 ||
-      (floors + setbackFloors) * 2.4 + 0.8 > 23 ||
-      x - width / 2 - 0.4 < parcel.minX - epsilon || x + width / 2 + 0.4 > parcel.maxX + epsilon ||
-      z - depth / 2 - 0.35 < parcel.minZ - epsilon ||
-      z + depth / 2 + (building.stoop ? 1.2 : 0.35) > parcel.maxZ + epsilon) {
+      !architecture || ![
+        architecture.windowWidth, architecture.windowHeight, architecture.baySpacing,
+        architecture.floorHeight, architecture.parapetHeight,
+      ].every(Number.isFinite) ||
+      !['brownstone', 'masonry', 'loft', 'terrace'].includes(architecture.family) ||
+      !['sash', 'cross', 'none'].includes(architecture.mullions) ||
+      (architecture.family === 'brownstone') !== building.brownstone ||
+      architecture.windowWidth < 0.65 || architecture.windowWidth > 1.6 ||
+      architecture.windowHeight < 0.9 || architecture.windowHeight > 1.5 ||
+      architecture.baySpacing < architecture.windowWidth + 0.5 || architecture.baySpacing > 3.5 ||
+      architecture.floorHeight < 2.3 || architecture.floorHeight > 2.55 ||
+      architecture.parapetHeight < 0.2 || architecture.parapetHeight > 0.45 ||
+      (floors + setbackFloors) * architecture.floorHeight + 0.8 > 23 ||
+      (setbackFloors > 0 && (width < 3.4 || depth < 5.2)) ||
+      x - width / 2 - 0.4 < parcel.minX + SIDEWALK_EXTENSION - epsilon ||
+      x + width / 2 + 0.4 > parcel.maxX - SIDEWALK_EXTENSION + epsilon ||
+      z - depth / 2 - 0.35 < parcel.minZ + SIDEWALK_EXTENSION - epsilon ||
+      z + depth / 2 + (building.stoop ? 1.2 : 0.35) > parcel.maxZ - SIDEWALK_EXTENSION + epsilon) {
       throw new Error(`Invalid streetscape building footprint: ${id}.`);
     }
     if (buildings.some((other) => other !== building &&
@@ -287,12 +371,21 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
       [(start[0] + end[0]) / 2, (start[1] + end[1]) / 2, (start[2] + end[2]) / 2],
       [thickness, direction.length(), thickness], [rotation.x, rotation.y, rotation.z]);
   };
+  if (!crown.boundingBox) crown.computeBoundingBox();
+  const crownBounds = crown.boundingBox!;
   const tree = (x: number, z: number, size = 1) => {
     block(p.stone, x, 0.01, z, 1.45, 0.12, 1.45);
     block(p.roof, x, 0.08, z, 1.18, 0.04, 1.18);
-    add(cylinder, p.wood, [x, 1.6 * size, z], [0.14, 3.2 * size, 0.14]);
-    add(crown, p.leaf, [x - 0.35 * size, 3.3 * size, z], [1.35 * size, 1.6 * size, 1.25 * size]);
-    add(crown, p.leafLight, [x + 0.5 * size, 3.9 * size, z + 0.1], [0.95 * size, 1.1 * size, size]);
+    const radiusX = Math.max(-crownBounds.min.x * 1.35 + 0.35, crownBounds.max.x * 0.95 + 0.5) * size;
+    const radiusZ = Math.max(-crownBounds.min.z, crownBounds.max.z) * 1.25 * size + 0.1;
+    const nearWalk = STREET_X.some((road) => Math.abs(x - road) <= BUILDING_SIDEWALK_INSET + radiusX + 0.35) ||
+      STREET_Z.some((road) => Math.abs(z - road) <= BUILDING_SIDEWALK_INSET + radiusZ + 0.35);
+    // Keep the crown shapes intact; 0.2 m headroom also absorbs the bounded wind tilt.
+    const lift = nearWalk ? Math.max(0, 2.6 - (3.3 + crownBounds.min.y * 1.6) * size) : 0;
+    const trunkHeight = 3.2 * size + lift;
+    add(cylinder, p.wood, [x, trunkHeight / 2, z], [0.14, trunkHeight, 0.14]);
+    add(crown, p.leaf, [x - 0.35 * size, 3.3 * size + lift, z], [1.35 * size, 1.6 * size, 1.25 * size]);
+    add(crown, p.leafLight, [x + 0.5 * size, 3.9 * size + lift, z + 0.1], [0.95 * size, 1.1 * size, size]);
   };
   const bench = (x: number, z: number, yaw = 0) => {
     const local = (dx: number, dz: number) =>
@@ -356,8 +449,8 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
   for (const intersection of INTERSECTIONS) {
     for (const side of [-1, 1]) {
       for (let stripe = -4.5; stripe <= 4.5; stripe += 0.9) {
-        block(p.line, intersection.x + stripe, 0.021, intersection.z + side * SIDEWALK_OFFSET, 0.42, 0.024, 1.65);
-        block(p.line, intersection.x + side * SIDEWALK_OFFSET, 0.021, intersection.z + stripe, 1.65, 0.024, 0.42);
+        block(p.line, intersection.x + stripe, 0.021, intersection.z + side * CROSSWALK_CENTER, 0.42, 0.024, CROSSWALK_WIDTH);
+        block(p.line, intersection.x + side * CROSSWALK_CENTER, 0.021, intersection.z + stripe, CROSSWALK_WIDTH, 0.024, 0.42);
       }
       // One stop bar per incoming motor lane; protected lanes have their own short bar.
       if (Math.abs(intersection.z - side * STOP_LINE_OFFSET) < CITY_EXTENT.z) {
@@ -376,46 +469,53 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
 
   const facade = (building: StreetBuilding, width: number, depth: number, base: number, floors: number) => {
     const { x, z } = building;
-    const height = floors * 2.4;
+    const { windowWidth, baySpacing, floorHeight, mullions, parapetHeight } = building.architecture;
+    const height = floors * floorHeight;
     const brownstone = isBrownstone(building);
     const masonry = brownstone ? p.wood : p[building.skin];
-    const baySpacing = brownstone ? 1.8 : 2.2;
-    const windowWidth = brownstone ? 0.79 : 0.96;
     block(masonry, x, base + height / 2, z, width, height, depth);
     for (let floor = 0; floor < floors; floor++) {
-      const principal = brownstone && floor === 0;
-      const y = base + floor * 2.4 + (principal ? 1.6 : 1.25);
-      const windowHeight = principal ? 1.55 : 1.24;
+      const principal = brownstone && base === 0.3 && floor === 0;
+      const y = base + floor * floorHeight + (principal ? 1.6 : floorHeight * 0.52);
+      const windowHeight = building.architecture.windowHeight + (principal ? 0.25 : 0);
       for (const side of [-1, 1]) {
         const front = z + side * (depth / 2 + 0.025);
         const flank = x + side * (width / 2 + 0.025);
-        const columns = Math.max(1, Math.floor(width / baySpacing));
-        const bays = Math.max(1, Math.floor(depth / baySpacing));
+        const columns = Math.max(1, Math.floor((width - 0.5) / baySpacing));
+        const bays = Math.max(1, Math.floor((depth - 0.5) / baySpacing));
         for (let column = 0; column < columns; column++) {
-          const wx = x + (column - (columns - 1) / 2) * (width - 1.25) / columns;
-          if (principal && side > 0 && Math.abs(wx - (x - width * 0.26)) < 0.7) continue;
+          const wx = x + (column - (columns - 1) / 2) * width / columns;
+          if (principal && side > 0 && Math.abs(wx - (x - width * 0.26)) < (windowWidth + 1.45) / 2) continue;
           block(p.glass, wx, y, front, windowWidth, windowHeight, 0.045);
           block(brownstone ? p.copperEdge : p.paving, wx, y - windowHeight / 2 - 0.08,
             front + side * 0.07, windowWidth + 0.23, brownstone ? 0.16 : 0.1, 0.2);
           if (brownstone && side > 0) {
-            block(p.copperEdge, wx, y + windowHeight / 2 + 0.1, front + 0.08, 1.06, 0.18, 0.24);
+            block(p.copperEdge, wx, y + windowHeight / 2 + 0.1, front + 0.08, windowWidth + 0.27, 0.18, 0.24);
             if (principal) {
-              block(p.rubber, wx, y, front + 0.035, 0.79, 0.065, 0.065);
-              block(p.glass, wx, 0.5, front + 0.15, 0.68, 0.3, 0.045);
+              block(p.glass, wx, 0.5, front + 0.15, windowWidth - 0.11, 0.3, 0.045);
             }
-          } else if (brownstone || side > 0 || floor === 0) {
-            block(brownstone ? p.rubber : masonry, wx, y + 0.05, front + side * 0.03,
-              brownstone ? 0.79 : 0.07, brownstone ? 0.065 : windowHeight, 0.075);
+          }
+          if (mullions !== 'none') {
+            block(p.rubber, wx, y, front + side * 0.03, windowWidth, 0.065, 0.075);
+          }
+          if (mullions === 'cross') {
+            block(p.rubber, wx, y, front + side * 0.03, 0.06, windowHeight, 0.075);
           }
         }
         for (let bay = 0; bay < bays; bay++) {
-          const wz = z + (bay - (bays - 1) / 2) * (depth - 1.25) / bays;
+          const wz = z + (bay - (bays - 1) / 2) * depth / bays;
           block(p.glass, flank, y, wz, 0.045, windowHeight, windowWidth);
           block(brownstone ? p.copperEdge : p.paving, flank + side * 0.07,
             y - windowHeight / 2 - 0.08, wz, 0.2, brownstone ? 0.16 : 0.1, windowWidth + 0.23);
+          if (mullions !== 'none') {
+            block(p.rubber, flank + side * 0.03, y, wz, 0.075, 0.065, windowWidth);
+          }
+          if (mullions === 'cross') {
+            block(p.rubber, flank + side * 0.03, y, wz, 0.075, windowHeight, 0.06);
+          }
         }
       }
-      block(brownstone ? p.copperEdge : p.stone, x, base + floor * 2.4 + 0.12, z,
+      block(brownstone ? p.copperEdge : p.stone, x, base + floor * floorHeight + 0.12, z,
         width + 0.08, 0.12, depth + 0.08);
     }
     block(brownstone ? p.copperEdge : p.paving, x, base + height + 0.03, z,
@@ -429,20 +529,23 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
     }
     block(p.roof, x, base + height + 0.31, z, width - 0.35, 0.06, depth - 0.35);
     for (const side of [-1, 1]) {
-      block(p.paving, x, base + height + 0.5, z + side * (depth / 2 - 0.04), width + 0.2, 0.32, 0.19);
-      block(p.paving, x + side * (width / 2 - 0.04), base + height + 0.5, z, 0.19, 0.32, depth);
+      block(p.paving, x, base + height + 0.34 + parapetHeight / 2,
+        z + side * (depth / 2 - 0.04), width + 0.2, parapetHeight, 0.19);
+      block(p.paving, x + side * (width / 2 - 0.04), base + height + 0.34 + parapetHeight / 2,
+        z, 0.19, parapetHeight, depth);
     }
   };
   for (const building of STREET_BUILDINGS) {
     const { x, z, width, depth, floors, setbackFloors } = building;
-    const height = floors * 2.4 + 0.3;
+    const { floorHeight, parapetHeight } = building.architecture;
+    const height = floors * floorHeight + 0.3;
     const brownstone = isBrownstone(building);
     const entryX = brownstone ? x - width * 0.26 : x;
     const iron = brownstone ? p.rubber : p.copperEdge;
     block(brownstone ? p.copperEdge : p.stone, x, brownstone ? 0.4 : 0.17, z,
       width + 0.3, brownstone ? 0.8 : 0.34, depth + 0.3);
     facade(building, width, depth, 0.3, floors);
-    const roofY = height + setbackFloors * 2.4 + 0.7;
+    const roofY = height + setbackFloors * floorHeight + 0.34 + parapetHeight;
     const roofWidth = width - (setbackFloors ? 1.4 : 0);
     const roofDepth = depth - (setbackFloors ? 2.2 : 0);
     if (setbackFloors) facade(building, width - 1.4, depth - 2.2, height, setbackFloors);
@@ -472,7 +575,7 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
     }
     if (building.fireEscape) {
       for (let floor = 1; floor < floors; floor++) {
-        const y = floor * 2.4 + 0.42;
+        const y = floor * floorHeight + 0.42;
         const fx = x + width / 2 + 0.23;
         block(iron, fx, y, z, 0.34, 0.1, 1.6);
         rod(iron, [fx + 0.1, y + 0.65, z - 0.7], [fx + 0.1, y + 0.65, z + 0.7], 0.045);
@@ -481,10 +584,10 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
         }
         for (const edge of [-1, 1]) {
           rod(iron, [fx + edge * 0.11, y, z + 0.62],
-            [fx + edge * 0.11, y + 2.4, z - 0.62], 0.04);
+            [fx + edge * 0.11, y + floorHeight, z - 0.62], 0.04);
         }
         for (let rung = 1; rung <= 7; rung++) {
-          block(iron, fx, y + rung * 0.3, z + 0.62 - rung * 0.155, 0.26, 0.04, 0.06);
+          block(iron, fx, y + rung * floorHeight / 8, z + 0.62 - rung * 0.155, 0.26, 0.04, 0.06);
         }
       }
     }
@@ -498,9 +601,11 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
       }
       add(crown, p.roof, [x, roofY + 2.55, z], [1.03, 0.4, 1.03]);
     } else if (building.roof === 'garden') {
-      for (const dz of [-1.45, 1.45]) {
+      const planterOffset = Math.min(1.45, roofDepth / 2 - 0.55);
+      const shrubOffset = Math.min(0.8, roofWidth / 2 - 0.65);
+      for (const dz of [-planterOffset, planterOffset]) {
         block(p.wood, x, roofY + 0.12, z + dz, roofWidth - 2, 0.28, 0.75);
-        for (const dx of [-0.8, 0.8]) {
+        for (const dx of [-shrubOffset, shrubOffset]) {
           add(crown, p.leaf, [x + dx, roofY + 0.6, z + dz], [0.6, 0.6, 0.48]);
         }
       }
@@ -510,7 +615,7 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
       for (const dx of [-0.35, 0.35]) {
         add(cylinder, p.roof, [x + 0.4 + dx, roofY + 0.73, z], [0.22, 0.06, 0.22]);
       }
-      for (const dz of [-roofDepth / 2 + 0.8, roofDepth / 2 - 0.8]) {
+      for (const dz of building.roof === 'chimneys' ? [-roofDepth / 2 + 0.8, roofDepth / 2 - 0.8] : []) {
         block(p.clay, x - roofWidth / 2 + 0.85, roofY + 0.55, z + dz, 0.55, 1.1, 0.55);
         block(p.roof, x - roofWidth / 2 + 0.85, roofY + 1.13, z + dz, 0.68, 0.12, 0.68);
       }
@@ -524,8 +629,8 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
       for (const z of [parcel.minZ + 1.3, parcel.maxZ - 1.3]) {
         if ((x === parcel.minX + 1.3) !== (z === parcel.minZ + 1.3)) continue;
         if (STREET_BUILDINGS.some((building) =>
-          Math.abs(building.x - x) < building.width / 2 + 1.3 &&
-          Math.abs(building.z - z) < building.depth / 2 + 1.3)) continue;
+          Math.abs(building.x - x) < building.reservedWidth / 2 + 1.3 &&
+          Math.abs(building.z - z) < building.reservedDepth / 2 + 1.3)) continue;
         tree(x, z, 0.8 + ((Math.abs(x + z) * 10) % 3) * 0.1);
       }
     }
@@ -535,7 +640,7 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
     return { ...hole, maxX: hole.maxX + Math.sin(yaw) * METRO_GEOMETRY.apronDepth,
       maxZ: hole.maxZ + Math.cos(yaw) * METRO_GEOMETRY.apronDepth };
   });
-  const paving = (x: number, z: number, width: number, depth: number) => {
+  const paving = (x: number, z: number, width: number, depth: number, y = -0.025) => {
     let rectangles = [{ minX: x - width / 2, maxX: x + width / 2, minZ: z - depth / 2, maxZ: z + depth / 2 }];
     for (const hole of pavingCuts) rectangles = rectangles.flatMap((rectangle) => {
       const left = Math.max(rectangle.minX, hole.minX);
@@ -550,9 +655,17 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
       ].filter(({ minX, maxX, minZ, maxZ }) => maxX > minX && maxZ > minZ);
     });
     for (const { minX, maxX, minZ, maxZ } of rectangles) {
-      block(p.paving, (minX + maxX) / 2, -0.025, (minZ + maxZ) / 2, maxX - minX, 0.1, maxZ - minZ);
+      block(p.paving, (minX + maxX) / 2, y, (minZ + maxZ) / 2, maxX - minX, 0.1, maxZ - minZ);
     }
   };
+  for (const parcel of STREET_BLOCKS) {
+    for (const x of [parcel.minX + SIDEWALK_EXTENSION / 2, parcel.maxX - SIDEWALK_EXTENSION / 2]) {
+      paving(x, parcel.z, SIDEWALK_EXTENSION, parcel.maxZ - parcel.minZ, -0.13);
+    }
+    for (const z of [parcel.minZ + SIDEWALK_EXTENSION / 2, parcel.maxZ - SIDEWALK_EXTENSION / 2]) {
+      paving(parcel.x, z, parcel.maxX - parcel.minX - 2 * SIDEWALK_EXTENSION, SIDEWALK_EXTENSION, -0.13);
+    }
+  }
   for (const x of [WEST_X, EAST_X]) for (const position of [-50.5, 0.5, 51.5]) {
     const z = position * SIDE_SCALE;
     paving(x, z, 10.8, 9 * SIDE_SCALE);
@@ -689,7 +802,7 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
   for (const z of [106.2, 120.8]) bench(2.6, z);
   bench(31, 121);
   for (const x of [31, 36.5]) tree(x, 117, 0.7);
-  const fenceX = courtParcel.minX + 0.45;
+  const fenceX = courtParcel.minX + 0.85;
   const fenceStart = courtZ - basketball.runoffDepth / 2 - 0.45;
   const fenceEnd = courtZ + basketball.runoffDepth / 2 + 0.45;
   const fencePosts = Math.ceil((fenceEnd - fenceStart) / 2.4);
@@ -808,7 +921,13 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
   }
   const shedWalkZ = STREET_Z[CENTER_ROW] - SIDEWALK_OFFSET;
   const shedX = WEST_X + 1.05;
-  const shed = (x: number, z: number, length: number, yaw: number, minAcross = -1.35, maxAcross = 1.35) => {
+  const shed = (
+    x: number, z: number, length: number, yaw: number, buildingSide: number,
+    minAcross = -1.35, maxAcross = 1.35,
+  ) => {
+    minAcross = Math.min(minAcross, buildingSide * 1.75);
+    maxAcross = Math.max(maxAcross, buildingSide * 1.75);
+    const supports = [-buildingSide * 1.2, buildingSide * 1.6];
     const local = (along: number, y: number, across: number): Triple =>
       [x + along * Math.cos(yaw) + across * Math.sin(yaw), y,
         z - along * Math.sin(yaw) + across * Math.cos(yaw)];
@@ -818,10 +937,10 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
     };
     const half = length / 2 - 0.2;
     for (const along of [-half, -half / 3, half / 3, half]) {
-      for (const across of [-1.2, 1.2]) piece(p.roof, along, 1.28, across, 0.1, 2.84, 0.1);
+      for (const across of supports) piece(p.roof, along, 1.28, across, 0.1, 2.84, 0.1);
       piece(p.roof, along, 2.62, (minAcross + maxAcross) / 2, 0.12, 0.16, maxAcross - minAcross - 0.15);
     }
-    for (const across of [-1.2, 1.2]) {
+    for (const across of supports) {
       piece(p.roof, 0, 2.64, across, length - 0.15, 0.17, 0.14);
       piece(p.teal, 0, 2.99, across, length, 0.48, 0.12);
       for (const along of [-half, half / 3]) {
@@ -831,12 +950,12 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
     piece(p.roof, 0, 2.78, (minAcross + maxAcross) / 2, length, 0.18, maxAcross - minAcross);
     for (const along of [-half * 2 / 3, 0, half * 2 / 3]) piece(p.line, along, 2.66, 0, 0.65, 0.06, 0.22);
   };
-  shed(shedX, shedWalkZ, 7.3, 0);
+  shed(shedX, shedWalkZ, 7.3, 0, -1);
   for (const site of SIDEWALK_SHEDS) {
     const building = STREET_BUILDINGS.find(({ id }) => id === site.buildingId)!;
     const outward = Math.sign(site.x - building.x);
     const face = building.x + outward * building.width / 2;
-    shed(site.x, site.z, site.length, Math.PI / 2,
+    shed(site.x, site.z, site.length, Math.PI / 2, -outward,
       Math.min(-1.35, face - site.x - 0.02), Math.max(1.35, face - site.x + 0.02));
     if (!site.scaffold) continue;
     const half = (building.depth - 0.5) / 2;

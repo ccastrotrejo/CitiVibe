@@ -10,6 +10,7 @@ import { PARK_ACTORS, PARK_BOUNDS, PARK_PATHS } from '../content/park';
 import { PLAY_AREA, PLAY_PEOPLE } from '../content/play';
 import type { PersonProfile } from '../content/people';
 import { STOP_LINE_OFFSET, STREET_X, STREET_Z, TRAFFIC_ACTORS } from '../content/streets';
+import { EXTRA_PARK_BENCHES, FOOD_CARTS, propBounds } from '../content/streetFurniture';
 import { BIKE_MARKINGS, WALK_MARKINGS } from './pavement';
 import { ART_INPUTS, buildCityScene, validateArtInputs, type CityScene } from './scene';
 import { SIDEWALK_SHEDS } from './streetscape';
@@ -28,9 +29,46 @@ function resources(scene: THREE.Scene) {
   });
   return { geometries, materials, instances };
 }
+function expectClearScenery(scene: THREE.Scene, area: THREE.Box3, label: string) {
+  const matrix = new THREE.Matrix4();
+  scene.updateMatrixWorld(true);
+  scene.traverseVisible((object) => {
+    if (!(object instanceof THREE.Mesh)) return;
+    object.geometry.computeBoundingBox();
+    for (let index = 0; index < (object instanceof THREE.InstancedMesh ? object.count : 1); index++) {
+      if (object instanceof THREE.InstancedMesh) {
+        object.getMatrixAt(index, matrix);
+        matrix.premultiply(object.matrixWorld);
+      } else matrix.copy(object.matrixWorld);
+      const bounds = object.geometry.boundingBox!.clone().applyMatrix4(matrix);
+      expect(bounds.intersectsBox(area), `${label}: ${object.name} at ${bounds.min.toArray()}`).toBe(false);
+    }
+  });
+}
 afterEach(() => { worlds.splice(0).forEach((world) => world.dispose()); });
 
 describe('original car-free park district', () => {
+  it('keeps the counterflow sidewalk beside the west court fence clear without shrinking the court', () => {
+    const { scene } = createScene();
+    expectClearScenery(scene, new THREE.Box3(
+      new THREE.Vector3(-39.2, 0.12, 103),
+      new THREE.Vector3(-38.4, 2.4, 124)), 'West court counterflow sidewalk');
+    expect(BASKETBALL_COURT.runoffWidth).toBeCloseTo(32.6512);
+    expect(BASKETBALL_COURT.runoffDepth).toBeCloseTo(19.24);
+  });
+
+  it('keeps the four sidewalk food-cart approaches clear of all rendered scenery', () => {
+    const { scene } = createScene();
+    for (const cart of FOOD_CARTS) {
+      const forward = cart.yaw === 0 ? 1 : -1;
+      const ends = [cart.z + forward * 1.16, cart.z + forward * 2.28];
+      const approach = new THREE.Box3(
+        new THREE.Vector3(cart.x - 1.2, 0.15, Math.min(...ends)),
+        new THREE.Vector3(cart.x + 1.2, 2.3, Math.max(...ends)));
+      expectClearScenery(scene, approach, cart.id);
+    }
+  });
+
   it('contains no landmark selection targets or highlight resources', () => {
     const world = createScene();
     expect(world).not.toHaveProperty('hitTargets');
@@ -42,16 +80,16 @@ describe('original car-free park district', () => {
     });
   });
 
-  it('has 246 traveling actors, thirty-six park walkers and eighteen runner rigs', () => {
+  it('has 300 traveling actors, forty-eight park walkers and twenty-four runner rigs', () => {
     const { actors, bus } = createScene();
     expect([...actors.keys()]).toEqual([
       ...PARK_ACTORS.map(({ id }) => id),
       ...TRAFFIC_ACTORS.map(({ id }) => id),
     ]);
     expect(bus).toBe(actors.get(CITY.busId));
-    expect(actors.size).toBe(246);
-    expect(PARK_ACTORS.filter(({ gait }) => gait === 'walk')).toHaveLength(36);
-    expect(PARK_ACTORS.filter(({ gait }) => gait === 'run')).toHaveLength(18);
+    expect(actors.size).toBe(300);
+    expect(PARK_ACTORS.filter(({ gait }) => gait === 'walk')).toHaveLength(48);
+    expect(PARK_ACTORS.filter(({ gait }) => gait === 'run')).toHaveLength(24);
     expect(actors.has('square-bus')).toBe(false);
     actors.forEach((actor) => {
       expect(actor.position).toEqual(new THREE.Vector3());
@@ -67,7 +105,7 @@ describe('original car-free park district', () => {
     scene.traverse((object) => {
       if (object.userData.person) people.push(object.userData.person);
     });
-    expect(people).toHaveLength(232);
+    expect(people).toHaveLength(277);
     expect(people.filter(({ context }) => context === 'resting')).toHaveLength(8);
     expect(people.filter(({ context }) => context === 'play-child')).toHaveLength(6);
     expect(people.filter(({ context }) => context === 'play-guardian')).toHaveLength(2);
@@ -329,6 +367,28 @@ describe('original car-free park district', () => {
     }
   });
 
+  it('keeps added park seating clear of existing tree trunks', () => {
+    const { scene } = createScene();
+    const matrix = new THREE.Matrix4();
+    const center = new THREE.Vector3();
+    const scale = new THREE.Vector3();
+    const rotation = new THREE.Quaternion();
+    scene.traverseVisible((object) => {
+      if (!(object instanceof THREE.InstancedMesh) || object.geometry.type !== 'CylinderGeometry' ||
+        !(object.material instanceof THREE.MeshStandardMaterial) || object.material.color.getHexString() !== '9c7952') return;
+      for (let index = 0; index < object.count; index++) {
+        object.getMatrixAt(index, matrix);
+        matrix.decompose(center, rotation, scale);
+        if (Math.abs(center.x) > PARK_BOUNDS.x || Math.abs(center.z) > PARK_BOUNDS.z || scale.x > 0.4) continue;
+        for (const bench of EXTRA_PARK_BENCHES) {
+          const bounds = propBounds(bench, 2.4, 0.72);
+          expect(center.x + scale.x < bounds.minX || center.x - scale.x > bounds.maxX ||
+            center.z + scale.x < bounds.minZ || center.z - scale.x > bounds.maxZ, bench.id).toBe(true);
+        }
+      }
+    });
+  });
+
   it('marks every protected-lane segment without covering crossings or leaving the lane', () => {
     const { scene } = createScene();
     const painted = resources(scene).instances.find((mesh) =>
@@ -371,10 +431,10 @@ describe('original car-free park district', () => {
     });
   });
 
-  it('gives six yellow cabs roof lights and door details without enlarging traffic footprints', () => {
+  it('gives every yellow cab roof lights and door details without enlarging traffic footprints', () => {
     const { actors } = createScene();
     const taxis = TRAFFIC_ACTORS.filter(({ vehicleType }) => vehicleType === 'taxi');
-    expect(taxis).toHaveLength(6);
+    expect(taxis.length).toBeGreaterThanOrEqual(6);
     for (const { id } of taxis) {
       const cab = actors.get(id)!;
       expect(cab.getObjectByName('Unbranded taxi roof light')).toBeDefined();
@@ -485,7 +545,7 @@ describe('public street and park lighting fixtures', () => {
 
   it('provides paired head/tail lamps, separate amber indicators, brake lamps and unlit vehicle glazing', () => {
     const world = createScene();
-    expect(world.vehicleLights).toHaveLength(48);
+    expect(world.vehicleLights).toHaveLength(60);
     for (const rig of world.vehicleLights) {
       const channels = (channel: string) => rig.lamps.filter((lamp) => lamp.channel === channel);
       expect(channels('head')).toHaveLength(rig.bicycle ? 1 : 2);

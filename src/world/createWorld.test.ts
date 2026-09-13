@@ -67,6 +67,40 @@ function mount(model: WorldModel) {
 }
 
 describe('runtime ownership and suspension', () => {
+  it('retains shared-bike users and docked inventory through paused graphics restoration', () => {
+    const model = new WorldModel(false);
+    const { canvas, world } = mount(model);
+    onTestFinished(() => world.dispose());
+    tick(0);
+    for (let time = 34; time < 2400; time += 34) tick(time);
+    world.command({ type: 'set-paused', paused: true });
+    const snapshot = () => {
+      const scene: unknown = gpu.render.mock.lastCall?.[0];
+      if (!(scene instanceof Scene)) throw new Error('Missing rendered scene.');
+      return ['lantern-bike-bay', 'willow-bike-bay', 'juniper-bike-bay'].flatMap((id) =>
+        ['checkout bicycle', 'parked bicycle', 'neighbor checking a bicycle'].map((suffix) => {
+          const group = scene.getObjectByName(`${id}: ${suffix}`);
+          if (!group) throw new Error(`Missing bike-share rig: ${id}: ${suffix}.`);
+          group.updateWorldMatrix(true, true);
+          const matrices: number[][] = [];
+          group.traverse((part) => matrices.push(part.matrixWorld.toArray()));
+          return matrices;
+        }));
+    };
+    const before = snapshot();
+    expect(model.simulation.elapsed).toBeGreaterThan(2);
+    hidden = true;
+    document.dispatchEvent(new Event('visibilitychange'));
+    tick(300000);
+    hidden = false;
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(snapshot()).toEqual(before);
+    canvas.dispatchEvent(new Event('webglcontextlost', { cancelable: true }));
+    canvas.dispatchEvent(new Event('webglcontextrestored'));
+    expect(snapshot()).toEqual(before);
+    expect(frames.size).toBe(0);
+  });
+
   it('retains all vehicle light colors and beam positions through pause, hidden time and context restoration', () => {
     const model = new WorldModel(false);
     const { canvas, world } = mount(model);
@@ -85,7 +119,7 @@ describe('runtime ownership and suspension', () => {
       });
     };
     const before = snapshot();
-    expect(before[0].count).toBe(420);
+    expect(before[0].count).toBe(552);
     expect(before[1].count).toBeGreaterThan(0);
     expect(gpu.toneMapping).toBe(NeutralToneMapping);
     hidden = true;
