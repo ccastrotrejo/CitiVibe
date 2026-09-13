@@ -1,7 +1,12 @@
 import {
-  BIKE_OFFSET, bikeLaneOffset, INTERSECTION_GATE, INTERSECTIONS, SIDEWALK_OFFSET, STOP_LINE_OFFSET, STREET_BLOCKS,
-  STREET_X, STREET_Z, TRAFFIC_ACTORS, VEHICLE_OFFSET, type TrafficSignalState, type TrafficVehicleType,
+  BIKE_OFFSET, bikeLaneOffset, BIKE_SHARE_RIDER_IDS, INTERSECTION_GATE, INTERSECTIONS, SIDEWALK_OFFSET,
+  STOP_LINE_OFFSET, STREET_BLOCKS, STREET_X, STREET_Z, TRAFFIC_ACTORS, VEHICLE_OFFSET,
+  type TrafficSignalState, type TrafficVehicleType,
 } from '../content/streets';
+import {
+  BIKE_SHARE_LAYOUT, BIKE_SHARE_STATIONS, type BikeSharePhase, type BikeShareStation, type BikeShareTripState,
+} from '../content/bikeShare';
+import { PERSON_SPACE } from '../content/people';
 import type { ActorState } from './actors';
 import { StreetPedestrians } from './pedestrians';
 
@@ -54,6 +59,7 @@ export interface TrafficSegment {
   axis: 'north-south' | 'east-west';
   ellipse?: EllipticTurn;
   speedLimit?: number;
+  gates?: readonly SharedBikeGate[];
 }
 
 export interface TrafficRoute {
@@ -61,6 +67,11 @@ export interface TrafficRoute {
   length: number;
   segments: readonly TrafficSegment[];
 }
+
+type SharedBikeGate =
+  | { type: 'pedestrian'; stationId: string; crossingX: number; crossingZ: number; horizontal: boolean; length: number; spanLength?: number }
+  | { type: 'merge'; stationId: string; targetLane: string; targetCoord: number }
+  | { type: 'roadway'; stationId: string; crossingX: number; crossingZ: number; length: number };
 
 interface Motion {
   actor: ActorState;
@@ -73,6 +84,25 @@ interface Motion {
   permit: number;
   releaseRemaining: number;
   requestSince: number;
+  bikeShare?: SharedBikeMotion;
+}
+
+interface SharedBikeMotion {
+  station: BikeShareStation;
+  dockDistance: number;
+  spurStart: number;
+  spurEnd: number;
+  dockRemaining: number;
+  dockDuration: number;
+}
+
+interface SharedBikeRoute {
+  station: BikeShareStation;
+  route: TrafficRoute;
+  dockDistance: number;
+  spurStart: number;
+  spurEnd: number;
+  initialDwell: number;
 }
 
 interface Junction extends TrafficSignalState {
@@ -227,6 +257,228 @@ export const TRAFFIC_ROUTES: readonly TrafficRoute[] = [
   ...CIRCUITS.map((nodes, index) => makeRoute(nodes, BIKE_OFFSET, `cycle-${index}`, true)),
 ];
 
+export const SHARED_BIKE_SPUR_SPEED = 1.15;
+const SHARED_BIKE_TURN_RADIUS = 0.8;
+const JUNIPER_TURN_RADIUS = 0.6;
+const PEDESTRIAN_MAX_PACE = 1.56;
+const SHARED_BIKE_ROUTE_INDEX = 1;
+const SHARED_BIKE_RIDER_ID_SET = new Set<string>(BIKE_SHARE_RIDER_IDS);
+
+function outgoingDirection(incoming: Point, turn: number): Point {
+  return { x: -incoming.z * turn, z: incoming.x * turn };
+}
+
+function endOfTurn(start: Point, incoming: Point, turn: number, radius: number): Point {
+  const outgoing = outgoingDirection(incoming, turn);
+  const center = { x: start.x + outgoing.x * radius, z: start.z + outgoing.z * radius };
+  const x = start.x - center.x;
+  const z = start.z - center.z;
+  const cos = Math.cos(turn * QUARTER_TURN);
+  const sin = Math.sin(turn * QUARTER_TURN);
+  return { x: center.x + x * cos - z * sin, z: center.z + x * sin + z * cos };
+}
+
+function straightSegment(from: Point, to: Point, lane: string, speedLimit = SHARED_BIKE_SPUR_SPEED,
+  gates?: readonly SharedBikeGate[]): Omit<TrafficSegment, 'start'> {
+  const length = Math.hypot(to.x - from.x, to.z - from.z);
+  if (length < EPSILON) throw new Error(`Zero-length shared-bike segment ${lane}.`);
+  const dx = Math.abs(to.x - from.x) > Math.abs(to.z - from.z) ? Math.sign(to.x - from.x) : 0;
+  const dz = dx === 0 ? Math.sign(to.z - from.z) : 0;
+  if (Math.abs(to.x - from.x - dx * length) > 1e-6 || Math.abs(to.z - from.z - dz * length) > 1e-6) {
+    throw new Error(`Non-cardinal shared-bike segment ${lane}.`);
+  }
+  return {
+    kind: 'link', length, x: from.x, z: from.z, dx, dz, radius: 0, turn: 0, centerX: 0, centerZ: 0,
+    lane, intersection: -1, axis: dx === 0 ? 'north-south' : 'east-west', speedLimit, gates,
+  };
+}
+
+function turnSegment(start: Point, incoming: Point, turn: number, radius: number, lane: string,
+  gates?: readonly SharedBikeGate[]): Omit<TrafficSegment, 'start'> {
+  const outgoing = outgoingDirection(incoming, turn);
+  return {
+    kind: 'link', length: QUARTER_TURN * radius, x: start.x, z: start.z,
+    dx: incoming.x, dz: incoming.z, radius, turn,
+    centerX: start.x + outgoing.x * radius, centerZ: start.z + outgoing.z * radius,
+    lane, intersection: -1, axis: incoming.x === 0 ? 'north-south' : 'east-west',
+    speedLimit: Math.min(SHARED_BIKE_SPUR_SPEED, radius * TRAFFIC.maxBicycleTurnRate), gates,
+  };
+}
+
+function withStarts(segments: readonly Omit<TrafficSegment, 'start'>[]): TrafficRoute['segments'] {
+  let start = 0;
+  return segments.map((segment) => {
+    const next = { ...segment, start };
+    start += segment.length;
+    return next;
+  });
+}
+
+function cloneSegment(segment: TrafficSegment): Omit<TrafficSegment, 'start'> {
+  const rest: Partial<TrafficSegment> = { ...segment };
+  delete rest.start;
+  return rest as Omit<TrafficSegment, 'start'>;
+}
+
+function splitLinkSegment(segment: TrafficSegment, start: number, length: number): Omit<TrafficSegment, 'start'> {
+  return {
+    ...cloneSegment(segment), length,
+    x: segment.x + segment.dx * start,
+    z: segment.z + segment.dz * start,
+  };
+}
+
+function spliceBikeShareRoute(
+  base: TrafficRoute,
+  linkIndex: number,
+  exitAlong: number,
+  entryAlong: number,
+  station: BikeShareStation,
+  spur: readonly Omit<TrafficSegment, 'start'>[],
+  dockSpurIndex: number,
+): SharedBikeRoute {
+  const link = base.segments[linkIndex];
+  if (link.kind !== 'link' || exitAlong <= 0 || entryAlong >= link.length || exitAlong >= entryAlong) {
+    throw new Error(`Invalid shared-bike splice for ${station.id}.`);
+  }
+  const pieces: Omit<TrafficSegment, 'start'>[] = [];
+  for (let index = 0; index < linkIndex; index += 1) pieces.push(cloneSegment(base.segments[index]));
+  pieces.push(splitLinkSegment(link, 0, exitAlong));
+  const spurStartIndex = pieces.length;
+  pieces.push(...spur);
+  pieces.push(splitLinkSegment(link, entryAlong, link.length - entryAlong));
+  for (let index = linkIndex + 1; index < base.segments.length; index += 1) pieces.push(cloneSegment(base.segments[index]));
+  const segments = withStarts(pieces);
+  const length = segments.reduce((sum, segment) => sum + segment.length, 0);
+  const spurStart = segments[spurStartIndex].start;
+  const spurEnd = segments[spurStartIndex + spur.length - 1].start + segments[spurStartIndex + spur.length - 1].length;
+  const dockDistance = segments[spurStartIndex + dockSpurIndex].start + segments[spurStartIndex + dockSpurIndex].length;
+  const route = { id: `bike-share-${station.id}`, length, segments };
+  return {
+    station, route, dockDistance, spurStart, spurEnd,
+    initialDwell: 1 + (station.phase % BIKE_SHARE_LAYOUT.dockSeconds),
+  };
+}
+
+function bikeShareLaneGate(stationId: string, target: TrafficSegment, targetAlong: number): SharedBikeGate {
+  return {
+    type: 'merge', stationId, targetLane: target.lane,
+    targetCoord: (target.x + target.dx * targetAlong) * target.dx + (target.z + target.dz * targetAlong) * target.dz,
+  };
+}
+
+function makeSideStationTrip(station: BikeShareStation, base: TrafficRoute, laneIndex: number): SharedBikeRoute {
+  const link = base.segments[laneIndex];
+  const r = SHARED_BIKE_TURN_RADIUS;
+  const westSide = station.x < link.x;
+  const dock = { x: station.x + station.activeSlot * BIKE_SHARE_LAYOUT.slotSpacing, z: station.z };
+  const laneX = link.x;
+  if (link.dx !== 0) throw new Error(`Shared-bike side station ${station.id} needs a vertical lane.`);
+  const exitZ = station.z - link.dz * 2 * r;
+  const entryZ = station.z + link.dz * 3 * r;
+  const exitAlong = (exitZ - link.z) / link.dz;
+  const entryAlong = (entryZ - link.z) / link.dz;
+  const exit = { x: laneX, z: exitZ };
+  const lateral = { x: westSide ? -1 : 1, z: 0 };
+  const turnOut = -lateral.x / link.dz;
+  const exitArcEnd = endOfTurn(exit, { x: 0, z: link.dz }, turnOut, r);
+  const dockTurnStart = { x: dock.x - lateral.x * r, z: dock.z - link.dz * r };
+  const dockTurn = -turnOut;
+  const postDock = { x: dock.x, z: dock.z + link.dz * r };
+  const departArcEnd = endOfTurn(postDock, { x: 0, z: link.dz }, -turnOut, r);
+  const mergeArcStart = { x: laneX + lateral.x * r, z: entryZ - link.dz * r };
+  const mergeArcEnd = endOfTurn(mergeArcStart, { x: -lateral.x, z: 0 }, turnOut, r);
+  const sidewalkCrossing = 3.8;
+  const sidewalkOutGates: SharedBikeGate[] = [
+    bikeShareLaneGate(station.id, link, entryAlong),
+    { type: 'pedestrian', stationId: station.id, crossingX: laneX + lateral.x * 2.7,
+      crossingZ: departArcEnd.z, horizontal: true, length: Math.abs(mergeArcStart.x - departArcEnd.x), spanLength: sidewalkCrossing },
+  ];
+  const spur = [
+    turnSegment(exit, { x: 0, z: link.dz }, turnOut, r, `${station.id}:exit-arc`),
+    straightSegment(exitArcEnd, dockTurnStart, `${station.id}:sidewalk-in`),
+    turnSegment(dockTurnStart, lateral, dockTurn, r, `${station.id}:dock-approach`),
+    straightSegment(dock, postDock, `${station.id}:dock-departure`, SHARED_BIKE_SPUR_SPEED, sidewalkOutGates),
+    turnSegment(postDock, { x: 0, z: link.dz }, -turnOut, r, `${station.id}:departure-arc`),
+    straightSegment(departArcEnd, mergeArcStart, `${station.id}:sidewalk-out`),
+    turnSegment(mergeArcStart, { x: -lateral.x, z: 0 }, turnOut, r, `${station.id}:merge-arc`),
+  ];
+  if (Math.hypot(mergeArcEnd.x - laneX, mergeArcEnd.z - entryZ) > 1e-6) throw new Error(`Bad shared-bike merge for ${station.id}.`);
+  return spliceBikeShareRoute(base, laneIndex, exitAlong, entryAlong, station, spur, 2);
+}
+
+function makeJuniperTrip(station: BikeShareStation, base: TrafficRoute, laneIndex: number): SharedBikeRoute {
+  const link = base.segments[laneIndex];
+  const r = JUNIPER_TURN_RADIUS;
+  const dock = { x: station.x + station.activeSlot * BIKE_SHARE_LAYOUT.slotSpacing, z: station.z };
+  if (link.dx !== 1 || Math.abs(link.z - 91.55) > 1e-6) {
+    throw new Error(`Juniper shared-bike access needs the eastbound protected lane, got dx=${link.dx} z=${link.z}.`);
+  }
+  const exitX = 25.1;
+  const entryX = 26.9;
+  const exitAlong = exitX - link.x;
+  const entryAlong = entryX - link.x;
+  const exit = { x: exitX, z: link.z };
+  const exitArcEnd = endOfTurn(exit, { x: 1, z: 0 }, 1, r);
+  const crossInEnd = { x: exitArcEnd.x, z: station.z - r * 2 };
+  const westArcEnd = endOfTurn(crossInEnd, { x: 0, z: 1 }, 1, r);
+  const dockTurnStart = { x: dock.x + r, z: station.z - r };
+  const postDock = { x: dock.x, z: dock.z + r };
+  const departArcEnd = endOfTurn(postDock, { x: 0, z: 1 }, -1, r);
+  const northArcStart = { x: entryX - 2 * r, z: departArcEnd.z };
+  const northArcEnd = endOfTurn(northArcStart, { x: 1, z: 0 }, -1, r);
+  const mergeArcStart = { x: northArcEnd.x, z: link.z + r };
+  const mergeArcEnd = endOfTurn(mergeArcStart, { x: 0, z: -1 }, 1, r);
+  const roadGateOut: SharedBikeGate = { type: 'roadway', stationId: station.id, crossingX: northArcEnd.x,
+    crossingZ: (northArcEnd.z + mergeArcStart.z) / 2, length: Math.abs(northArcEnd.z - mergeArcStart.z) + 8 };
+  const pedGateOut: SharedBikeGate = { type: 'pedestrian', stationId: station.id, crossingX: northArcEnd.x,
+    crossingZ: 101.7, horizontal: false, length: Math.abs(northArcEnd.z - mergeArcStart.z), spanLength: 3.8 };
+  const juniperOutGates: SharedBikeGate[] = [roadGateOut, pedGateOut, bikeShareLaneGate(station.id, link, entryAlong)];
+  const spur = [
+    turnSegment(exit, { x: 1, z: 0 }, 1, r, `${station.id}:exit-arc`),
+    straightSegment(exitArcEnd, crossInEnd, `${station.id}:roadway-in`),
+    turnSegment(crossInEnd, { x: 0, z: 1 }, 1, r, `${station.id}:apron-in-arc`),
+    straightSegment(westArcEnd, dockTurnStart, `${station.id}:apron-in`),
+    turnSegment(dockTurnStart, { x: -1, z: 0 }, -1, r, `${station.id}:dock-approach`),
+    straightSegment(dock, postDock, `${station.id}:dock-departure`, SHARED_BIKE_SPUR_SPEED, juniperOutGates),
+    turnSegment(postDock, { x: 0, z: 1 }, -1, r, `${station.id}:apron-out-arc`),
+    straightSegment(departArcEnd, northArcStart, `${station.id}:apron-out`),
+    turnSegment(northArcStart, { x: 1, z: 0 }, -1, r, `${station.id}:roadway-out-arc`),
+    straightSegment(northArcEnd, mergeArcStart, `${station.id}:roadway-out`),
+    turnSegment(mergeArcStart, { x: 0, z: -1 }, 1, r, `${station.id}:merge-arc`),
+  ];
+  if (Math.hypot(mergeArcEnd.x - entryX, mergeArcEnd.z - link.z) > 1e-6) throw new Error('Bad Juniper shared-bike merge.');
+  return spliceBikeShareRoute(base, laneIndex, exitAlong, entryAlong, station, spur, 4);
+}
+
+export const SHARED_BIKE_ROUTES: readonly SharedBikeRoute[] = Object.freeze((() => {
+  const base = TRAFFIC_ROUTES[CIRCUITS.length + SHARED_BIKE_ROUTE_INDEX];
+  const juniperBase = TRAFFIC_ROUTES[CIRCUITS.length + 4];
+  const stations = Object.fromEntries(BIKE_SHARE_STATIONS.map((station) => [station.id, station]));
+  return [
+    makeSideStationTrip(stations['lantern-bike-bay'], base, 1),
+    makeSideStationTrip(stations['willow-bike-bay'], base, 13),
+    makeJuniperTrip(stations['juniper-bike-bay'], juniperBase, 5),
+  ];
+})());
+
+const SHARED_BIKE_ROUTE_BY_ACTOR: ReadonlyMap<string, SharedBikeRoute> =
+  new Map(SHARED_BIKE_ROUTES.map((trip) => [trip.station.riderId, trip]));
+
+export function trafficRouteForActor(definitionIndex: number): TrafficRoute {
+  const definition = TRAFFIC_ACTORS[definitionIndex];
+  if (!definition || definition.kind === 'pedestrian') throw new RangeError('Traffic route actor index must reference a moving road actor.');
+  const shared = SHARED_BIKE_ROUTE_BY_ACTOR.get(definition.id);
+  if (shared) return shared.route;
+  const previous = TRAFFIC_ACTORS.slice(0, definitionIndex);
+  if (definition.kind === 'cyclist') {
+    const bicycleIndex = previous.filter(({ kind, id }) => kind === 'cyclist' && !SHARED_BIKE_RIDER_ID_SET.has(id)).length;
+    return TRAFFIC_ROUTES[CIRCUITS.length + bicycleIndex % CIRCUITS.length];
+  }
+  const motorIndex = previous.filter(({ kind }) => kind === 'car' || kind === 'bus').length;
+  return TRAFFIC_ROUTES[motorIndex % CIRCUITS.length];
+}
+
 function makeFootpath(
   block: typeof STREET_BLOCKS[number], offset = SIDEWALK_OFFSET, reverse = false, cornerInset = SIDEWALK_OFFSET + 1,
 ): TrafficRoute {
@@ -347,11 +599,13 @@ export class CityTraffic {
     let motorIndex = 0;
     let bicycleIndex = 0;
     const placements = TRAFFIC_ACTORS.filter(({ kind }) => kind !== 'pedestrian').map((definition) => {
+      const bikeShare = SHARED_BIKE_ROUTE_BY_ACTOR.get(definition.id);
       const bicycle = definition.kind === 'cyclist';
-      const route = TRAFFIC_ROUTES[bicycle ? CIRCUITS.length + bicycleIndex++ % CIRCUITS.length : motorIndex++ % CIRCUITS.length];
+      const route = bikeShare?.route ??
+        TRAFFIC_ROUTES[bicycle ? CIRCUITS.length + bicycleIndex++ % CIRCUITS.length : motorIndex++ % CIRCUITS.length];
       const length = TRAFFIC_LENGTHS[definition.vehicleType!];
       return {
-        definition, bicycle, route, length, segment: -1,
+        definition, bicycle, route, length, segment: -1, bikeShare,
         startLink: Math.floor(random() * route.segments.length / 2),
         offset: 1.5 + random(),
         desiredSpeed: bicycle ? 2.8 + random() * 0.6 : 3.8 + random(),
@@ -378,17 +632,36 @@ export class CityTraffic {
       return false;
     };
     placements.forEach(({ definition }, index) => {
+      if (placements[index].bikeShare) {
+        const route = placements[index].route;
+        const distance = placements[index].bikeShare.dockDistance;
+        let segment = 0;
+        while (segment < route.segments.length - 1 && distance >= route.segments[segment + 1].start) segment += 1;
+        placements[index].segment = segment;
+        return;
+      }
       if (!place(index, new Set())) throw new Error(`No safe initial lane for ${definition.id}.`);
     });
-    this.motions = placements.map(({ definition, bicycle, route, length, segment, offset, desiredSpeed }) => {
+    this.motions = placements.map(({ definition, bicycle, route, length, segment, offset, desiredSpeed, bikeShare }) => {
       const link = route.segments[segment];
-      const distance = link.start + Math.min(link.length / 2, length / 2 + offset);
-      return {
-        actor: createActor(definition.id, definition.kind, route, distance),
+      const distance = bikeShare?.dockDistance ?? link.start + Math.min(link.length / 2, length / 2 + offset);
+      const actor = createActor(definition.id, definition.kind, route, distance);
+      const motion: Motion = {
+        actor,
         route, segment, length, bicycle,
         desiredSpeed,
         advance: 0, permit: -1, releaseRemaining: 0, requestSince: -1,
       };
+      if (bikeShare) {
+        motion.bikeShare = {
+          station: bikeShare.station, dockDistance: bikeShare.dockDistance,
+          spurStart: bikeShare.spurStart, spurEnd: bikeShare.spurEnd,
+          dockRemaining: bikeShare.initialDwell, dockDuration: BIKE_SHARE_LAYOUT.dockSeconds,
+        };
+        actor.state = 'dwelling';
+        actor.sharedBike = this.sharedBikeState(motion);
+      }
+      return motion;
     });
     this.pedestrians = new StreetPedestrians(SIDEWALK_WALKING_ROUTES, seed);
     this.actors = Object.freeze([...this.motions.map(({ actor }) => actor), ...this.pedestrians.actors]);
@@ -412,6 +685,19 @@ export class CityTraffic {
     this.planMovement(seconds, acceleration, braking, reserveBraking, speedFactor);
     for (const motion of this.motions) {
       this.move(motion);
+      if (motion.bikeShare) {
+        const dockError = Math.min(
+          ahead(motion.actor.distance, motion.bikeShare.dockDistance, motion.route.length),
+          ahead(motion.bikeShare.dockDistance, motion.actor.distance, motion.route.length),
+        );
+        if (dockError < EPSILON && motion.advance > EPSILON &&
+          motion.bikeShare.dockRemaining === 0 && motion.actor.state !== 'dwelling') {
+          motion.bikeShare.dockRemaining = motion.bikeShare.dockDuration;
+          motion.actor.speed = 0;
+          motion.actor.state = 'dwelling';
+        }
+        motion.actor.sharedBike = this.sharedBikeState(motion);
+      }
       this.updateIndicator(motion);
       if (motion.permit >= 0) {
         motion.releaseRemaining -= motion.advance;
@@ -481,9 +767,10 @@ export class CityTraffic {
       const segment = other.route.segments[other.segment];
       if (segment.kind !== 'link') continue;
       if (segment.lane === incoming.lane &&
-        other.actor.distance - segment.start > motion.actor.distance - incoming.start) return false;
+        this.laneCoordinate(other.actor, segment) > this.laneCoordinate(motion.actor, incoming)) return false;
       if (segment.lane !== outgoing.lane) continue;
-      const clearance = other.actor.distance - segment.start - other.length / 2 - motion.length / 2 - this.gap(motion);
+      const clearance = this.laneCoordinate(other.actor, segment) - this.laneCoordinateAt(outgoing, 0) -
+        other.length / 2 - motion.length / 2 - this.gap(motion);
       if (clearance < needed) return false;
     }
     return true;
@@ -493,24 +780,123 @@ export class CityTraffic {
     return motion.bicycle ? TRAFFIC.bicycleGap : TRAFFIC.vehicleGap;
   }
 
+  private laneCoordinate(actor: ActorState, segment: TrafficSegment): number {
+    return actor.position.x * segment.dx + actor.position.z * segment.dz;
+  }
+
+  private laneCoordinateAt(segment: TrafficSegment, along: number): number {
+    return (segment.x + segment.dx * along) * segment.dx + (segment.z + segment.dz * along) * segment.dz;
+  }
+
+  private pedestrianGateOpen(gate: Extract<SharedBikeGate, { type: 'pedestrian' }>): boolean {
+    const crossingTime = gate.length / SHARED_BIKE_SPUR_SPEED;
+    // Walkers have fixed paces and never accelerate; if the nearest walker is farther along its
+    // lane than maxPace * crossingTime plus both bodies' safety headway, it cannot reach the
+    // bicycle crossing before the rider has fully cleared the walking lanes.
+    const clearance = PEDESTRIAN_MAX_PACE * crossingTime + PERSON_SPACE.headway * 2 +
+      TRAFFIC_LENGTHS.bicycle + 12;
+    const halfSpan = (gate.spanLength ?? gate.length) / 2 + PERSON_SPACE.width / 2;
+    return this.pedestrians.actors.every((actor) => gate.horizontal
+      ? Math.abs(actor.position.x - gate.crossingX) > halfSpan || Math.abs(actor.position.z - gate.crossingZ) >= clearance
+      : Math.abs(actor.position.z - gate.crossingZ) > halfSpan || Math.abs(actor.position.x - gate.crossingX) >= clearance);
+  }
+
+  private mergeGateOpen(
+    motion: Motion, gate: Extract<SharedBikeGate, { type: 'merge' }>, dt: number, reserveBraking: number, speedFactor: number,
+  ): boolean {
+    const ownStop = (motion.desiredSpeed * speedFactor) ** 2 / (2 * reserveBraking) + motion.desiredSpeed * speedFactor * dt;
+    for (const other of this.motions) {
+      if (other === motion) continue;
+      const segment = other.route.segments[other.segment];
+      if (segment.kind !== 'link' || segment.lane !== gate.targetLane) continue;
+      const delta = this.laneCoordinate(other.actor, segment) - gate.targetCoord;
+      const bodyClearance = Math.abs(delta) - other.length / 2 - motion.length / 2;
+      if (delta >= 0 && bodyClearance < this.gap(motion) + ownStop + motion.length) return false;
+      const otherStop = other.actor.speed ** 2 / (2 * reserveBraking) + other.actor.speed * dt;
+      if (delta < 0 && bodyClearance < this.gap(other) + otherStop + other.actor.speed * 3 + motion.length) return false;
+    }
+    return true;
+  }
+
+  private roadwayGateOpen(gate: Extract<SharedBikeGate, { type: 'roadway' }>, reserveBraking: number, speedFactor: number): boolean {
+    const crossingTime = gate.length / SHARED_BIKE_SPUR_SPEED;
+    for (const other of this.motions) {
+      if (other.bicycle) continue;
+      const segment = other.route.segments[other.segment];
+      if (segment.kind !== 'link' || segment.dx === 0 || Math.abs(other.actor.position.z - 95) > 4) continue;
+      const approach = Math.abs(other.actor.position.x - gate.crossingX);
+      const speed = Math.max(other.actor.speed, other.desiredSpeed * speedFactor);
+      const needed = other.length / 2 + TRAFFIC_LENGTHS.bicycle / 2 + TRAFFIC.vehicleGap +
+        speed * crossingTime + speed ** 2 / (2 * reserveBraking);
+      if (approach < needed) return false;
+    }
+    return true;
+  }
+
+  private gatesOpen(motion: Motion, gates: readonly SharedBikeGate[], dt: number, reserveBraking: number, speedFactor: number): boolean {
+    return gates.every((gate) => {
+      if (gate.type === 'pedestrian') return this.pedestrianGateOpen(gate);
+      if (gate.type === 'merge') return this.mergeGateOpen(motion, gate, dt, reserveBraking, speedFactor);
+      return this.roadwayGateOpen(gate, reserveBraking, speedFactor);
+    });
+  }
+
+  private gateAlong(segment: TrafficSegment, gate: SharedBikeGate): number {
+    if (segment.kind !== 'link') return 0;
+    if (gate.type === 'merge') return segment.length;
+    const center = (gate.crossingX - segment.x) * segment.dx + (gate.crossingZ - segment.z) * segment.dz;
+    const halfSpan = (gate.type === 'pedestrian' ? gate.spanLength ?? gate.length : gate.length) / 2;
+    return Math.max(0, Math.min(segment.length, center - halfSpan));
+  }
+
   private planMovement(dt: number, acceleration: number, braking: number, reserveBraking: number, speedFactor: number): void {
     for (const motion of this.motions) {
       const actor = motion.actor;
+      const sharedBike = motion.bikeShare;
+      if (sharedBike && sharedBike.dockRemaining > 0) {
+        sharedBike.dockRemaining = Math.max(0, sharedBike.dockRemaining - dt);
+        actor.speed = 0;
+        motion.advance = 0;
+        actor.state = 'dwelling';
+        actor.sharedBike = this.sharedBikeState(motion);
+        continue;
+      }
       const segment = motion.route.segments[motion.segment];
       let available = motion.route.length;
       if (segment.kind === 'link') {
         const along = actor.distance - segment.start;
-        if (motion.permit !== segment.intersection) {
+        const laneCoord = this.laneCoordinate(actor, segment);
+        if (segment.intersection >= 0 && motion.permit !== segment.intersection) {
           available = Math.max(0, segment.length - along - motion.length / 2 - STOP_APPROACH_BUFFER);
         }
         for (const leader of this.motions) {
           if (leader === motion) continue;
           const leaderSegment = leader.route.segments[leader.segment];
           if (leaderSegment.kind !== 'link' || leaderSegment.lane !== segment.lane) continue;
-          const difference = leader.actor.distance - leaderSegment.start - along;
+          const difference = this.laneCoordinate(leader.actor, leaderSegment) - laneCoord;
           if (difference > 0) available = Math.min(available, Math.max(0, difference -
             (motion.length + leader.length) / 2 - this.gap(motion)));
         }
+      }
+      if (segment.gates?.length) {
+        const along = actor.distance - segment.start;
+        for (const gate of segment.gates) {
+          const gateAlong = this.gateAlong(segment, gate);
+          if (along <= gateAlong + EPSILON &&
+            !this.gatesOpen(motion, [gate], dt, reserveBraking, speedFactor)) {
+            available = Math.min(available, Math.max(0, gateAlong - along - motion.length / 2 - 0.2));
+          }
+        }
+      }
+      const nextSegment = motion.route.segments[(motion.segment + 1) % motion.route.segments.length];
+      if (!segment.gates?.length && nextSegment.gates?.length) {
+        const toGate = ahead(actor.distance, nextSegment.start, motion.route.length);
+        if (toGate > EPSILON && toGate <= available &&
+          !this.gatesOpen(motion, nextSegment.gates, dt, reserveBraking, speedFactor)) available = Math.min(available, toGate);
+      }
+      if (sharedBike) {
+        const toDock = ahead(actor.distance, sharedBike.dockDistance, motion.route.length);
+        if (toDock > EPSILON && toDock <= available) available = toDock;
       }
       const brakeTick = braking * dt;
       const reserveTick = reserveBraking * dt;
@@ -536,6 +922,7 @@ export class CityTraffic {
       }
       actor.state = motion.advance > EPSILON ? 'moving' : 'waiting';
       if (actor.lighting) actor.lighting.braking = previousSpeed - actor.speed > 0.2 * dt || actor.state === 'waiting';
+      if (sharedBike) actor.sharedBike = this.sharedBikeState(motion);
     }
   }
 
@@ -548,6 +935,30 @@ export class CityTraffic {
       current.start + current.length - motion.actor.distance <= TRAFFIC.indicatorApproach;
     // Vehicles face +Z: a positive route cross product turns toward local -X (driver's right).
     motion.actor.lighting.turn = !approaching || junction.turn === 0 ? null : junction.turn > 0 ? 'right' : 'left';
+  }
+
+  private sharedBikeState(motion: Motion): BikeShareTripState {
+    const trip = motion.bikeShare!;
+    const actor = motion.actor;
+    const dockError = Math.min(ahead(actor.distance, trip.dockDistance, motion.route.length),
+      ahead(trip.dockDistance, actor.distance, motion.route.length));
+    const docked = actor.state === 'dwelling' && dockError < EPSILON;
+    let phase: BikeSharePhase = 'riding';
+    if (docked) phase = trip.dockRemaining < 2 ? 'docked' : 'locking';
+    else if (actor.distance >= trip.spurStart && actor.distance <= trip.spurEnd) {
+      phase = actor.distance < trip.dockDistance ? 'pushing-in' : 'pushing-out';
+    }
+    return {
+      stationId: trip.station.id,
+      phase,
+      x: actor.position.x,
+      z: actor.position.z,
+      heading: actor.heading,
+      speed: actor.speed,
+      distanceFromDock: ahead(trip.dockDistance, actor.distance, motion.route.length),
+      docked,
+      lockConfirmed: docked && trip.dockRemaining < trip.dockDuration - 2,
+    };
   }
 
   private move(motion: Motion): void {

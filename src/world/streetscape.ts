@@ -6,6 +6,7 @@ import {
   SIDEWALK_OFFSET, SIGNAL_POLE_OFFSET, STOP_LINE_OFFSET, STREET_X, STREET_Z, TWO_WAY_BIKE_STREETS,
   TWO_WAY_BIKE_TRACK, VEHICLE_OFFSET, bikeLaneOffset,
 } from '../content/streets';
+import { JUNIPER_CYCLE_ACCESS } from '../content/bikeShare';
 
 type Triple = readonly [number, number, number];
 type SurfaceName = 'sand' | 'stone' | 'paving' | 'road' | 'line' | 'cream' | 'clay' |
@@ -420,8 +421,19 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
         for (const side of track ? [track.side] : [-1, 1]) {
           stripe(p.teal, road, segment.center, side * (track ? TWO_WAY_BIKE_TRACK.offset : BIKE_OFFSET),
             track ? TWO_WAY_BIKE_TRACK.width : 1.28, segment.length, 0.004, 0.015);
-          stripe(p.line, road, segment.center, side * (track ? TWO_WAY_BIKE_TRACK.separatorOffset - 0.08 : BIKE_OFFSET - 0.77),
-            0.085, segment.length, 0.016, 0.016);
+          const separatorOffset = side * (track ? TWO_WAY_BIKE_TRACK.separatorOffset - 0.08 : BIKE_OFFSET - 0.77);
+          const accessGap = track && road === JUNIPER_CYCLE_ACCESS.roadZ ? JUNIPER_CYCLE_ACCESS : undefined;
+          if (accessGap && segment.center - segment.length / 2 < accessGap.x + accessGap.separatorBreakHalfLength &&
+            segment.center + segment.length / 2 > accessGap.x - accessGap.separatorBreakHalfLength) {
+            const start = segment.center - segment.length / 2;
+            const end = segment.center + segment.length / 2;
+            const leftEnd = accessGap.x - accessGap.separatorBreakHalfLength;
+            const rightStart = accessGap.x + accessGap.separatorBreakHalfLength;
+            if (leftEnd > start) stripe(p.line, road, (start + leftEnd) / 2, separatorOffset, 0.085, leftEnd - start, 0.016, 0.016);
+            if (end > rightStart) stripe(p.line, road, (rightStart + end) / 2, separatorOffset, 0.085, end - rightStart, 0.016, 0.016);
+          } else {
+            stripe(p.line, road, segment.center, separatorOffset, 0.085, segment.length, 0.016, 0.016);
+          }
         }
       }
       for (const segment of streetSpans(extent, crossings, STOP_LINE_OFFSET)) {
@@ -434,6 +446,8 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
             const offset = side * (track ? TWO_WAY_BIKE_TRACK.separatorOffset : 3.1);
             const x = vertical ? road + offset : along;
             const z = vertical ? along : road + offset;
+            if (track && road === JUNIPER_CYCLE_ACCESS.roadZ &&
+              Math.abs(along - JUNIPER_CYCLE_ACCESS.x) <= JUNIPER_CYCLE_ACCESS.separatorBreakHalfLength) continue;
             add(cylinder, p.line, [x, 0.32, z], [0.07, 0.64, 0.07]);
             if (track) add(cylinder, p.rubber, [x, 0.1, z], [0.075, 0.15, 0.075]);
             else block(p.rubber, x, 0.05, z, 0.24, 0.07, 0.24);
@@ -445,6 +459,11 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
         }
       }
     }
+  }
+  block(p.teal, JUNIPER_CYCLE_ACCESS.x, 0.007,
+    JUNIPER_CYCLE_ACCESS.roadZ + 3.9, JUNIPER_CYCLE_ACCESS.markingWidth, 0.018, JUNIPER_CYCLE_ACCESS.markingLength);
+  for (const z of [92.25, 99.1, 105.35]) {
+    block(p.line, JUNIPER_CYCLE_ACCESS.x, 0.024, z, JUNIPER_CYCLE_ACCESS.markingWidth * 0.72, 0.024, 0.12);
   }
   for (const intersection of INTERSECTIONS) {
     for (const side of [-1, 1]) {

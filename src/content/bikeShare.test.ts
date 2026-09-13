@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   BIKE_SHARE_LAYOUT as L, BIKE_SHARE_STATIONS, BIKE_SHARE_STYLE, BIKE_SHARE_POCKETS, COURTSIDE_BIKE_POCKET,
-  bikeShareBounds, bikeSharePoint, sampleBikeShare, validateBikeShareStations,
+  bikeShareBounds, bikeSharePoint, sampleBikeShare, validateBikeShareStations, type BikeShareTripState,
 } from './bikeShare';
 import { BASKETBALL_COURT, PICKLEBALL_COURT, RECREATION_AREA } from './courts';
 import { COURT_LAMPS, LAMP_GEOMETRY } from './lighting';
@@ -13,61 +13,53 @@ import { SIDEWALK_SHEDS, STREET_BUILDINGS } from '../world/streetscape';
 const overlaps = (a: ReturnType<typeof bikeShareBounds>, b: ReturnType<typeof bikeShareBounds>) =>
   a.minX < b.maxX && a.maxX > b.minX && a.minZ < b.maxZ && a.maxZ > b.minZ;
 
+const trip = (station: typeof BIKE_SHARE_STATIONS[number], phase: BikeShareTripState['phase'],
+  docked: boolean): BikeShareTripState => ({
+  stationId: station.id, phase, x: station.x + 3, z: station.z - 2, heading: Math.PI / 2,
+  speed: docked ? 0 : 2.8, distanceFromDock: docked ? 0 : 5, docked, lockConfirmed: docked,
+});
+
 describe('original shared-bike content', () => {
-  it('conserves every bike and shows both occupied and empty docks throughout twenty minutes', () => {
+  it('conserves every bike while a rider is docked or taking a trip', () => {
     for (const station of BIKE_SHARE_STATIONS) {
-      const phases = new Set<string>();
-      for (let time = 0; time < 1200; time += 0.125) {
-        const sample = sampleBikeShare(station, time);
-        phases.add(sample.phase);
+      for (const state of [trip(station, 'docked', true), trip(station, 'pushing-out', false), trip(station, 'riding', false), trip(station, 'pushing-in', false)]) {
+        const sample = sampleBikeShare(station, 0, false, state);
         expect(sample.occupiedSlots).toHaveLength(11);
         expect(sample.occupiedSlots.filter(Boolean).length + sample.awayBikes).toBe(10);
         expect(sample.occupiedSlots[1]).toBe(false);
         expect(sample.occupiedSlots[2]).toBe(true);
-        expect(Math.hypot(sample.personX - sample.bikeX, sample.personZ - sample.bikeZ)).toBeCloseTo(L.personBehind);
-        expect(sample.displacement).toBeGreaterThanOrEqual(-L.travel);
-        expect(sample.displacement).toBeLessThanOrEqual(0);
-        expect(Math.abs(sample.speed)).toBeLessThanOrEqual(0.6 + 1e-10);
+        expect(sample.occupiedSlots[station.activeSlot]).toBe(state.docked);
+        expect(sample.awayBikes).toBe(state.docked ? 0 : 1);
       }
-      expect(phases).toEqual(new Set(['unlocking', 'walking-out', 'checking', 'returning', 'locking', 'resting']));
     }
   });
 
-  it('has continuous position, speed, touch gestures and wheel phase through every join', () => {
+  it('uses the traffic rider pose during a trip and keeps the standing neighbor behind the bike', () => {
     const station = BIKE_SHARE_STATIONS[0];
-    for (const boundary of [4, 12, 20, 28, 32, 48]) {
-      const before = sampleBikeShare(station, boundary - 1e-6);
-      const after = sampleBikeShare(station, boundary + 1e-6);
-      expect(Math.abs(before.bikeZ - after.bikeZ)).toBeLessThan(1e-6);
-      expect(Math.abs(before.personZ - after.personZ)).toBeLessThan(1e-6);
-      expect(Math.abs(before.speed - after.speed)).toBeLessThan(1e-6);
-      expect(Math.abs(before.latchTouch - after.latchTouch)).toBeLessThan(1e-6);
-    }
-    expect(sampleBikeShare(station, 0)).toEqual(sampleBikeShare(station, L.period));
+    const state = trip(station, 'pushing-out', false);
+    const sample = sampleBikeShare(station, 0, false, state);
+    expect(sample.phase).toBe('pushing-out');
+    expect(sample.bikeX).toBe(state.x);
+    expect(sample.bikeZ).toBe(state.z);
+    expect(sample.heading).toBe(state.heading);
+    expect(Math.hypot(sample.personX - sample.bikeX, sample.personZ - sample.bikeZ)).toBeCloseTo(L.personBehind);
     expect(BIKE_SHARE_STYLE.wheelRadius).toBeGreaterThan(0.3);
   });
 
-  it('uses only retained absolute time and holds a docked reduced-motion still', () => {
+  it('holds a docked reduced-motion still', () => {
     for (const station of BIKE_SHARE_STATIONS) {
-      const saved = sampleBikeShare(station, 37.125);
-      sampleBikeShare(station, 999);
-      expect(sampleBikeShare(station, 37.125)).toEqual(saved);
       expect(sampleBikeShare(station, 0, true)).toEqual(sampleBikeShare(station, 845, true));
       expect(sampleBikeShare(station, 845, true).docked).toBe(true);
     }
   });
 
-  it('confirms a lock only after return and locking, never during unlocking or approach', () => {
+  it('confirms a lock only after the rider has redocked', () => {
     const station = BIKE_SHARE_STATIONS[0];
-    for (const time of [0, 2, 4, 12, 20, 27.999, 28, 30, 31.999]) {
-      expect(sampleBikeShare(station, time).lockConfirmed).toBe(false);
-    }
-    for (const time of [32, 38, 47.999]) {
-      const sample = sampleBikeShare(station, time);
-      expect(sample.lockConfirmed).toBe(true);
-      expect(sample.docked).toBe(true);
-      expect(sample.awayBikes).toBe(0);
-    }
+    expect(sampleBikeShare(station, 0, false, trip(station, 'riding', false)).lockConfirmed).toBe(false);
+    const sample = sampleBikeShare(station, 0, false, trip(station, 'docked', true));
+    expect(sample.lockConfirmed).toBe(true);
+    expect(sample.docked).toBe(true);
+    expect(sample.awayBikes).toBe(0);
   });
 
   it('keeps rows and full handling footprints in reserved pockets clear of two-way sidewalks', () => {
@@ -86,7 +78,7 @@ describe('original shared-bike content', () => {
         expect(sample.bikeZ + 0.96).toBeLessThan(b.maxZ);
         expect(sample.personZ - 0.6).toBeGreaterThan(b.minZ);
         expect(sample.personX - 0.4).toBeGreaterThan(b.minX);
-        expect(sample.personX + 0.4).toBeLessThan(station.x + 2 * L.slotSpacing - 0.27);
+        expect(sample.personX + 0.4).toBeLessThan(b.maxX);
       }
     }
   });
@@ -103,8 +95,8 @@ describe('original shared-bike content', () => {
     expect(bounds.maxZ).toBeLessThan(PICKLEBALL_COURT.z - PICKLEBALL_COURT.runoffDepth / 2);
     for (let time = 0; time < 48; time += 0.125) {
       const sample = sampleBikeShare(station, time);
-      expect(sample.bikeX).toBe(station.x);
-      expect(sample.personX).toBe(station.x);
+      expect(sample.bikeX).toBe(station.x + station.activeSlot * L.slotSpacing);
+      expect(sample.personX).toBe(station.x + station.activeSlot * L.slotSpacing);
       expect(sample.personZ + L.personBehind).toBeCloseTo(sample.bikeZ);
       expect(sample.personZ - 0.6).toBeGreaterThan(bounds.minZ);
       expect(sample.bikeZ + 0.96).toBeLessThan(bounds.maxZ);
