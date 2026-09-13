@@ -442,5 +442,6 @@ describe('runtime ownership and suspension', () => {
     document.dispatchEvent(new Event('visibilitychange'));
     window.dispatchEvent(new Event('pageshow'));
     expect(frames.size).toBe(0);
-  });
+    // Ten complete world builds and disposals; keep headroom under parallel suite load.
+  }, 20_000);
 });

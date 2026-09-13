@@ -13,6 +13,7 @@ import { buildCentralPark } from './park';
 import { buildPavementMarkings } from './pavement';
 import { buildStreetscape } from './streetscape';
 import { buildStreetSigns } from './streetSigns';
+import { buildStopSigns } from './stopSigns';
 import { poseNeutral } from './locomotion';
 import type { VehicleRig, WheelRig } from './locomotion';
 import { buildPersonRig, personPart, type PersonArt } from './person';
@@ -305,15 +306,16 @@ export function buildCityScene(): CityScene {
     }
   }
   district.finish();
-  const streetSigns = buildStreetSigns();
-  streetSigns.traverse((object) => {
-    if (object instanceof THREE.Mesh) {
-      geometry(object.geometry);
-      const surfaces = Array.isArray(object.material) ? object.material : [object.material];
-      surfaces.forEach(material);
-    }
-  });
-  scene.add(streetSigns);
+  for (const signs of [buildStreetSigns(), buildStopSigns()]) {
+    signs.traverse((object) => {
+      if (object instanceof THREE.Mesh) {
+        geometry(object.geometry);
+        const surfaces = Array.isArray(object.material) ? object.material : [object.material];
+        surfaces.forEach(material);
+      }
+    });
+    scene.add(signs);
+  }
   for (const object of scene.children) {
     if (object instanceof THREE.InstancedMesh && object.material === palette.glass) {
       const glow = new Float32Array(object.count * 3);

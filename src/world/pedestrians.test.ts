@@ -64,10 +64,15 @@ describe('connected pedestrian trips', () => {
               along >= 0 && along <= path.length + PEDESTRIAN_BEHAVIOR.landingClearance + 0.06;
           });
           if (!crossing) throw new Error(`Walker left painted crossing: ${actor.id}`);
-          const phase = traffic.signals[crossing.intersection].phase;
-          if (before.activity !== 'crossing' && phase !== 'pedestrians') throw new Error('Entered against WALK');
-          if (phase !== 'pedestrians' && phase !== 'clearance') throw new Error('Released cars before landing cleared');
-          sawClearance ||= phase === 'clearance' && phases[crossing.intersection] === 'clearance';
+          const state = traffic.signals[crossing.intersection];
+          if (state.control === 'signal') {
+            if (before.activity !== 'crossing' && state.phase !== 'pedestrians') throw new Error('Entered against WALK');
+            if (state.phase !== 'pedestrians' && state.phase !== 'clearance') throw new Error('Released cars before landing cleared');
+            sawClearance ||= state.phase === 'clearance' && phases[crossing.intersection] === 'clearance';
+          } else if (before.activity !== 'crossing' && !state.walk) {
+            // Posted corners have no phase clock: walkers may only step off once the box is free.
+            throw new Error('Entered a posted crossing without right of way');
+          }
           crossingTimes[index] += DT;
           if (crossingTimes[index] > 25) throw new Error(`Stranded in crossing: ${actor.id}`);
           crossed.add(actor.id);
@@ -118,7 +123,7 @@ describe('connected pedestrian trips', () => {
 
   it('walks on after a denied crossing, including corners rounded just below their exact distance', () => {
     const pedestrians = new StreetPedestrians(SIDEWALK_ROUTES, 2401);
-    const signals = INTERSECTIONS.map(({ id }) => ({ id, phase: 'clearance' as const }));
+    const signals = INTERSECTIONS.map(({ id }) => ({ id, control: 'signal' as const, phase: 'clearance' as const, walk: false }));
     const waiting = new Float64Array(pedestrians.actors.length);
     const initial = pedestrians.actors.map(({ travelDistance }) => travelDistance!);
     for (let tick = 0; tick < 9000; tick++) {

@@ -4,8 +4,8 @@ import { PARK_BOUNDS } from '../content/park';
 import { PERSON_SPACE } from '../content/people';
 import {
   BIKE_OFFSET, bikeLaneOffset, CITY_EXTENT, INTERSECTION_GATE, INTERSECTIONS, ROAD_HALF_WIDTH,
-  SIDEWALK_HALF_WIDTH, SIDEWALK_OFFSET, STOP_LINE_OFFSET, STREET_BLOCKS, STREET_X, STREET_Z, TRAFFIC_ACTORS, VEHICLE_OFFSET,
-  TWO_WAY_BIKE_TRACK,
+  SIDEWALK_HALF_WIDTH, SIDEWALK_OFFSET, SIGNALED_INTERSECTIONS, STOP_LINE_OFFSET, STOP_SIGN_INTERSECTIONS,
+  STREET_BLOCKS, STREET_X, STREET_Z, TRAFFIC_ACTORS, VEHICLE_OFFSET, TWO_WAY_BIKE_TRACK,
 } from '../content/streets';
 import { ActorSimulation, type ActorState } from './actors';
 import {
@@ -116,6 +116,16 @@ describe('shared connected street graph', () => {
     expect(CITY_EXTENT).toEqual({ x: 110, z: 170 });
     expect(INTERSECTIONS).toHaveLength(36);
     expect(new Set(INTERSECTIONS.map(({ id }) => id)).size).toBe(36);
+    expect(STOP_SIGN_INTERSECTIONS.map(({ id }) => id)).toEqual([
+      'intersection-0-0', 'intersection-1-0', 'intersection-4-1', 'intersection-5-1',
+      'intersection-4-4', 'intersection-0-5', 'intersection-1-5', 'intersection-4-5',
+    ]);
+    expect(SIGNALED_INTERSECTIONS).toHaveLength(28);
+    expect(STOP_SIGN_INTERSECTIONS.concat(SIGNALED_INTERSECTIONS).map(({ id }) => id).sort())
+      .toEqual(INTERSECTIONS.map(({ id }) => id).sort());
+    // Quiet outer corners only: the park-fronting avenues and cross streets stay signalized.
+    expect(STOP_SIGN_INTERSECTIONS.every(({ x, z }) => Math.abs(x) !== 46 && Math.abs(z) !== 95)).toBe(true);
+    expect(new Set(STOP_SIGN_INTERSECTIONS.map(({ x, z }) => `${x > 0 ? 'e' : 'w'}${z > 0 ? 'n' : 's'}`)).size).toBe(4);
     expect(STREET_BLOCKS).toHaveLength(24);
     expect(STREET_BLOCKS.some(({ id }) => id === 'block-2-2')).toBe(false);
     expect(TRAFFIC_ACTORS).toHaveLength(192);
@@ -401,6 +411,7 @@ describe('CityTraffic', () => {
     const dry = new CityTraffic();
     const slippery = new CityTraffic();
     const initialPhases = dry.signals.map(({ phase }) => phase);
+    const cycling = dry.signals.map(({ control }) => control === 'signal');
     const dryChanges = new Float64Array(INTERSECTIONS.length);
     const slipperyChanges = new Float64Array(INTERSECTIONS.length);
     dry.step(DT);
@@ -416,10 +427,24 @@ describe('CityTraffic', () => {
         if (slipperyChanges[index] === 0 && slippery.signals[index].phase !== initialPhases[index]) slipperyChanges[index] = slippery.elapsed;
       }
     }
-    expect(dryChanges.every((time) => time > 0)).toBe(true);
+    // Posted corners hold a constant stop phase; only the cycling signals must keep clock time.
+    expect(dryChanges.every((time, index) => time > 0 === cycling[index])).toBe(true);
     expect(slipperyChanges).toEqual(dryChanges);
     expect(slippery.elapsed).toBe(dry.elapsed);
-    expect(slippery.actors.slice(MOTION_COUNT)).toEqual(dry.actors.slice(MOTION_COUNT));
+    // Walkers keep their own pace: only those yielding to real vehicles at a posted stop may differ.
+    const posted = INTERSECTIONS.filter(({ control }) => control !== 'signal');
+    let dryWalk = 0;
+    let slipperyWalk = 0;
+    for (let index = MOTION_COUNT; index < dry.actors.length; index += 1) {
+      const walker = dry.actors[index];
+      const other = slippery.actors[index];
+      dryWalk += walker.travelDistance ?? 0;
+      slipperyWalk += other.travelDistance ?? 0;
+      const nearPosted = posted.some(({ x, z }) => Math.hypot(walker.position.x - x, walker.position.z - z) < 24 ||
+        Math.hypot(other.position.x - x, other.position.z - z) < 24);
+      if (!nearPosted) expect(other, walker.id).toEqual(walker);
+    }
+    expect(slipperyWalk).toBeGreaterThan(dryWalk * 0.99);
   });
 
   it.each([0, 2401])('retains footprint and stop-line safety during abrupt grip changes for seed %s', (seed) => {
@@ -493,7 +518,8 @@ describe('CityTraffic', () => {
       expect(totals[index], traffic.actors[index].id).toBeGreaterThan(50);
       expect(longestIdle[index], traffic.actors[index].id).toBeLessThan(100);
     }
-  });
+    // Stop-bar dwell adds queue churn to this seed pair; keep headroom under parallel suite load.
+  }, 20_000);
 
   it('clamps long deltas and freezes every timer on zero delta', () => {
     const first = new CityTraffic();
@@ -591,6 +617,64 @@ describe('CityTraffic', () => {
     expect(passed).toEqual(new Set([0, 1]));
   });
 
+  it.each([0, 2401])('brings every driver to a full halt at a posted stop bar and clears the crosswalk for seed %s', (seed) => {
+    const traffic = new CityTraffic(seed);
+    const actors = traffic.actors;
+    const routes = actors.map((_, index) => actorRoute(index));
+    const posted = INTERSECTIONS.map(({ control }) => control === 'all-way-stop');
+    const halted = new Float64Array(MOTION_COUNT);
+    const inside = new Int32Array(MOTION_COUNT).fill(-1);
+    const postedEntries = new Uint32Array(INTERSECTIONS.length);
+    const postedWalks = new Uint32Array(INTERSECTIONS.length);
+    let rolled = 0;
+    for (let tick = 0; tick < 600 / DT; tick += 1) {
+      traffic.step(DT);
+      for (let index = 0; index < MOTION_COUNT; index += 1) {
+        const actor = actors[index];
+        const segment = actorSegment(actor, routes[index]);
+        if (segment.kind === 'junction') {
+          if (inside[index] !== segment.intersection) {
+            inside[index] = segment.intersection;
+            if (posted[segment.intersection]) {
+              // One tick of slack: the permit lands on the same tick the dwell completes.
+              expect(halted[index] + DT,
+                `${actor.id} entered ${INTERSECTIONS[segment.intersection].id} without stopping`)
+                .toBeGreaterThanOrEqual(TRAFFIC.stopSeconds - 1e-9);
+              postedEntries[segment.intersection] += 1;
+            } else if (halted[index] === 0) rolled += 1;
+            halted[index] = 0;
+          }
+          continue;
+        }
+        inside[index] = -1;
+        if (!posted[segment.intersection] || actor.speed > 0) continue;
+        const frontToLine = segment.start + segment.length - actor.distance - halfLength(index) -
+          (STOP_LINE_OFFSET - INTERSECTION_GATE);
+        if (Math.abs(frontToLine - TRAFFIC.stopBuffer) < 0.01) halted[index] += DT;
+      }
+      for (let index = 0; index < INTERSECTIONS.length; index += 1) {
+        if (!posted[index] || !traffic.pedestrians.isCrossingOccupied(index)) continue;
+        postedWalks[index] += 1;
+        const center = INTERSECTIONS[index];
+        for (let motion = 0; motion < MOTION_COUNT; motion += 1) {
+          const actor = actors[motion];
+          expect(overlap(actor.position.x, actor.position.z, actor.heading, halfLength(motion), halfWidth(motion),
+            center.x, center.z, 0, INTERSECTION_GATE, INTERSECTION_GATE),
+          `${actor.id} failed to yield the crosswalk at ${center.id}`).toBe(false);
+        }
+      }
+    }
+    // Posted corners keep carrying drivers, walkers still use most of them, and signalized greens roll.
+    INTERSECTIONS.forEach((intersection, index) => {
+      if (!posted[index]) return;
+      expect(postedEntries[index], `${intersection.id} must serve drivers`).toBeGreaterThan(0);
+    });
+    expect(postedWalks.filter((count) => count > 0).length,
+      'walkers must use posted crossings').toBeGreaterThanOrEqual(4);
+    expect(rolled).toBeGreaterThan(0);
+    // Ten simulated minutes per seed: generous under parallel suite load.
+  }, 30_000);
+
   it.each(GRIP_SOAKS)('keeps seed $seed safe and live for twenty minutes at grip $traction (changing=$changing)', ({ seed, traction: initialTraction, changing }) => {
     const traffic = new CityTraffic(seed);
     const actors = traffic.actors;
@@ -687,15 +771,21 @@ describe('CityTraffic', () => {
       }
       for (let intersection = 0; intersection < INTERSECTIONS.length; intersection += 1) {
         const center = INTERSECTIONS[intersection];
-        const phase = traffic.signals[intersection].phase;
+        const { phase, control, walk } = traffic.signals[intersection];
         phases.add(phase);
+        // Drivers must hold clear of the box whenever a walker owns the crossing, posted or signalized.
+        const walkers = control === 'signal' ? phase === 'pedestrians' :
+          traffic.pedestrians.isCrossingOccupied(intersection);
+        if (control === 'signal' && walk !== (phase === 'pedestrians')) {
+          throw new Error(`Signal ${center.id} published a walk flag off its phase`);
+        }
         let occupied = -1;
         for (let index = 0; index < MOTION_COUNT; index += 1) {
           const actor = actors[index];
           if (Math.abs(actor.position.x - center.x) > 11 || Math.abs(actor.position.z - center.z) > 11) continue;
           if (!overlap(actor.position.x, actor.position.z, actor.heading, halfLength(index), halfWidth(index),
             center.x, center.z, 0, INTERSECTION_GATE, INTERSECTION_GATE)) continue;
-          if (occupied >= 0 || phase === 'pedestrians') {
+          if (occupied >= 0 || walkers) {
             throw new Error(`Intersection conflict ${center.id}: ${actors[occupied]?.id}/${actor.id}, ${phase}, seed ${seed}, tick ${tick}`);
           }
           occupied = index;
@@ -725,7 +815,7 @@ describe('CityTraffic', () => {
       if (actors.length !== TRAFFIC_ACTORS.length || traffic.signals.length !== INTERSECTIONS.length) throw new Error('Unbounded population');
     }
     expect(traffic.elapsed).toBeCloseTo(SOAK_SECONDS, 6);
-    expect(phases).toEqual(new Set(['north-south', 'east-west', 'clearance', 'pedestrians']));
+    expect(phases).toEqual(new Set(['north-south', 'east-west', 'clearance', 'pedestrians', 'stop']));
     expect(maxAcceleration).toBeLessThanOrEqual(TRAFFIC.acceleration + 1e-6);
     expect(maxBraking).toBeLessThanOrEqual(TRAFFIC.braking + 1e-4);
     for (let index = 0; index < actors.length; index += 1) {

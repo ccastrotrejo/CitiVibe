@@ -21,7 +21,7 @@ No account, transaction, identity, location permission, or network service shoul
 | Layer | Concrete behavior | Avoid |
 | --- | --- | --- |
 | Routes | Vehicles and walkers follow connected paths at varied but coherent speeds. Routes have visible destinations or loops. | Random jitter, synchronized clones, actors teleporting across visible joins. |
-| Street rules | Road vehicles and cyclists queue at signals; conflicting movements take turns; park visitors pause and yield at shared paths. | Overlapping traffic, permanent deadlock, or cars entering the park. |
+| Street rules | Road vehicles and cyclists queue at signals, halt fully at posted all-way stops and take turns with waiting walkers; conflicting movements take turns; park visitors pause and yield at shared paths. | Overlapping traffic, permanent deadlock, or cars entering the park. |
 | Human scale | People sit, walk through park gates, or run around the reservoir; cyclists use protected neighborhood tracks in both directions. | Runners represented only by paint or accelerated walking poses. |
 | Micro-animation | Small wheel motion, gentle tree or flag movement, fountain detail, rooftop activity. | Constant bobbing on every object, large distracting motion, gratuitous effects. |
 | Environment | Gradual light, cloud, rain, and mist changes; lighting cues respond to the selected time. | Abrupt automatic changes, mandatory weather, live data dependency. |
