@@ -26,25 +26,55 @@ describe('retained environment state', () => {
     expect(Object.values(frame.palette).every((value, index) => value === colors[index])).toBe(true);
   });
 
-  it('interpolates explicit weather for two seconds, handles interruptions, and applies static presets', () => {
+  it('eases manual weather over about eight seconds instead of completing in two', () => {
     const environment = new EnvironmentController();
     environment.setNatural(true);
     environment.setWeather('rain');
     expect(environment.natural).toBe(false);
     expect(environment.frame.rain).toBe(0);
     advance(environment, 1);
-    expect(environment.frame.rain).toBeCloseTo(0.5);
-    environment.setWeather('mist');
-    expect(environment.frame.rain).toBeCloseTo(0.5);
-    advance(environment, 2);
-    expect(environment.frame.rain).toBeCloseTo(0);
-    expect(environment.frame.fog).toBeCloseTo(0.016);
+    expect(environment.frame.rain).toBeGreaterThan(0.1);
+    expect(environment.frame.rain).toBeLessThan(0.3);
+    advance(environment, 1);
+    expect(environment.frame.rain).toBeGreaterThan(0.4);
+    expect(environment.frame.rain).toBeLessThan(0.6);
+    advance(environment, 6);
+    expect(environment.frame.rain).toBeGreaterThan(0.99);
+    expect(environment.frame.rain).toBeLessThan(1);
+    advance(environment, 20);
+    expect(environment.frame.rain).toBe(1);
+  });
+
+  it('retargets without jumping or resetting the ongoing blend velocity', () => {
+    const environment = new EnvironmentController();
+    environment.setWeather('rain');
+    advance(environment, 1);
+    const dt = 0.0001;
+    const before = environment.frame.rain;
+    environment.step(dt, DATE);
+    const atSwitch = environment.frame.rain;
+    const incomingVelocity = (atSwitch - before) / dt;
+    const held = structuredClone(environment.frame);
+    environment.setWeather('sunny');
+    expect(environment.frame).toEqual(held);
+    environment.step(dt, DATE);
+    expect(incomingVelocity).toBeGreaterThan(0.1);
+    expect((environment.frame.rain - atSwitch) / dt).toBeCloseTo(incomingVelocity, 3);
+    advance(environment, 25);
+    expect(environment.frame.rain).toBe(0);
+  });
+
+  it('applies static presets immediately and clears all pending blend momentum', () => {
+    const environment = new EnvironmentController();
+    environment.setWeather('snow');
+    advance(environment, 1);
     environment.setWeather('rain', true);
     expect(environment.frame.rain).toBe(1);
     environment.setWeather('sunny', true);
     expect(environment.frame.rain).toBe(0);
     advance(environment, 1);
     expect(environment.frame.rain).toBe(0);
+    expect(environment.frame.snow).toBe(0);
   });
 
   it('changes natural weather deterministically every 180–360 simulation seconds without repeats', () => {
@@ -73,7 +103,7 @@ describe('retained environment state', () => {
     expect(first.frame).toEqual(second.frame);
   });
 
-  it('crossfades natural selections for twenty seconds rather than applying them abruptly', () => {
+  it('lets natural weather drift over about thirty seconds and smoothly accepts manual interruption', () => {
     const environment = new EnvironmentController();
     environment.setNatural(true);
     while (environment.weather === 'sunny') environment.step(0.1, DATE);
@@ -85,8 +115,59 @@ describe('retained environment state', () => {
     expect(environment.frame.clouds).toBeGreaterThan(initial);
     expect(environment.frame.clouds).toBeLessThan(target.frame.clouds);
     advance(environment, 10);
-    expect(environment.frame.clouds).toBeCloseTo(target.frame.clouds);
+    const totalChange = target.frame.clouds - 0.12;
+    expect((environment.frame.clouds - 0.12) / totalChange).toBeLessThan(0.98);
+    advance(environment, 10);
+    expect((environment.frame.clouds - 0.12) / totalChange).toBeGreaterThan(0.99);
     expect(environment.natural).toBe(true);
+    const dt = 0.0001;
+    const before = environment.frame.clouds;
+    environment.step(dt, DATE);
+    const atSwitch = environment.frame.clouds;
+    environment.setWeather('sunny');
+    expect(environment.frame.clouds).toBe(atSwitch);
+    environment.step(dt, DATE);
+    expect((environment.frame.clouds - atSwitch) / dt).toBeCloseTo((atSwitch - before) / dt, 4);
+  });
+
+  it('keeps every interrupted preset blend inside its physical and palette bounds', () => {
+    const environment = new EnvironmentController();
+    for (let pass = 0; pass < 4; pass++) {
+      for (const weather of WEATHER_MODES) {
+        const held = structuredClone(environment.frame);
+        environment.setWeather(weather);
+        expect(environment.frame).toEqual(held);
+        advance(environment, 0.7);
+        expect(environment.frame.rain).toBeGreaterThanOrEqual(0);
+        expect(environment.frame.snow).toBeGreaterThanOrEqual(0);
+        expect(environment.frame.rain + environment.frame.snow).toBeLessThanOrEqual(1);
+        expect(environment.frame.windSpeed).toBeGreaterThanOrEqual(0.4);
+        expect(environment.frame.windSpeed).toBeLessThanOrEqual(7);
+        expect(environment.frame.fog).toBeGreaterThanOrEqual(0.0015);
+        expect(environment.frame.fog).toBeLessThanOrEqual(0.016);
+        for (const shade of Object.values(environment.frame.palette)) {
+          for (const channel of Object.values(shade)) {
+            expect(channel).toBeGreaterThanOrEqual(0);
+            expect(channel).toBeLessThanOrEqual(1);
+          }
+        }
+      }
+    }
+  });
+
+  it('produces the same atmosphere across frame rates, including interrupted transitions', () => {
+    const first = new EnvironmentController();
+    const second = new EnvironmentController();
+    for (const weather of ['rain', 'snow', 'windy', 'sunny'] as const) {
+      first.setWeather(weather);
+      second.setWeather(weather);
+      for (let tick = 0; tick < 60; tick++) first.step(1 / 30, DATE);
+      for (let tick = 0; tick < 120; tick++) second.step(1 / 60, DATE);
+      for (const key of ['rain', 'snow', 'fog', 'windSpeed', 'clouds', 'sunIntensity'] as const) {
+        expect(first.frame[key]).toBeCloseTo(second.frame[key], 12);
+      }
+      expect(first.frame.palette.sky.r).toBeCloseTo(second.frame.palette.sky.r, 12);
+    }
   });
 
   it('uses twelve simulated minutes per day and freezes the cycle with zero steps', () => {

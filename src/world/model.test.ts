@@ -184,6 +184,40 @@ describe('single camera owner', () => {
     model.step(STEP);
     expect(model.camera.pose.x).toBe(CITY.landmark.position.x);
   });
+
+  it('freezes an interrupted weather blend while paused and resumes without catching up', () => {
+    const model = new WorldModel(false);
+    const reference = new WorldModel(false);
+    for (const world of [model, reference]) {
+      world.command({ type: 'set-weather', weather: 'rain' });
+      for (let tick = 0; tick < 30; tick++) world.step(STEP);
+      world.command({ type: 'set-weather', weather: 'snow' });
+    }
+    model.command({ type: 'set-paused', paused: true });
+    const held = structuredClone(model.environment.frame);
+    const physicsTime = model.environment.physics.time;
+    for (let tick = 0; tick < 1800; tick++) model.step(STEP);
+    model.resync();
+    expect(model.environment.frame).toEqual(held);
+    expect(model.environment.physics.time).toBe(physicsTime);
+    model.command({ type: 'set-paused', paused: false });
+    model.step(STEP);
+    reference.step(STEP);
+    expect(model.environment.frame).toEqual(reference.environment.frame);
+  });
+
+  it('keeps explicit paused and reduced-motion weather selections immediate without clearing snow', () => {
+    const model = new WorldModel(true, { weather: 'snow' });
+    model.environment.physics.surface.snowSweMm = 1;
+    model.command({ type: 'set-weather', weather: 'rain' });
+    expect(model.environment.frame).toMatchObject({ rain: 1, snow: 0 });
+    model.command({ type: 'set-paused', paused: false });
+    model.command({ type: 'set-weather', weather: 'sunny' });
+    expect(model.environment.frame).toMatchObject({ rain: 0, snow: 0 });
+    expect(model.environment.physics.surface.snowSweMm).toBe(1);
+    model.step(STEP);
+    expect(model.environment.frame).toMatchObject({ rain: 0, snow: 0 });
+  });
 });
 
 describe('authored content', () => {

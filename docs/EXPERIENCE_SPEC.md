@@ -121,6 +121,8 @@ Vehicles reduce their speed and acceleration/braking budget as retained wetness/
 
 Pause/hidden/context loss freeze every weather timer, particle, impact, and reservoir. Explicit preset changes while paused alter atmospheric appearance once but do not advance accumulation or melt. Reduced motion keeps stationary precipitation cues and disables foliage sway, cloud travel, splashes and ripples, including if conservative actor movement is resumed. CPU weather state survives renderer restoration/retry; only preferences survive page reloads. A once-per-simulated-second status publication updates natural-weather/time labels and audio without per-frame React state.
 
+While running, manual weather changes ease through roughly eight simulation seconds to reach 99% of the new conditions; natural changes take roughly thirty. Sky, fog, clouds, light, precipitation and wind share the same continuous blend. Selecting another preset preserves the current mix and its rate of change rather than restarting an easing curve. Pausing holds that progress; explicit paused/reduced-motion selections still apply immediately. Saved startup weather has no entrance animation, and existing snow/water is never cleared by a transition.
+
 See [weather physics research](WEATHER_PHYSICS_RESEARCH.md) for equations, source evidence, tunings, and approximations.
 
 ## Pointer, touch, keyboard, and focus

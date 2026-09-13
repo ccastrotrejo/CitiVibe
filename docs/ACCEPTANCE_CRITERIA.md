@@ -93,3 +93,10 @@ The browser suite uses software-rendered Chromium and a production bundle, not t
 - The current build retains Vite's 500 KB chunk warning (**508.84 KB minified / 150.80 KB gzip** for its largest chunk; lazy renderer **396.75 KB / 100.67 KB gzip**). No warning suppression or completed optimization is claimed.
 
 All 11 supplied research artifact byte counts and SHA-256 hashes were verified unchanged; checked-in JSON parses and documentation links resolve. This is not final visual, physical-device FPS, assistive-technology, or two-hour memory sign-off.
+
+## Smoother weather transitions - 2026-09-13
+
+- Replaced the two-second/restarted smoothstep with a retained two-stage blend: manual changes reach 99% in about eight simulation seconds; natural changes in about thirty. Retargeting preserves current values and blend velocity, including natural/manual handoff.
+- Regression tests first reproduced the old timing and velocity reset, then passed with the new model. Coverage includes interrupted bounds, 30/60 Hz atmospheric equivalence, rain/snow/cloud/lighting projection, mid-blend renderer rebuilding, pause/resume without catch-up, and immediate paused/reduced-motion selections without clearing snow.
+- Strict TypeScript, ESLint, the production build and **279 tests across 14 files** pass. The largest chunk is **509.17 KB minified / 150.89 KB gzip**; the existing bundle warning remains.
+- The browser weather probe now checks actual fog uniforms during the gradual transition and allows the snow fixture forty simulation seconds to accumulate. These browser assertions are **authored, not passed**: renewed headless-shell and full-Chromium startup probes both time out before page creation. The previous draft's GPU/visual readiness gate remains unresolved.

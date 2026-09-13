@@ -115,6 +115,44 @@ describe('bounded environment GPU adapter', () => {
     world.dispose();
   });
 
+  it('crossfades rain, snow, clouds and atmosphere from the current rendered blend', () => {
+    const world = fixture();
+    world.environment.setWeather('rain');
+    world.advance(2);
+    world.draw();
+    expect(world.rain.material.opacity).toBeGreaterThan(0.2);
+    expect(world.rain.material.opacity).toBeLessThan(0.3);
+    const opacity = world.rain.material.opacity;
+    const sky = (world.scene.background as THREE.Color).clone();
+    const fog = (world.scene.fog as THREE.FogExp2).density;
+    const sun = world.sun.intensity;
+    world.environment.setWeather('snow');
+    world.draw();
+    expect(world.rain.material.opacity).toBe(opacity);
+    expect(world.scene.background).toEqual(sky);
+    expect((world.scene.fog as THREE.FogExp2).density).toBe(fog);
+    expect(world.sun.intensity).toBe(sun);
+    world.advance(2);
+    world.draw();
+    expect(world.rain.visible).toBe(true);
+    expect(world.snow.visible).toBe(true);
+    expect(world.rain.material.opacity).toBeLessThan(opacity);
+    expect(world.snow.material.opacity).toBeGreaterThan(0.4);
+    const cloud = world.scene.getObjectByName('Weather cloud') as THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>;
+    expect(cloud.material.opacity).toBe(world.environment.frame.clouds * 0.23);
+    const blended = structuredClone(world.environment.frame);
+    world.visual.dispose();
+    const restored = new EnvironmentVisual(world.scene);
+    restored.update(world.environment.frame, OPTIONS, world.environment.physics);
+    expect(world.environment.frame).toEqual(blended);
+    const rain = world.scene.getObjectByName('Environment rain') as THREE.LineSegments<THREE.BufferGeometry, THREE.LineBasicMaterial>;
+    const snow = world.scene.getObjectByName('Environment snow') as THREE.Points<THREE.BufferGeometry, THREE.PointsMaterial>;
+    expect(rain.material.opacity).toBe(blended.rain * 0.48);
+    expect(snow.material.opacity).toBe(blended.snow * 0.85);
+    restored.dispose();
+    world.dispose();
+  });
+
   it('retains a stationary precipitation cue but suppresses decorative animation under reduced motion', () => {
     const world = fixture();
     world.environment.setWeather('snow', true);

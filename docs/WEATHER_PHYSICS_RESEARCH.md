@@ -233,6 +233,10 @@ This factor is a model tuning, not a measured friction coefficient or road-safet
 
 ## 8. Runtime boundaries and controls
 
+Weather transitions use two retained exponential-filter stages for each preset weight: `d' = alpha (target - d)` and `w' = beta (d - w)`. Manual selection uses `alpha = beta = 0.85 /s`; natural changes use `alpha = 0.17 /s` with the same output rate `beta`. From a settled preset, this reaches 99% of a manual change in about eight simulation seconds and a natural change in about thirty. These are **artistic transition timings**, not atmospheric evolution equations.
+
+Both stages use their exact constant-target timestep solution, keeping the blend independent of frame rate and inside the preset palette/forcing bounds. Retargeting preserves both stages; keeping the output rate fixed preserves the visible rate of change even when switching from natural to manual weather. Once every stage is within `1e-6` of its target, the negligible tail settles exactly. The previous two-second smoothstep reset its velocity on interruption; it has been removed. No per-frame React updates, new timers or additional particle pools are involved.
+
 `EnvironmentController` retains the CPU physics. `WorldModel` advances it before traffic. `EnvironmentVisual`, `SurfaceVisual`, and `FoliageWind` consume that state; rendering cannot advance the simulation. Weather summaries reach React about once per simulated second, not once per frame.
 
 High draw limits are 600 rain streaks, 420 flakes, 48 rain impacts, six shared cloud meshes, and 12 garden rings. Lightweight caps these at 160/120/16 particles/impacts and four garden rings. Rain counts scale with `sqrt(intensity/30)` within the caps; default 8 mm/h draws 310 High or 83 Lightweight streaks. Three ground-water meshes and six optional pool ripple instances are fixed additions. Thirty-three snow-shell batches reuse source geometry and have owned material/instance resources. CPU pools and physical input are independent of draw quality. Borrowed material hooks, foliage rest poses, lights and texture/geometry ownership are restored or released correctly.

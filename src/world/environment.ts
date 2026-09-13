@@ -41,6 +41,9 @@ const WEATHERS = WEATHER_MODES;
 const TIMES: readonly TimeMode[] = ['afternoon', 'night', 'local', 'cycle'];
 const AFTERNOON = 15 / 24;
 const NIGHT = 22 / 24;
+const WEATHER_BLEND_RATE = 0.85;
+const NATURAL_BLEND_RATE = 0.17;
+const WEATHER_SETTLED = 1e-6;
 
 function color(hex: number): EnvironmentColor {
   const linear = (channel: number) => {
@@ -106,10 +109,10 @@ export class EnvironmentController {
   private automatic = false;
   private seed: number;
   private untilWeather = 0;
-  private weights = new Float64Array(WEATHERS.length);
-  private weatherStart = new Float64Array(WEATHERS.length);
-  private weatherElapsed = 0;
-  private weatherDuration = 0;
+  private readonly weights = new Float64Array(WEATHERS.length);
+  private readonly weatherInput = new Float64Array(WEATHERS.length);
+  private weatherInputRate = WEATHER_BLEND_RATE;
+  private weatherTransitioning = false;
   private localStart = AFTERNOON;
   private localElapsed = 10;
 
@@ -120,6 +123,7 @@ export class EnvironmentController {
     localPhase(now);
     this.seed = seed;
     this.weights[WEATHERS.indexOf('sunny')] = 1;
+    this.weatherInput.set(this.weights);
     this.renderFrame();
   }
 
@@ -132,7 +136,7 @@ export class EnvironmentController {
   setWeather(preset: Weather, immediate = false): void {
     if (!WEATHERS.includes(preset)) throw new RangeError('Unknown weather preset.');
     this.automatic = false;
-    this.transitionWeather(preset, immediate ? 0 : 2);
+    this.transitionWeather(preset, immediate ? 0 : WEATHER_BLEND_RATE);
     this.renderFrame();
   }
 
@@ -171,19 +175,11 @@ export class EnvironmentController {
       if (this.untilWeather <= 0) {
         const current = WEATHERS.indexOf(this.preset);
         const next = (current + 1 + Math.floor(this.random() * (WEATHERS.length - 1))) % WEATHERS.length;
-        this.transitionWeather(WEATHERS[next], 20);
+        this.transitionWeather(WEATHERS[next], NATURAL_BLEND_RATE);
         this.untilWeather += 180 + this.random() * 180;
       }
     }
-    if (this.weatherDuration > 0) {
-      this.weatherElapsed = Math.min(this.weatherElapsed + dt, this.weatherDuration);
-      const blend = smooth(this.weatherElapsed / this.weatherDuration);
-      const target = WEATHERS.indexOf(this.preset);
-      for (let index = 0; index < WEATHERS.length; index++) {
-        this.weights[index] = this.weatherStart[index] + ((index === target ? 1 : 0) - this.weatherStart[index]) * blend;
-      }
-      if (this.weatherElapsed >= this.weatherDuration) this.weatherDuration = 0;
-    }
+    this.stepWeather(dt);
     if (this.mode === 'cycle') this.frame.phase = wrap(this.frame.phase + dt / 720);
     if (this.mode === 'local') {
       this.localElapsed = Math.min(10, this.localElapsed + dt);
@@ -210,14 +206,42 @@ export class EnvironmentController {
     return this.seed / 0x100000000;
   }
 
-  private transitionWeather(preset: Weather, duration: number): void {
+  private transitionWeather(preset: Weather, inputRate: number): void {
     this.preset = preset;
-    this.weatherStart.set(this.weights);
-    this.weatherElapsed = 0;
-    this.weatherDuration = duration;
-    if (duration === 0) {
+    this.weatherTransitioning = inputRate > 0;
+    this.weatherInputRate = inputRate;
+    if (inputRate === 0) {
       this.weights.fill(0);
       this.weights[WEATHERS.indexOf(preset)] = 1;
+      this.weatherInput.set(this.weights);
+    }
+  }
+
+  private stepWeather(dt: number): void {
+    if (!this.weatherTransitioning) return;
+    const inputDecay = Math.exp(-this.weatherInputRate * dt);
+    const outputDecay = Math.exp(-WEATHER_BLEND_RATE * dt);
+    // Exact cascaded exponential filters. Retaining both stages preserves blend
+    // velocity on retarget; a fixed output rate also smooths natural/manual handoff.
+    const coupling = this.weatherInputRate === WEATHER_BLEND_RATE
+      ? WEATHER_BLEND_RATE * dt * outputDecay
+      : WEATHER_BLEND_RATE * (inputDecay - outputDecay) / (WEATHER_BLEND_RATE - this.weatherInputRate);
+    const targetIndex = WEATHERS.indexOf(this.preset);
+    let settled = true;
+    for (let index = 0; index < WEATHERS.length; index++) {
+      const target = index === targetIndex ? 1 : 0;
+      const inputOffset = this.weatherInput[index] - target;
+      this.weights[index] = Math.min(1, Math.max(0,
+        target + (this.weights[index] - target) * outputDecay + inputOffset * coupling));
+      this.weatherInput[index] = target + inputOffset * inputDecay;
+      if (Math.abs(this.weights[index] - target) > WEATHER_SETTLED ||
+        Math.abs(this.weatherInput[index] - target) > WEATHER_SETTLED) settled = false;
+    }
+    if (settled) {
+      this.weights.fill(0);
+      this.weights[targetIndex] = 1;
+      this.weatherInput.set(this.weights);
+      this.weatherTransitioning = false;
     }
   }
 

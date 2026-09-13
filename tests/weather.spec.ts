@@ -4,6 +4,7 @@ import { captureCity } from './captureCity';
 import { GROUND_LEVEL, GROUND_PUDDLES } from '../src/world/groundWater';
 
 interface WeatherProbe {
+  fog: number;
   snow: number;
   wetness: number;
   snowDepth: number;
@@ -24,8 +25,8 @@ function advanceWeather(ticks: number) {
 
 function readWeather() {
   if (!window.weatherProbe) throw new Error('Weather test probe was not installed.');
-  const { snow, wetness, snowDepth, poolDepth } = window.weatherProbe;
-  return { snow, wetness, snowDepth, poolDepth };
+  const { fog, snow, wetness, snowDepth, poolDepth } = window.weatherProbe;
+  return { fog, snow, wetness, snowDepth, poolDepth };
 }
 
 test('a weather shader compilation failure reports an actionable fallback instead of a false live state', async ({ page }) => {
@@ -96,7 +97,7 @@ test('live snow depth and ground pools accumulate, pause, and respond to warming
     let now = 0;
     let omitIntermediateDraws = false;
     const probe: WeatherProbe = {
-      snow: 0, wetness: 0, snowDepth: 0, poolDepth: {},
+      fog: 0, snow: 0, wetness: 0, snowDepth: 0, poolDepth: {},
       advance(ticks) {
         try {
           for (let index = 0; index < ticks; index++) {
@@ -144,6 +145,7 @@ test('live snow depth and ground pools accumulate, pause, and respond to warming
     };
     prototype.uniform1f = function (location, value) {
       const name = location && names.get(location);
+      if (name === 'fogDensity') probe.fog = value;
       if (name === 'weatherSnow') probe.snow = value;
       if (name === 'weatherWetness') probe.wetness = value;
       if (name === 'weatherSnowDepth') probe.snowDepth = value;
@@ -165,7 +167,11 @@ test('live snow depth and ground pools accumulate, pause, and respond to warming
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await page.getByRole('combobox', { name: 'Weather', exact: true }).selectOption('snow');
   await page.getByRole('button', { name: 'Close settings' }).click();
-  await page.evaluate(advanceWeather, 301);
+  await page.evaluate(advanceWeather, 21);
+  const transitioning = await page.evaluate(readWeather);
+  expect(transitioning.fog).toBeGreaterThan(0.003);
+  expect(transitioning.fog).toBeLessThan(0.007);
+  await page.evaluate(advanceWeather, 380);
   await page.getByRole('button', { name: 'Pause city' }).click();
   const frozen = await page.evaluate(readWeather);
   const accumulated = frozen.snow;
