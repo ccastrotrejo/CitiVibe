@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 import { WorldModel } from '../world/model';
-import type { WorldCommand } from '../world/types';
 import { loadPreferences, savePreferences } from '../content/preferences';
 import type { Preferences } from '../content/preferences';
 import { CityStage } from './CityStage';
+import { actionForKey } from './commands';
 import { Controls } from './Controls';
 import { Help } from './Help';
 import { Icon } from './Icon';
@@ -91,21 +91,10 @@ export function App() {
       else if (status.view) send({ type: 'stop' });
       return;
     }
-    if (key === 'r') { event.preventDefault(); send({ type: 'reset' }); return; }
-    if (!live) return;
-    const commands: Record<string, WorldCommand> = {
-      arrowup: { type: 'navigate', panZ: -2 }, arrowdown: { type: 'navigate', panZ: 2 },
-      arrowleft: { type: 'navigate', panX: -2 }, arrowright: { type: 'navigate', panX: 2 },
-      '+': { type: 'navigate', zoom: 0.15 }, '=': { type: 'navigate', zoom: 0.15 }, '-': { type: 'navigate', zoom: -0.15 },
-      q: { type: 'navigate', rotate: -0.2 }, e: { type: 'navigate', rotate: 0.2 },
-      w: { type: 'navigate', tilt: 0.1 }, s: { type: 'navigate', tilt: -0.1 },
-      ' ': { type: 'set-paused', paused: !model.paused },
-      t: { type: status.view ? 'stop' : 'start-tour' },
-    };
-    if (commands[key]) {
-      event.preventDefault();
-      if (!event.repeat || commands[key].type === 'navigate') send(commands[key]);
-    }
+    const action = actionForKey(key);
+    if (!action || (action.requiresLive && !live)) return;
+    event.preventDefault();
+    if (!event.repeat || action.repeatable) send(action.command({ paused: status.paused, touring: Boolean(status.view) }));
   }
 
   return <main ref={root} className={`city-app${screenMode.expanded ? ' is-expanded' : ''}`} data-reduced-motion={status.reducedMotion}>
