@@ -275,7 +275,7 @@ function streetSpans(extent: number, crossings: readonly number[], gap: number) 
 }
 
 /** Build original noncommercial peripheral streets; no actors, clocks or point lights. */
-export function buildStreetscape(builder: StreetscapeBuilder): Streetscape {
+export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = builder.palette.taxi): Streetscape {
   validateStreetscape();
   const { block, add, box, cylinder, crown, palette: p } = builder;
   const rod = (surface: THREE.Material, start: Triple, end: Triple, thickness: number) => {
@@ -747,7 +747,7 @@ export function buildStreetscape(builder: StreetscapeBuilder): Streetscape {
         const along = mouth - (step + 0.5) * g.treadDepth;
         rail(p.stone, [railX, y, along], [railX, y + 0.86, along], 0.035);
       }
-      add(crown, p.taxi, local(edge, g.globeHeight, mouth), [0.18, 0.18, 0.18]);
+      add(crown, globeMaterial, local(edge, g.globeHeight, mouth), [0.18, 0.18, 0.18]);
       add(crown, p.leaf, local(edge, g.globeHeight + 0.14, mouth), [0.18, 0.065, 0.18]);
     }
     for (const y of [0.25, g.railingHeight]) piece(p.rubber, 0, y, -mouth, g.openingWidth, 0.045, 0.045);

@@ -334,17 +334,14 @@ describe('bounded environment GPU adapter', () => {
 });
 
 describe('public lighting night ramp', () => {
-  it('drives tagged lamp emissive and pool opacity by night and restores on dispose', () => {
+  it('drives tagged lamp emissive by night and restores on dispose', () => {
     const scene = new THREE.Scene();
     const geometry = new THREE.BoxGeometry();
     const lamp = new THREE.MeshStandardMaterial({ emissive: '#000000', emissiveIntensity: 0 });
     lamp.userData.nightLight = true;
     lamp.userData.nightColor = '#ffd68f';
     lamp.userData.nightIntensity = 1.2;
-    const pool = new THREE.MeshBasicMaterial({ color: '#ffe7bb', transparent: true, opacity: 0 });
-    pool.userData.nightPool = true;
-    pool.userData.nightOpacity = 0.4;
-    scene.add(new THREE.Mesh(geometry, lamp), new THREE.Mesh(geometry, pool));
+    scene.add(new THREE.Mesh(geometry, lamp));
     const visual = new EnvironmentVisual(scene);
     const environment = new EnvironmentController();
     const draw = () => visual.update(environment.frame, OPTIONS, environment.physics);
@@ -353,20 +350,16 @@ describe('public lighting night ramp', () => {
     draw();
     expect(environment.frame.night).toBeLessThan(0.05);
     expect(lamp.emissiveIntensity).toBeLessThan(0.05);
-    expect(pool.opacity).toBeLessThan(0.05);
 
     environment.setTime('night', DATE);
     draw();
     expect(environment.frame.night).toBeGreaterThan(0.8);
     expect(lamp.emissive.getHexString()).toBe('ffd68f');
     expect(lamp.emissiveIntensity).toBeCloseTo(environment.frame.night * 1.2, 5);
-    expect(pool.opacity).toBeCloseTo(environment.frame.night * 0.4, 5);
 
     visual.dispose();
     expect(lamp.emissiveIntensity).toBe(0);
-    expect(pool.opacity).toBe(0);
     geometry.dispose();
     lamp.dispose();
-    pool.dispose();
   });
 });

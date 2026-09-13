@@ -254,6 +254,22 @@ export class Locomotion {
     this.memory.clear();
   }
 
+  /** Rebind retained poses after GPU recovery without advancing suspension or attached lamp mounts. */
+  restore(actors: readonly ActorState[], groups: Map<string, Group>, reducedMotion: boolean): void {
+    for (const actor of actors) {
+      const rig = groups.get(actor.id)?.userData.rig as ActorRig | undefined;
+      if (!rig) continue;
+      const memory = this.remember(actor);
+      if (rig.kind === 'walker') {
+        poseWalkerRig(rig, { distance: actor.distance, speed: actor.speed, blend: memory.blend, reducedMotion,
+          running: actor.gait === 'run' });
+      } else {
+        poseVehicleRig(rig, { distance: actor.distance, pitch: memory.pitch, roll: memory.roll,
+          steer: memory.steer, drop: memory.drop });
+      }
+    }
+  }
+
   private remember(actor: ActorState): Memory {
     let entry = this.memory.get(actor.id);
     if (!entry) {

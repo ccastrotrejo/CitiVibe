@@ -19,6 +19,7 @@ export const TRAFFIC = {
   maxVehicleSpeed: 4.8,
   maxBicycleSpeed: 3.4,
   maxBicycleTurnRate: 1.1,
+  indicatorApproach: 12,
 } as const;
 
 export const TRAFFIC_LENGTHS: Record<TrafficVehicleType, number> = {
@@ -308,6 +309,7 @@ function createActor(id: string, kind: ActorState['kind'], route: TrafficRoute, 
   const actor: ActorState = {
     id, kind, position: { x: 0, y: 0, z: 0 }, heading: 0,
     state: 'moving', distance, speed: 0, routeLength: route.length,
+    ...(kind === 'car' || kind === 'bus' ? { lighting: { turn: null, braking: true } } : {}),
   };
   sampleTrafficRoute(route, distance, actor);
   return actor;
@@ -370,6 +372,7 @@ export class CityTraffic {
       };
     });
     this.actors = Object.freeze([...this.motions.map(({ actor }) => actor), ...this.walkers.map(({ actor }) => actor)]);
+    this.motions.forEach((motion) => this.updateIndicator(motion));
   }
 
   /** Grip affects road motion only; time is never slowed or caught up. */
@@ -389,6 +392,7 @@ export class CityTraffic {
     this.planMovement(seconds, acceleration, braking, reserveBraking, speedFactor);
     for (const motion of this.motions) {
       this.move(motion);
+      this.updateIndicator(motion);
       if (motion.permit >= 0) {
         motion.releaseRemaining -= motion.advance;
         if (motion.releaseRemaining <= EPSILON) {
@@ -502,6 +506,7 @@ export class CityTraffic {
           }
         }
       }
+      const previousSpeed = actor.speed;
       actor.speed = Math.max(0, Math.min(actor.speed + acceleration * dt, Math.max(actor.speed - brakeTick, desired)));
       motion.advance = Math.min(available, actor.speed * dt);
       if (available < EPSILON) {
@@ -509,7 +514,19 @@ export class CityTraffic {
         actor.speed = 0;
       }
       actor.state = motion.advance > EPSILON ? 'moving' : 'waiting';
+      if (actor.lighting) actor.lighting.braking = previousSpeed - actor.speed > 0.2 * dt || actor.state === 'waiting';
     }
+  }
+
+  private updateIndicator(motion: Motion): void {
+    if (!motion.actor.lighting) return;
+    const segments = motion.route.segments;
+    const current = segments[motion.segment];
+    const junction = current.kind === 'junction' ? current : segments[(motion.segment + 1) % segments.length];
+    const approaching = current.kind === 'junction' ||
+      current.start + current.length - motion.actor.distance <= TRAFFIC.indicatorApproach;
+    // Vehicles face +Z: a positive route cross product turns toward local -X (driver's right).
+    motion.actor.lighting.turn = !approaching || junction.turn === 0 ? null : junction.turn > 0 ? 'right' : 'left';
   }
 
   private move(motion: Motion): void {

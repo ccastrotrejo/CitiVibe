@@ -131,6 +131,16 @@ Context loss uses the same suspension rules. Restoration must rebuild GPU resour
 
 Audio should be low-level ambience, not a notification channel. Use original synthesis or licensed recordings. Stop scheduling hidden/paused audio; dispose nodes on teardown. Quality measurement is local and ephemeral, not transmitted analytics.
 
+### Night and vehicle lighting
+
+Public fixtures, taxi roof signs and subway globes follow the environment's continuous night value. Soft, depth-tested ground illumination follows near-ground elevation and snow retention. All 36 motor vehicles have paired forward lamps, red tail/brake lamps, separate amber front/rear indicators and side repeaters; all twelve bicycles have smaller front/rear lights. Vehicle glazing stays non-emissive.
+
+Juniper Court uses four basketball and two pickleball light poles, 6.4 m high with shielded twin heads aimed into the courts. Their broad, overlapping ground illumination remains visible in Lightweight; focused views share the existing public-spotlight budget. Bases stay outside the complete runoffs and continuous 2 m passage. Court dimensions, players, access and daytime activity are unchanged; these are ambient recreation lights, not certified sports-facility photometry.
+
+Night and poor visibility activate driving lights, including daylight rain, snow and mist. Braking is independent of headlight demand: rear red lamps brighten on traffic-solver deceleration and held stops. Indicators anticipate the next actual turn within 12 miniature metres, persist through queues/turns and cancel on exit; straight junctions do not signal a future turn. They flash at 75/minute with independent deterministic vehicle phases. Reduced motion uses a steady requested side. Pause, hidden pages and graphics recovery hold the same lamp state and mounted pose.
+
+Six public and two vehicle spotlights add local material illumination in focused views; Lightweight retains all visible lamp/beam cues without these detailed contributions. The existing intersection schedule remains green/all-red/pedestrian, not a newly certified yellow-phase model. See [research, approximations and exclusions](LIGHTING_RESEARCH.md).
+
 ### Weather physics extension
 
 Rain falls at diameter-dependent terminal speeds; snow settles more slowly with small flutter. Both respond to the same coherent synthetic wind that moves clouds and bends the shared tree/reed batches. Precipitation covers the enlarged rectangular map with fixed particle capacities. A static half-meter top-envelope of the original geometry stops precipitation at ground/canopy/roof height, rather than drawing it through roofs. Rain impacts and reservoir ripples aligned to the actual water surface are bounded cosmetic effects.

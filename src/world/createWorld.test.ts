@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
-import { OrthographicCamera, Scene, Vector3 } from 'three';
+import { InstancedMesh, NeutralToneMapping, OrthographicCamera, Scene, Vector3 } from 'three';
 import { CAMERA_PROJECTION, CITY, LANDMARKS } from '../content/city';
 import { CITY_EXTENT } from '../content/streets';
 import { COURT_PLAYERS } from '../content/courts';
@@ -13,6 +13,7 @@ const gpu = vi.hoisted(() => ({
   forceContextLoss: vi.fn(),
   disconnected: vi.fn(),
   shadowMap: { enabled: false, needsUpdate: false, autoUpdate: false },
+  toneMapping: 0,
 }));
 
 vi.mock('three', async (importOriginal) => {
@@ -21,6 +22,7 @@ vi.mock('three', async (importOriginal) => {
     ...original,
     WebGLRenderer: class {
       shadowMap = gpu.shadowMap;
+      set toneMapping(value: number) { gpu.toneMapping = value; }
       debug = { onShaderError: null };
       setPixelRatio = vi.fn();
       setSize = vi.fn();
@@ -64,6 +66,39 @@ function mount(model: WorldModel) {
 }
 
 describe('runtime ownership and suspension', () => {
+  it('retains all vehicle light colors and beam positions through pause, hidden time and context restoration', () => {
+    const model = new WorldModel(false);
+    const { canvas, world } = mount(model);
+    onTestFinished(() => world.dispose());
+    world.command({ type: 'set-time', time: 'night' });
+    tick(0);
+    for (let time = 34; time < 2400; time += 34) tick(time);
+    world.command({ type: 'set-paused', paused: true });
+    const snapshot = () => {
+      const scene: unknown = gpu.render.mock.lastCall?.[0];
+      if (!(scene instanceof Scene)) throw new Error('Missing rendered scene.');
+      return ['Vehicle lamp lenses', 'Soft ground illumination'].map((name) => {
+        const mesh = scene.getObjectByName(name);
+        if (!(mesh instanceof InstancedMesh)) throw new Error(`Missing ${name}.`);
+        return { count: mesh.count, matrices: Array.from(mesh.instanceMatrix.array), colors: Array.from(mesh.instanceColor!.array) };
+      });
+    };
+    const before = snapshot();
+    expect(before[0].count).toBe(420);
+    expect(before[1].count).toBeGreaterThan(0);
+    expect(gpu.toneMapping).toBe(NeutralToneMapping);
+    hidden = true;
+    document.dispatchEvent(new Event('visibilitychange'));
+    tick(300000);
+    hidden = false;
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(snapshot()).toEqual(before);
+    canvas.dispatchEvent(new Event('webglcontextlost', { cancelable: true }));
+    canvas.dispatchEvent(new Event('webglcontextrestored'));
+    expect(snapshot()).toEqual(before);
+    expect(frames.size).toBe(0);
+  });
+
   it('refreshes weather shadows on simulation and motion changes but not camera-only redraws', () => {
     const model = new WorldModel(false);
     const { world } = mount(model);

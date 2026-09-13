@@ -13,6 +13,7 @@ export interface ActorState {
   distance: number;
   speed: number;
   routeLength: number;
+  lighting?: { turn: 'left' | 'right' | null; braking: boolean };
 }
 
 export const ACTIVITY = { seed: 2401, maxStep: 1 / 30 } as const;
