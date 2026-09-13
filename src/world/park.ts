@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { PARK_BOUNDS, PARK_PATHS, PARK_RESERVOIR } from '../content/park';
+import { PARK_BOUNDS, PARK_PATHS, PARK_PICNICS, PARK_RESERVOIR } from '../content/park';
 import type { StreetscapeBuilder } from './streetscape';
 import { GROUND_PUDDLES } from './groundWater';
 
@@ -183,13 +183,8 @@ export function buildCentralPark({ block, add, box, cylinder, crown, palette: p 
       block(p.rubber, x + side * 0.86, 0.76, z, 0.07, 0.07, 0.6);
     }
   }
-  for (const [x, z] of [[5.4, -7.2], [15.3, -9.9], [11.7, 6.3], [19.8, 59.4]]) {
+  for (const [x, z] of PARK_PICNICS) {
     block(p.clay, x, 0, z, 2.4, 0.04, 1.8);
-    for (const side of [-1, 1]) {
-      block(p.teal, x + side * 0.7, 0.55, z, 0.36, 0.5, 0.24);
-      add(crown, p.skin, [x + side * 0.7, 0.96, z], [0.18, 0.22, 0.18]);
-      block(p.rubber, x + side * 0.7, 0.2, z + 0.3, 0.3, 0.15, 0.7);
-    }
   }
   for (const z of [52.2, 63, 73.8]) for (const x of [-3.5, 3.5]) {
     add(cylinder, p.rubber, [x, 2, z], [0.075, 4, 0.075]);

@@ -98,7 +98,7 @@ describe('articulated walker rig', () => {
     const world = scene();
     const group = world.actors.get('walker-3')!;
     const rig = group.userData.rig as WalkerRig;
-    const stride = strideLength(1);
+    const stride = strideLength(1 / rig.scale!) * rig.scale!;
     const samples: THREE.Vector3[] = [];
     for (let phase = 0.05; phase <= 0.55; phase += 0.025) {
       const distance = phase * stride;
@@ -119,7 +119,7 @@ describe('articulated walker rig', () => {
     const world = scene();
     const group = world.actors.get('walker-3')!;
     const rig = group.userData.rig as WalkerRig;
-    const stride = strideLength(1);
+    const stride = strideLength(1 / rig.scale!) * rig.scale!;
     for (let phase = 0.6; phase < 1; phase += 0.02) {
       const distance = phase * stride;
       group.position.set(0, 0, distance);
@@ -132,7 +132,7 @@ describe('articulated walker rig', () => {
   it('bobs the body twice per stride with a believable amplitude', () => {
     const world = scene();
     const rig = world.actors.get('walker-3')!.userData.rig as WalkerRig;
-    const stride = strideLength(1);
+    const stride = strideLength(1 / rig.scale!) * rig.scale!;
     let maxima = 0;
     let previous = -Infinity;
     let rising = true;
@@ -199,8 +199,8 @@ describe('distinct running gait', () => {
     const rig = group.userData.rig as WalkerRig;
     const planted: THREE.Vector3[] = [];
     for (let phase = 0; phase < RUNNER.duty; phase += 0.02) {
-      const distance = phase * RUNNER.stride;
-      expect(distance + runningFootTrajectory(phase).z).toBeCloseTo(RUNNER.duty * RUNNER.stride / 2, 8);
+      const distance = phase * RUNNER.stride * rig.scale!;
+      expect(distance / rig.scale! + runningFootTrajectory(phase).z).toBeCloseTo(RUNNER.duty * RUNNER.stride / 2, 8);
       group.position.set(0, 0, distance);
       poseWalkerRig(rig, { distance, speed: 2.5, blend: 1, reducedMotion: false, running: true });
       planted.push(ankleWorld(group, rig, 0));
@@ -210,7 +210,7 @@ describe('distinct running gait', () => {
       expect(ankle.z).toBeCloseTo(planted[0].z, 8);
     });
     for (const phase of [0.45, 0.95]) {
-      poseWalkerRig(rig, { distance: phase * RUNNER.stride, speed: 2.5, blend: 1, reducedMotion: false, running: true });
+      poseWalkerRig(rig, { distance: phase * RUNNER.stride * rig.scale!, speed: 2.5, blend: 1, reducedMotion: false, running: true });
       for (const leg of [0, 1] as const) expect(ankleWorld(group, rig, leg).y).toBeGreaterThan(0.04);
     }
     expect(runningFootTrajectory(0.7).y).toBeGreaterThan(WALKER.stepHeight * 2);
