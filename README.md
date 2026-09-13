@@ -48,6 +48,8 @@ Open the local URL printed by Vite. Drag to pan; Command/Control-drag or right-d
 
 Settings has its own lower-left button inside the city. Its compact dock opens above it without dimming or blocking the world; landmark navigation now lives in the bottom toolbar. Choose **Weather → Snow** and keep the city running to accumulate depth. Snow melts in warmer weather; rainfall and runoff fill the shallow ground pools, which drain and dry gradually. Rain intensity is available for Rain and natural weather. Sound still requires explicit permission each visit.
 
+The first street-name design adds NYC-inspired **green, double-sided blades** to twelve key junctions, covering all six avenues and six cross streets. Zoom toward a park corner to see original names such as **Rainlight Av / Orchard St**, white lettering, metal edges and mounting collars on the existing signal poles. These roads remain two-way, so the photo's “ONE WAY” plates are intentionally not copied. The grid, traffic, park and controls are unchanged; see the [sign design and provenance](docs/ART_AND_ASSETS.md#street-name-design---street-signs-001).
+
 The supported priority is **desktop and laptop computers**. Browser layout checks target 1024, 1440, and 1920 px widths. Basic responsive styles remain, but mobile edge cases and physical-phone testing are outside the current request.
 
 ```sh

@@ -136,6 +136,7 @@ Replace the initial garden-village feel with an **original fictional NYC-like ne
 
 - [x] Create a denser street-wall silhouette with original brick/brownstone and limestone mid-rises, varied cornices, fire escapes, rooftop water tanks, and restrained taller accents.
 - [x] Rework streets and public space toward asphalt, concrete sidewalks, curb details, railings, small tree pits, and a car-free central park. Keep routes, gate openings, stop bars and painted lane symbols aligned.
+- [x] Begin original NYC-inspired street naming on the current grid: twelve primary junctions carry paired green blades covering all twelve roads, mounted on existing signal poles. The 2026-09-13 sign pass preserves two-way traffic and the existing scene budgets; it is not a claim of signage at every intersection or traffic-code certification.
 - [x] Give ordinary cars a restrained yellow-cab visual cue without copying taxi-company branding, logos, or commercial signage. Preserve buses, pedestrians, and the rare airplane; no drone or camera-follow actions.
 - [ ] Replace the soft garden palette and decorative UI voice with an understated urban/transit-inspired desktop control system: clear typography, charcoal/stone surfaces, warm brick, and limited yellow accents. Keep the world dominant, not a marketing page.
 - [x] Update landmark descriptions/forms and camera compositions coherently; preserve the three original IDs and add Juniper Court/Crosstown Steps across focus, tour and fallback.

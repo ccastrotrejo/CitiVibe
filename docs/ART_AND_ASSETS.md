@@ -40,6 +40,27 @@ There are **186 animated people/vehicles** and two sports balls. Current scene c
 
 **Review scope:** overview, reservoir runners, paired cycling, park and street-detail focus, Night/Rain and Mist/Lightweight; record the final executed checks in acceptance criteria. Browser layouts target 1024 x 768, 1440 x 900 and 1920 x 1080, including five-landmark cycling and fallback. The title card is removed; an offscreen h1 preserves accessible naming without covering the map. Physical-device GPU and assistive-technology verification remain outstanding; mobile-specific hardening is not an acceptance gate.
 
+## Street-name design - street-signs-001
+
+This bounded follow-up was implemented on latest main `b81eb32`, not the superseded garden loop. [`streetNames.ts`](../src/content/streetNames.ts) names the existing roads and selects **twelve primary junctions**: four park corners and eight approaches. All twelve road names appear in this first pass; the other twenty-four intersections retain their existing furniture. No roads, traffic directions, park paths, landmarks, controls or destinations are added.
+
+| Avenue, west to east | X (m) | Cross street, north to south | Z (m) |
+| --- | --- | --- | --- |
+| Lantern Av | -102 | Reed St | -162 |
+| Alder Av | -76 | Grove St | -132 |
+| Rainlight Av | -46 | Orchard St | -95 |
+| Terrace Av | 46 | Juniper St | 95 |
+| Foundry Av | 76 | Cinder St | 132 |
+| Willow Av | 102 | Harbor St | 162 |
+
+The user-supplied NYC sign photograph is an **appearance reference** for deep-green blades, white lettering, thin metal edges and mounting bands, not a source of runtime pixels, location names or fonts. The palette is green `#07513e`, warm white `#f8f6e9` and galvanized gray `#aab6b3`. Original narrow uppercase stroke lettering interprets the reference rather than replicating its mixed-case typeface. The current two-way motor streets must not receive misleading “ONE WAY” plates; bicycle-direction markings and traffic signals remain authoritative.
+
+[`streetSigns.ts`](../src/world/streetSigns.ts) builds paired perpendicular blades on existing signal poles. The shared signal-pole offset avoids an independently placed obstacle in the walking/cycling channel. Plate widths follow their names, up to 2.9 m, with 0.54 m height. Cross-street blades are centered at 3.78 m; avenue blades at 3.14 m. Their lowest edges clear pedestrian signal hoods, their highest edges stay below mast arms, and any road overhang clears 3.5 m. The metal collars and brackets are the only added mounting hardware; existing pole finishes are retained.
+
+Both faces have normally readable lettering, not mirrored back-face text. [`signLettering.ts`](../src/world/signLettering.ts) generates original flat letter geometry synchronously, without downloaded fonts, textures, canvas rasterization or asynchronous loading. Four spatial batches share one vertex-colored material. They cast/receive scene shadows and participate in precipitation interception, but do not add snow shells, lights, timers, selection targets or per-frame work. The parent scene owns their geometry/material disposal and rebuilds them during graphics recovery.
+
+The addition costs **5,672 triangles, four potential mesh submissions and one material**. The current base-scene traversal is **549,184 triangles / 98 submissions / 34 visible materials**, within the unchanged 550,000 / 110 / 36 ceilings. These are CPU scene counts, not GPU frame-time or FPS claims. The existing `rainlight-005.svg` remains the simplified overview fallback: this small prop layer does not change its composition or landmark positions. Earlier illustrations are untouched. Current checks and isolated-render limitations are recorded in [acceptance criteria](ACCEPTANCE_CRITERIA.md#street-name-design-checkpoint---2026-09-13).
+
 ## Originality and rights
 
 Create an original district, not a reconstruction of Opportunity.city or its distinctive composition. Do not download or reuse its `city.glb`, original JavaScript/CSS, fonts, logo, brand marks, promotional text, building names, or artwork. Do not trace screenshots or use a screenshot as a texture, loading poster, splash screen, or fallback.

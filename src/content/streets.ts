@@ -7,6 +7,7 @@ export const VEHICLE_OFFSET = 1.6;
 export const SIDEWALK_OFFSET = 6.2;
 export const INTERSECTION_GATE = 7;
 export const STOP_LINE_OFFSET = 8.5;
+export const SIGNAL_POLE_OFFSET = ROAD_HALF_WIDTH + 0.5;
 export const CITY_EXTENT = { x: 110, z: 170 } as const;
 
 export const TWO_WAY_BIKE_TRACK = {

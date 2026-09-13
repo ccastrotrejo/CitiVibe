@@ -10,6 +10,7 @@ import { CourtActivity, type CourtPlayerRig } from './courtActivity';
 import { buildCentralPark } from './park';
 import { buildPavementMarkings } from './pavement';
 import { buildStreetscape } from './streetscape';
+import { buildStreetSigns } from './streetSigns';
 import { WALKER, poseNeutral } from './locomotion';
 import type { LegRig, VehicleRig, WalkerRig, WheelRig } from './locomotion';
 import { captureWeatherSurface, type FoliageBatch } from './weatherArt';
@@ -301,6 +302,15 @@ export function buildCityScene(): CityScene {
     district.add(disc, lampPool, [x, surfaceY, z], [parkPoolRadius, 1, parkPoolRadius]);
   }
   district.finish();
+  const streetSigns = buildStreetSigns();
+  streetSigns.traverse((object) => {
+    if (object instanceof THREE.Mesh) {
+      geometry(object.geometry);
+      const surfaces = Array.isArray(object.material) ? object.material : [object.material];
+      surfaces.forEach(material);
+    }
+  });
+  scene.add(streetSigns);
   for (const object of scene.children) {
     if (object instanceof THREE.InstancedMesh && object.material === palette.glass) {
       const glow = new Float32Array(object.count * 3);

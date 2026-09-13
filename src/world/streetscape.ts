@@ -3,7 +3,7 @@ import { BASKETBALL_COURT, PICKLEBALL_COURT, RECREATION_AREA, netHeightAt } from
 import { METRO_ENTRANCES, METRO_GEOMETRY, METRO_OPENINGS, type MetroEntrance } from '../content/metro';
 import {
   BIKE_OFFSET, CITY_EXTENT, INTERSECTIONS, ROAD_HALF_WIDTH, SIDEWALK_HALF_WIDTH,
-  SIDEWALK_OFFSET, STOP_LINE_OFFSET, STREET_X, STREET_Z, TWO_WAY_BIKE_STREETS,
+  SIDEWALK_OFFSET, SIGNAL_POLE_OFFSET, STOP_LINE_OFFSET, STREET_X, STREET_Z, TWO_WAY_BIKE_STREETS,
   TWO_WAY_BIKE_TRACK, VEHICLE_OFFSET, bikeLaneOffset,
 } from '../content/streets';
 
@@ -927,8 +927,8 @@ function buildSignalLights({ block, add, box, cylinder, palette: p }: Streetscap
   for (const intersection of INTERSECTIONS) {
     for (const vertical of [true, false]) {
       for (const side of [-1, 1]) {
-        const px = intersection.x + (vertical ? side * 5.5 : side * approach);
-        let pz = intersection.z + (vertical ? side * approach : -side * 5.5);
+        const px = intersection.x + (vertical ? side * SIGNAL_POLE_OFFSET : side * approach);
+        let pz = intersection.z + (vertical ? side * approach : -side * SIGNAL_POLE_OFFSET);
         if (Math.abs(px) < PARK_HALF_X && Math.abs(pz) < PARK_HALF_Z) pz = 2 * intersection.z - pz;
         const hx = intersection.x + (vertical ? side * VEHICLE_OFFSET : side * approach);
         const hz = intersection.z + (vertical ? side * approach : -side * VEHICLE_OFFSET);
