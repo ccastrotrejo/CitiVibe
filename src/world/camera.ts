@@ -52,7 +52,7 @@ export class CameraController {
     this.bound();
   }
 
-  frame(mode: 'overview' | 'focus', target: CameraPose, immediate: boolean): void {
+  frame(mode: 'overview' | 'guided', target: CameraPose, immediate: boolean): void {
     this.stop();
     if (!Object.values(target).every(Number.isFinite)) throw new Error('Camera anchor must be finite.');
     this.transition = immediate ? null : { from: { ...this.pose }, to: { ...target }, elapsed: 0 };

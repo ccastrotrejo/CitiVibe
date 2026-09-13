@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { captureCity } from './captureCity';
 
-test('live navigation, focus interruption, help focus, and static pause', async ({ page }) => {
+test('live navigation, tour interruption, help focus, and static pause', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto('/');
@@ -11,13 +11,14 @@ test('live navigation, focus interruption, help focus, and static pause', async 
   await expect(page.locator('.wordmark')).toHaveText('CitiVibe.');
   await expect(page.getByRole('button', { name: 'Field guide' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: /follow/i })).toHaveCount(0);
-  await page.getByRole('button', { name: 'Next landmark' }).click();
-  await expect(page.getByText('Landmark view', { exact: true })).toBeVisible();
+  await expect(page.getByRole('group', { name: 'Landmark navigation' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Start tour' }).click();
+  await expect(page.getByText('Tour view', { exact: true })).toBeVisible();
   const scene = page.getByRole('region', { name: 'City navigation' });
   await scene.focus();
   await page.keyboard.press('ArrowRight');
   await expect(page.getByText('Free view', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Next landmark' }).click();
+  await page.getByRole('button', { name: 'Start tour' }).click();
   await scene.focus();
   await page.keyboard.press('?');
   await expect(page.getByRole('dialog')).toBeVisible();
@@ -27,8 +28,8 @@ test('live navigation, focus interruption, help focus, and static pause', async 
   await expect(page.getByText('Free view', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Pause city' }).click();
   await page.getByRole('button', { name: 'Reset overview' }).click();
-  await page.getByRole('button', { name: 'Next landmark' }).click();
-  await expect(page.getByText('Rainlight Pavilion', { exact: true }).first()).toBeVisible();
+  await page.getByRole('button', { name: 'Pan right' }).click();
+  await expect(page.getByText('Free view', { exact: true })).toBeVisible();
   const before = await captureCity(page);
   await page.waitForTimeout(300);
   expect(await captureCity(page)).toEqual(before);
@@ -38,23 +39,24 @@ test('live navigation, focus interruption, help focus, and static pause', async 
   expect(errors).toEqual([]);
 });
 
-test('reduced motion, focus cycling, DPR bounds, and accessible controls', async ({ page }) => {
+test('reduced-motion city-wide guided views, inert bracket shortcuts, DPR bounds, and accessible controls', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'Resume city' })).toBeEnabled();
   await page.getByRole('region', { name: 'City navigation' }).focus();
+  await page.keyboard.press('[');
   await page.keyboard.press(']');
-  await expect(page.getByText('Rainlight Pavilion', { exact: true }).first()).toBeVisible();
-  await page.keyboard.press(']');
-  await expect(page.getByText('Terrace Steps', { exact: true }).first()).toBeVisible();
-  await page.keyboard.press(']');
-  await expect(page.getByText('Reservoir Walk', { exact: true }).first()).toBeVisible();
-  await page.keyboard.press(']');
-  await expect(page.getByText('Juniper Court', { exact: true }).first()).toBeVisible();
-  await page.keyboard.press(']');
-  await expect(page.getByText('Crosstown Steps', { exact: true }).first()).toBeVisible();
-  await page.keyboard.press(']');
-  await expect(page.getByText('Rainlight Pavilion', { exact: true }).first()).toBeVisible();
+  await expect(page.getByText('Overview', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: /landmark|clear selection/i })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Guided views' }).click();
+  const subjects = ['District overview', 'Rainlight Pavilion', 'Crosstown Steps', 'Terrace Steps', 'Reservoir Walk', 'Juniper Court'];
+  for (const [index, subject] of subjects.entries()) {
+    await expect(page.locator('#tour-hint')).toHaveText(`Guided view ${index + 1} / 6: ${subject}`);
+    await page.getByRole('button', { name: 'Next view' }).click();
+  }
+  await expect(page.locator('#tour-hint')).toHaveText('Guided view 1 / 6: District overview');
+  await page.getByRole('button', { name: 'Previous view' }).click();
+  await expect(page.locator('#tour-hint')).toHaveText('Guided view 6 / 6: Juniper Court');
   const dpr = await page.locator('canvas').evaluate((canvas: HTMLCanvasElement) => canvas.width / canvas.clientWidth);
   expect(dpr).toBeLessThanOrEqual(1.5);
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
@@ -77,7 +79,7 @@ test('scene labels remain readable over nighttime rain', async ({ page }) => {
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 });
 
-test('unsupported WebGL keeps landmark navigation, not a blank canvas', async ({ page }) => {
+test('unsupported WebGL keeps the descriptive still without landmark navigation', async ({ page }) => {
   await page.addInitScript(() => {
     const original = HTMLCanvasElement.prototype.getContext;
     HTMLCanvasElement.prototype.getContext = function (type: string, ...args: unknown[]) {
@@ -87,8 +89,10 @@ test('unsupported WebGL keeps landmark navigation, not a blank canvas', async ({
   });
   await page.goto('/');
   await expect(page.getByText(/WebGL2 is unavailable/)).toBeVisible();
-  await page.getByRole('button', { name: 'Next landmark' }).click();
-  await expect(page.getByText(/An open limestone pergola/)).toBeVisible();
+  await expect(page.getByRole('group', { name: 'Landmark navigation' })).toHaveCount(0);
+  await expect(page.locator('.static-marker')).toHaveCount(0);
+  await expect(page.getByRole('img', { name: /Original miniature city/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Start tour' })).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Pause city' })).toBeDisabled();
   expect(await page.locator('.city-poster').evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0)).toBe(true);
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
@@ -105,11 +109,13 @@ test('a useful original still remains when JavaScript is disabled', async ({ bro
   await context.close();
 });
 
-test('real WebGL context restores once and preserves paused selection', async ({ page }) => {
+test('real WebGL context restores once and preserves the paused manual camera', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByText('City is living', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Pause city' }).click();
-  await page.getByRole('button', { name: 'Next landmark' }).click();
+  await page.getByRole('button', { name: 'Pan right' }).click();
+  await page.getByRole('button', { name: 'Zoom in' }).click();
+  const before = await captureCity(page);
   const supported = await page.locator('canvas').evaluate((canvas: HTMLCanvasElement) => {
     const extension = canvas.getContext('webgl2')?.getExtension('WEBGL_lose_context');
     if (!extension) return false;
@@ -119,7 +125,8 @@ test('real WebGL context restores once and preserves paused selection', async ({
   });
   expect(supported).toBe(true);
   await expect(page.getByRole('button', { name: 'Resume city' })).toBeEnabled();
-  await expect(page.getByText('Rainlight Pavilion', { exact: true }).first()).toBeVisible();
+  await expect(page.getByText('Free view', { exact: true })).toBeVisible();
+  expect(await captureCity(page)).toEqual(before);
   await expect(page.getByRole('button', { name: 'Zoom in' })).toBeEnabled();
   await page.getByRole('button', { name: 'Zoom in' }).click();
 });
@@ -139,11 +146,12 @@ test('the same paused seed reproduces the scene and does not load external resou
   expect(external).toEqual([]);
 });
 
-test('Command-drag orbits a landmark instead of panning it off its pivot', async ({ page }) => {
+test('Command-drag orbits the current pivot and clicking scenery does not select it', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'Resume city' })).toBeEnabled();
-  await page.getByRole('button', { name: 'Next landmark' }).click();
+  await page.getByRole('button', { name: 'Guided views' }).click();
+  await page.getByRole('button', { name: 'Next view' }).click();
   const canvas = page.locator('canvas');
   const bounds = await canvas.boundingBox();
   if (!bounds) throw new Error('Missing scene bounds');
@@ -157,10 +165,11 @@ test('Command-drag orbits a landmark instead of panning it off its pivot', async
   await page.keyboard.up('Meta');
   await expect(page.getByText('Free view', { exact: true })).toBeVisible();
   await expect(canvas).not.toHaveAttribute('data-dragging');
-  await page.getByRole('button', { name: 'Clear selection' }).click();
+  const beforeClick = await captureCity(page);
   await page.mouse.click(x, y);
-  await expect(page.getByText('Landmark view', { exact: true })).toBeVisible();
-  await expect(page.getByText('Rainlight Pavilion', { exact: true }).first()).toBeVisible();
+  await expect(page.getByText('Free view', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Clear selection' })).toHaveCount(0);
+  expect(await captureCity(page)).toEqual(beforeClick);
   await page.getByRole('button', { name: 'More street-level' }).click();
   await expect(page.getByText('Free view', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'More overhead' }).click();
@@ -170,7 +179,7 @@ test('Command-drag orbits a landmark instead of panning it off its pivot', async
 test('mouse gestures yield the camera without touching overlay controls', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByText('City is living', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Next landmark' }).click();
+  await page.getByRole('button', { name: 'Start tour' }).click();
   const box = await page.locator('canvas').boundingBox();
   expect(box).not.toBeNull();
   if (!box) throw new Error('Missing scene bounds');
@@ -181,9 +190,9 @@ test('mouse gestures yield the camera without touching overlay controls', async 
   await page.mouse.move(x + 60, y + 10, { steps: 5 });
   await page.mouse.up();
   await expect(page.getByText('Free view', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Next landmark' }).click();
+  await page.getByRole('button', { name: 'Start tour' }).click();
   await page.getByRole('button', { name: 'Dismiss navigation hint' }).click();
-  await expect(page.getByText('Landmark view', { exact: true })).toBeVisible();
+  await expect(page.getByText('Tour view', { exact: true })).toBeVisible();
   await page.mouse.move(x, y);
   await page.mouse.wheel(0, -80);
   await expect(page.getByText('Free view', { exact: true })).toBeVisible();
@@ -198,7 +207,7 @@ for (const [width, height] of [[1024, 768], [1440, 900], [1920, 1080]]) {
     await page.goto('/');
     await expect(page.getByRole('button', { name: 'Resume city' })).toBeEnabled();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    for (const name of ['Resume city', 'Next landmark', 'Previous landmark', 'Zoom in', 'Pan up', 'Rotate left', 'More overhead', 'More street-level', 'Settings']) {
+    for (const name of ['Resume city', 'Guided views', 'Zoom in', 'Pan up', 'Rotate left', 'More overhead', 'More street-level', 'Settings']) {
       const button = page.getByRole('button', { name, exact: true });
       await button.scrollIntoViewIfNeeded();
       const bounds = await button.boundingBox();
@@ -210,7 +219,8 @@ for (const [width, height] of [[1024, 768], [1440, 900], [1920, 1080]]) {
         return element.contains(document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2));
       })).toBe(true);
     }
-    await page.getByRole('button', { name: 'Next landmark' }).click();
-    await expect(page.getByText(/An open limestone pergola/)).toBeVisible();
+    await page.getByRole('button', { name: 'Guided views' }).click();
+    await expect(page.getByRole('button', { name: 'Next view' })).toBeVisible();
+    await expect(page.getByRole('button', { name: /landmark|clear selection/i })).toHaveCount(0);
   });
 }

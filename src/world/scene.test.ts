@@ -1,9 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
 import poster from '../../public/city/rainlight-005.svg?raw';
 import shell from '../../index.html?raw';
-import { CAMERA_ANCHORS, CAMERA_PROJECTION, CITY, LANDMARKS } from '../content/city';
+import { CAMERA_ANCHORS, CAMERA_PROJECTION, CITY } from '../content/city';
 import { BASKETBALL_COURT, COURT_PLAYERS, PICKLEBALL_COURT } from '../content/courts';
 import { METRO_ENTRANCES, METRO_GEOMETRY } from '../content/metro';
 import { PARK_LAMPS, STREET_LAMPS } from '../content/lighting';
@@ -32,17 +31,15 @@ function resources(scene: THREE.Scene) {
 afterEach(() => { worlds.splice(0).forEach((world) => world.dispose()); });
 
 describe('original car-free park district', () => {
-  it('keeps five semantic landmarks and no selectable actors', () => {
+  it('contains no landmark selection targets or highlight resources', () => {
     const world = createScene();
-    expect(world.hitTargets.map((target) => target.userData.semanticId)).toEqual(LANDMARKS.map(({ id }) => id));
-    world.actors.forEach((actor) => actor.traverse((object) => expect(object.userData.semanticId).toBeUndefined()));
-    const ray = new THREE.Raycaster();
-    for (const point of LANDMARKS) {
-      ray.set(new THREE.Vector3(point.position.x, 20, point.position.z), new THREE.Vector3(0, -1, 0));
-      expect(ray.intersectObjects(world.hitTargets)[0].object.userData.semanticId).toBe(point.id);
-    }
-    expect(world.marker.visible).toBe(false);
-    expect(world.marker.position).toEqual(new THREE.Vector3());
+    expect(world).not.toHaveProperty('hitTargets');
+    expect(world).not.toHaveProperty('marker');
+    expect(world.scene.getObjectByName('Landmark selection ring')).toBeUndefined();
+    world.scene.traverse((object) => {
+      expect(object.userData.semanticId).toBeUndefined();
+      expect(object.name).not.toContain('semantic hit volume');
+    });
   });
 
   it('has 246 traveling actors, thirty-six park walkers and eighteen runner rigs', () => {
@@ -62,23 +59,6 @@ describe('original car-free park district', () => {
       expect(bounds.min.y).toBeGreaterThan(-0.05);
       expect(bounds.min.y).toBeLessThanOrEqual(0.01);
     });
-  });
-
-  it('selects both full-size courts without turning neighboring streets into landmark targets', () => {
-    const world = createScene();
-    const ray = new THREE.Raycaster();
-    for (const court of [BASKETBALL_COURT, PICKLEBALL_COURT]) {
-      for (const sideX of [-1, 1]) for (const sideZ of [-1, 1]) {
-        const x = court.x + sideX * (court.runoffWidth / 2 - 0.01);
-        const z = court.z + sideZ * (court.runoffDepth / 2 - 0.01);
-        ray.set(new THREE.Vector3(x, 20, z), new THREE.Vector3(0, -1, 0));
-        expect(ray.intersectObjects(world.hitTargets)[0]?.object.userData.semanticId).toBe('juniper-court');
-      }
-    }
-    for (const z of [95, 125.8, 132]) {
-      ray.set(new THREE.Vector3(-5, 20, z), new THREE.Vector3(0, -1, 0));
-      expect(ray.intersectObjects(world.hitTargets)).toHaveLength(0);
-    }
   });
 
   it('integrates all diverse people and keeps the meadow family envelope clear of paths and props', () => {
@@ -168,10 +148,10 @@ describe('original car-free park district', () => {
   });
 
   it('opens all eight subway wells through the island and backdrop to real descending treads', () => {
-    const { scene, hitTargets, weatherSurface } = createScene();
+    const { scene, weatherSurface } = createScene();
     const ground = scene.getObjectByName('Miniature ground')!;
     const backdrop = scene.getObjectByName('City backdrop')!;
-    const staticRoots = scene.children.filter((object) => !hitTargets.includes(object));
+    const staticRoots = scene.children;
     const ray = new THREE.Raycaster();
     const up = new THREE.Vector3(0, 1, 0);
     expect(METRO_ENTRANCES).toHaveLength(8);
@@ -437,7 +417,6 @@ describe('original car-free park district', () => {
     expect(shadow).toHaveBeenCalledTimes(1);
     expect(first.scene.children).toHaveLength(0);
     expect(first.actors.size).toBe(0);
-    expect(first.hitTargets).toHaveLength(0);
   });
 
   it('reproduces geometry and transforms without cross-world resource sharing', () => {
@@ -452,7 +431,7 @@ describe('original car-free park district', () => {
     expect([...first.geometries].some((geometry) => second.geometries.has(geometry))).toBe(false);
   });
 
-  it('ships a self-contained original still with all matching landmark IDs', () => {
+  it('ships a self-contained original still with matching court, entrance and scaffold geometry', () => {
     expect(new TextEncoder().encode(poster).byteLength).toBeLessThan(200_000);
     const document = new DOMParser().parseFromString(poster, 'image/svg+xml');
     expect(document.querySelector('parsererror')).toBeNull();
@@ -486,21 +465,9 @@ describe('original car-free park district', () => {
       expect(element.getAttribute('href')).toMatch(/^#/);
       expect(document.querySelector(element.getAttribute('href')!)).not.toBeNull();
     });
-    LANDMARKS.forEach(({ id }) => expect(document.getElementById(id)).not.toBeNull());
     const html = new DOMParser().parseFromString(shell, 'text/html');
     expect(html.querySelector('img')?.getAttribute('src')).toBe(`/city/${CITY.version}.svg`);
     expect(html.title).toBe('CitiVibe - Rainlight Square');
-    const styles = readFileSync('src/styles.css', 'utf8');
-    for (const { id, position: anchor } of LANDMARKS) {
-      const position = poster.match(new RegExp(`${id} (\\d+(?:\\.\\d+)?),(\\d+(?:\\.\\d+)?)`));
-      const marker = styles.match(new RegExp(`\\.marker-${id} \\{ left: ([\\d.]+)%; top: ([\\d.]+)%; \\}`));
-      expect(position).not.toBeNull();
-      expect(marker).not.toBeNull();
-      expect(Number(position![1])).toBeCloseTo(600 + 2 * (anchor.x - anchor.z), 3);
-      expect(Number(position![2])).toBeCloseTo(480 + 0.95 * (anchor.x + anchor.z), 3);
-      expect(Number(marker![1])).toBeCloseTo(Number(position![1]) / 12, 3);
-      expect(Number(marker![2])).toBeCloseTo(Number(position![2]) / 9, 3);
-    }
   });
 });
 

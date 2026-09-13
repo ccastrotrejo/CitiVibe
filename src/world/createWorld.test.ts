@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { InstancedMesh, NeutralToneMapping, OrthographicCamera, Scene, Vector3 } from 'three';
-import { CAMERA_PROJECTION, CITY, LANDMARKS } from '../content/city';
+import { CAMERA_ANCHORS, CAMERA_PROJECTION } from '../content/city';
 import { CITY_EXTENT } from '../content/streets';
 import { COURT_PLAYERS } from '../content/courts';
 import { PLAY_AREA, PLAY_PEOPLE } from '../content/play';
@@ -213,7 +213,7 @@ describe('runtime ownership and suspension', () => {
     world.dispose();
   });
 
-  it('fits all expanded ground corners in the overview and keeps new landmarks focusable', () => {
+  it('fits all expanded ground corners in the overview and renders every guided tour view', () => {
     const model = new WorldModel(true);
     const { world } = mount(model);
     const camera: unknown = gpu.render.mock.lastCall?.[1];
@@ -226,11 +226,11 @@ describe('runtime ownership and suspension', () => {
         expect(Math.abs(screen.y)).toBeLessThan(0.95);
       }
     }
-    for (const landmark of LANDMARKS.slice(3)) {
-      world.command({ type: 'focus-landmark', id: landmark.id });
-      expect(model.selectedId).toBe(landmark.id);
-      expect(model.camera.pose.x).toBe(landmark.position.x);
-      expect(model.camera.pose.z).toBe(landmark.position.z);
+    world.command({ type: 'start-tour' });
+    for (const anchor of CAMERA_ANCHORS) {
+      expect(model.camera.pose).toEqual(anchor.pose);
+      expect(model.snapshot().view?.subject).toBe(anchor.subject);
+      world.command({ type: 'guided-step', direction: 1 });
     }
     world.dispose();
   });
@@ -264,7 +264,7 @@ describe('runtime ownership and suspension', () => {
   it('keeps the orbit pivot centered and the camera above ground throughout tilt', () => {
     const model = new WorldModel(true);
     const { world } = mount(model);
-    world.command({ type: 'focus-landmark', id: CITY.landmark.id });
+    world.command({ type: 'navigate', panX: 20, panZ: 10 });
     for (const tilt of [-100, 100, -0.2]) {
       world.command({ type: 'navigate', rotate: 1.5, tilt });
       tick(0);
@@ -295,7 +295,7 @@ describe('runtime ownership and suspension', () => {
     const rendered = gpu.render.mock.calls.length;
     tick(30000);
     expect(gpu.render).toHaveBeenCalledTimes(rendered);
-    world.command({ type: 'focus-landmark', id: CITY.landmark.id });
+    world.command({ type: 'reset' });
     expect(gpu.render).toHaveBeenCalledTimes(rendered + 1);
     expect(frames.size).toBe(0);
     world.command({ type: 'set-paused', paused: false });
@@ -366,7 +366,7 @@ describe('runtime ownership and suspension', () => {
   it('preserves user pause through pagehide/pageshow and context recovery', () => {
     const model = new WorldModel(true);
     const { canvas, world } = mount(model);
-    world.command({ type: 'focus-landmark', id: CITY.landmark.id });
+    world.command({ type: 'navigate', panX: 20, zoom: 0.4 });
     const pose = { ...model.camera.pose };
     window.dispatchEvent(new Event('pagehide'));
     window.dispatchEvent(new Event('pageshow'));

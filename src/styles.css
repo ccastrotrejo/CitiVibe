@@ -83,8 +83,8 @@ h1 { font-family: Georgia, serif; font-weight: 400; font-size: clamp(1.65rem, 3v
 .icon-button { width: 44px; height: 44px; flex-shrink: 0; padding: 0; }
 .navigation { display: grid; grid-template-columns: repeat(4, 44px); grid-template-rows: repeat(3, 44px); gap: 4px; margin-left: auto; }
 .navigation button { background: #fffdf7ef; }
-:is(.navigation, .landmark-controls, .primary-controls, .settings-sound) button:not(.pause-button):not(:disabled), .settings-trigger { border-color: transparent; box-shadow: var(--control-shadow); }
-:is(.navigation, .landmark-controls, .primary-controls, .settings-sound) button:not(.pause-button):not(:disabled):hover, .settings-trigger:hover:not(:disabled) { border-color: transparent; box-shadow: var(--control-shadow-hover); }
+:is(.navigation, .primary-controls, .settings-sound) button:not(.pause-button):not(:disabled), .settings-trigger { border-color: transparent; box-shadow: var(--control-shadow); }
+:is(.navigation, .primary-controls, .settings-sound) button:not(.pause-button):not(:disabled):hover, .settings-trigger:hover:not(:disabled) { border-color: transparent; box-shadow: var(--control-shadow-hover); }
 .nav-up { grid-area: 1 / 2; }
 .nav-left { grid-area: 2 / 1; }
 .nav-home { grid-area: 2 / 2; }
@@ -97,11 +97,7 @@ h1 { font-family: Georgia, serif; font-weight: 400; font-size: clamp(1.65rem, 3v
 .nav-tilt-up { grid-area: 1 / 3; }
 .nav-tilt-down { grid-area: 1 / 1; }
 .control-bar { background: var(--surface); border-top: 1px solid var(--line); padding: 1rem 1.5rem 0.7rem; }
-.control-strip { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem; }
-.landmark-controls { display: flex; align-items: center; gap: 0.25rem; width: 300px; max-width: 100%; min-width: 0; }
-.landmark-name { flex: 1; min-width: 0; text-align: center; font-size: 0.8rem; font-weight: 600; }
-.landmark-description { margin-top: 0.5rem; font-size: 0.75rem; line-height: 1.5; color: var(--muted); }
-.primary-controls { display: flex; justify-content: center; flex-wrap: wrap; gap: 0.5rem; margin-left: auto; }
+.primary-controls { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 0.5rem; }
 .primary-controls .pause-button { background: var(--forest); border-color: var(--forest); color: #fffdf7; min-width: 148px; }
 .primary-controls .pause-button:hover:not(:disabled) { background: #243e31; }
 .primary-controls .pause-button:disabled { background: #737b6f; border-color: #737b6f; }
@@ -120,13 +116,6 @@ h1 { font-family: Georgia, serif; font-weight: 400; font-size: clamp(1.65rem, 3v
 .lifecycle-panel strong { font-family: Georgia, serif; font-size: 1.25rem; font-weight: 400; }
 .lifecycle-panel p { font-size: 0.8rem; line-height: 1.6; margin-top: 0.5rem; }
 .lifecycle-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; flex-shrink: 0; }
-.static-marker { position: absolute; z-index: 1; left: 49.6583%; top: 50.3167%; font-size: 0.7rem; padding: 0.5rem; background: var(--surface); border: 2px solid var(--accent); border-radius: 8px; transform: translate(-50%, -100%); }
-.static-marker > span { position: absolute; width: 8px; height: 8px; bottom: -6px; left: calc(50% - 4px); background: var(--accent); transform: rotate(45deg); }
-.marker-rainlight-pavilion { left: 44.45%; top: 56.8483%; }
-.marker-terrace-steps { left: 48.8%; top: 56.3733%; }
-.marker-reed-garden { left: 58.25%; top: 48.1083%; }
-.marker-juniper-court { left: 30.25%; top: 64.7861%; }
-.marker-crosstown-steps { left: 80.8667%; top: 48.0133%; }
 .help-dialog { border: 1px solid var(--line); border-radius: 14px; padding: 1.5rem; color: var(--ink); background: var(--surface); width: min(560px, calc(100% - 2rem)); max-height: calc(100dvh - 2rem); overflow: auto; }
 .help-dialog::backdrop { background: #23352a70; }
 .dialog-heading { display: flex; gap: 1rem; align-items: flex-start; justify-content: space-between; margin-bottom: 1rem; }
@@ -165,7 +154,7 @@ kbd { font: 0.75rem "Courier New", monospace; }
   .nav-plus { grid-area: 4 / 1; }
   .nav-minus { grid-area: 4 / 3; }
   .control-bar { padding: 0.75rem 0.5rem; }
-  .primary-controls { gap: 0.4rem; margin-left: 0; }
+  .primary-controls { gap: 0.4rem; }
   .primary-controls button { font-size: 0.75rem; padding: 0.6rem; gap: 0.4rem; }
   .primary-controls .pause-button { min-width: 0; }
   .primary-controls button svg { width: 17px; }

@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App';
-import { CONTENT } from '../content/city';
+import { CAMERA_ANCHORS } from '../content/city';
 import { DEFAULT_PREFERENCES, loadPreferences, PREFERENCE_KEY, WEATHER_LABELS } from '../content/preferences';
 import { CityAudio } from '../world/audio';
 import type { WorldModel } from '../world/model';
@@ -49,21 +49,20 @@ describe('accessible city controls', () => {
     expect(screen.queryByRole('button', { name: 'Field guide' })).not.toBeInTheDocument();
   });
 
-  it('connects pause, focus cycling, and manual interruption without follow controls', async () => {
+  it('connects pause, the city-wide tour and manual interruption without landmark or follow controls', async () => {
     const user = userEvent.setup();
     render(<App />);
     await screen.findByText('City is living');
     expect(screen.queryByRole('button', { name: /follow/i })).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Next landmark' }));
-    expect(screen.getByText('Landmark view')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Start tour' }));
+    expect(screen.getByText('Tour view')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Zoom in' }));
     expect(screen.getByText('Free view')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Pause city' }));
     await user.click(screen.getByRole('button', { name: 'Reset overview' }));
-    await user.click(screen.getByRole('button', { name: 'Next landmark' }));
-    expect(screen.getAllByText('Rainlight Pavilion')[0]).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Next landmark' }));
-    expect(screen.getAllByText('Terrace Steps')[0]).toBeInTheDocument();
+    expect(screen.getByText('Overview')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Pan right' }));
+    expect(screen.getByText('Free view')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Resume city' })).toBeEnabled();
   });
 
@@ -72,13 +71,13 @@ describe('accessible city controls', () => {
     render(<App />);
     await screen.findByText('City is living');
     screen.getByRole('button', { name: 'Zoom in' }).focus();
-    await user.keyboard(']');
-    expect(screen.queryByText('Landmark view')).not.toBeInTheDocument();
+    await user.keyboard('q');
+    expect(lifecycle.command).not.toHaveBeenCalled();
     screen.getByRole('region', { name: 'City navigation' }).focus();
     await user.keyboard('bd');
     expect(screen.getByText('Overview')).toBeInTheDocument();
-    await user.keyboard(']');
-    expect(screen.getByText('Landmark view')).toBeInTheDocument();
+    await user.keyboard('t');
+    expect(screen.getByText('Tour view')).toBeInTheDocument();
     await user.keyboard('{ArrowRight}');
     expect(screen.getByText('Free view')).toBeInTheDocument();
   });
@@ -112,7 +111,7 @@ describe('accessible city controls', () => {
     const user = userEvent.setup();
     render(<App />);
     await screen.findByText('City is living');
-    await user.click(screen.getByRole('button', { name: 'Next landmark' }));
+    await user.click(screen.getByRole('button', { name: 'Start tour' }));
     const trigger = screen.getByRole('region', { name: 'City navigation' });
     trigger.focus();
     await user.keyboard('?');
@@ -137,18 +136,22 @@ describe('accessible city controls', () => {
     expect(settings).toHaveFocus();
   });
 
-  it('retains noncommercial focus navigation after renderer failure and retry', async () => {
+  it('retains the descriptive static city and retries without landmark navigation', async () => {
     lifecycle.fail = true;
     const user = userEvent.setup();
     render(<App />);
     await screen.findByText(/WebGL2 is unavailable/);
     expect(screen.getByRole('button', { name: 'Pause city' })).toBeDisabled();
-    await user.click(screen.getByRole('button', { name: 'Next landmark' }));
-    expect(screen.getAllByText('Rainlight Pavilion').length).toBeGreaterThan(0);
+    expect(screen.getByRole('img', { name: /Original miniature city/ })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Start tour' })).toBeDisabled();
+    expect(screen.queryByRole('group', { name: 'Landmark navigation' })).not.toBeInTheDocument();
+    const retained = lifecycle.model;
     lifecycle.fail = false;
     await user.click(screen.getByRole('button', { name: 'Retry live city' }));
     await screen.findByText('City is living');
-    expect(screen.getAllByText('Rainlight Pavilion')[0]).toBeInTheDocument();
+    expect(lifecycle.model).toBe(retained);
+    expect(screen.getByRole('button', { name: 'Start tour' })).toBeEnabled();
+    expect(screen.queryByRole('button', { name: 'Next landmark' })).not.toBeInTheDocument();
   });
 
   it('disposes the live world on unmount', async () => {
@@ -177,7 +180,7 @@ describe('accessible city controls', () => {
     expect(screen.getByRole('button', { name: 'Resume city' })).toBeEnabled();
     await user.click(screen.getByRole('button', { name: 'Guided views' }));
     await user.click(screen.getByRole('button', { name: 'Next view' }));
-    expect(screen.getByText(`Guided view 2 / ${CONTENT.tourAnchorIds.length}`, { exact: false })).toBeInTheDocument();
+    expect(screen.getByText(`Guided view 2 / ${CAMERA_ANCHORS.length}`, { exact: false })).toBeInTheDocument();
     expect(window.localStorage.getItem('livingcity.preferences')).toContain('"motion":"reduced"');
   });
 
@@ -340,13 +343,14 @@ describe('accessible city controls', () => {
     expect(trigger).toHaveAttribute('aria-expanded', 'false');
     expect(trigger).toHaveFocus();
     expect(trigger).toBeVisible();
-    await user.click(screen.getByRole('button', { name: 'Next landmark' }));
+    await user.click(screen.getByRole('button', { name: 'Zoom in' }));
+    const pose = { ...lifecycle.model!.camera.pose };
     await user.click(trigger);
     screen.getByRole('combobox', { name: 'Weather' }).focus();
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('region', { name: 'City settings' })).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
-    expect(screen.getAllByText('Rainlight Pavilion')[0]).toBeInTheDocument();
+    expect(lifecycle.model?.camera.pose).toEqual(pose);
     expect(lifecycle.command).not.toHaveBeenCalledWith({ type: 'open-panel' });
     expect(lifecycle.command).not.toHaveBeenCalledWith({ type: 'close-panel' });
   });
@@ -424,28 +428,34 @@ describe('accessible city controls', () => {
     expect(screen.getByRole('button', { name: 'Close settings' })).toHaveFocus();
   });
 
-  it.each([false, true])('keeps toolbar landmarks, descriptions, clear and brackets accessible with renderer failure=%s', async (failed) => {
+  it.each([false, true])('removes landmark controls and leaves former bracket shortcuts inert with renderer failure=%s', async (failed) => {
     lifecycle.fail = failed;
     const user = userEvent.setup();
     render(<App />);
     if (failed) await screen.findByText(/WebGL2 is unavailable/);
     else await screen.findByText('City is living');
     await user.click(screen.getByRole('button', { name: 'Settings' }));
-    const landmarks = screen.getByRole('group', { name: 'Landmark navigation' });
-    expect(landmarks.closest('.control-bar')).not.toBeNull();
-    expect(screen.getAllByRole('button', { name: 'Next landmark' })).toHaveLength(1);
-    await user.click(within(landmarks).getByRole('button', { name: 'Next landmark' }));
-    expect(within(landmarks).getByText('Rainlight Pavilion')).toBeInTheDocument();
-    expect(landmarks).toHaveAccessibleDescription();
+    expect(screen.queryByRole('group', { name: 'Landmark navigation' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Find a quiet place')).not.toBeInTheDocument();
+    for (const name of ['Next landmark', 'Previous landmark', 'Clear selection', 'Tour this landmark']) {
+      expect(screen.queryByRole('button', { name })).not.toBeInTheDocument();
+    }
+    expect(document.querySelector('.landmark-description, .static-marker')).toBeNull();
     expect(screen.getByRole('region', { name: 'City settings' })).toBeInTheDocument();
-    await user.click(screen.getByRole('region', { name: 'City navigation' }));
-    await user.keyboard(']');
-    expect(within(landmarks).getByText('Terrace Steps')).toBeInTheDocument();
-    await user.click(within(landmarks).getByRole('button', { name: 'Previous landmark' }));
-    expect(within(landmarks).getByText('Rainlight Pavilion')).toBeInTheDocument();
-    await user.click(within(landmarks).getByRole('button', { name: 'Clear selection' }));
-    expect(within(landmarks).getByText('Find a quiet place')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Clear selection' })).not.toBeInTheDocument();
+    const navigation = screen.getByRole('region', { name: 'City navigation' });
+    navigation.focus();
+    expect(navigation).not.toHaveAccessibleDescription(/landmark|bracket/i);
+    const before = lifecycle.model!.snapshot();
+    lifecycle.command.mockClear();
+    for (const key of ['[', ']']) {
+      const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+      act(() => { navigation.dispatchEvent(event); });
+      expect(event.defaultPrevented).toBe(false);
+    }
+    expect(lifecycle.command).not.toHaveBeenCalled();
+    expect(lifecycle.model!.snapshot()).toEqual(before);
+    await user.keyboard('?');
+    expect(screen.getByRole('dialog')).not.toHaveTextContent(/landmark|clear selection|\[ \/ \]/i);
   });
 
   it('keeps time and expandable motion, quality and hint preferences functional with night contrast intact', async () => {
@@ -529,15 +539,19 @@ describe('accessible city controls', () => {
     const user = userEvent.setup();
     render(<App />);
     await screen.findByText('City is living');
-    await user.click(screen.getByRole('button', { name: 'Next landmark' }));
+    await user.click(screen.getByRole('button', { name: 'Start tour' }));
     await user.click(screen.getByRole('button', { name: 'Expand view' }));
     expect(screen.getByRole('button', { name: 'Exit expanded view' })).toBeInTheDocument();
     screen.getByRole('region', { name: 'City navigation' }).focus();
     await user.keyboard('{Escape}');
     expect(screen.getByRole('button', { name: 'Expand view' })).toBeInTheDocument();
     expect(screen.queryByText(/Expanded view is active/)).not.toBeInTheDocument();
-    expect(screen.getAllByText('Rainlight Pavilion')[0]).toBeInTheDocument();
+    expect(screen.getByText('Tour view')).toBeInTheDocument();
     await user.keyboard('{Escape}');
-    expect(screen.queryByText('Rainlight Pavilion')).not.toBeInTheDocument();
+    expect(screen.getByText('Free view')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Start tour' })).toBeInTheDocument();
+    lifecycle.command.mockClear();
+    await user.keyboard('{Escape}');
+    expect(lifecycle.command).not.toHaveBeenCalled();
   });
 });

@@ -1,10 +1,53 @@
 # Acceptance criteria and verification plan
 
-**Status: connected pedestrian movement incorporates latest main's population and lighting; browser and physical-device limitations remain.** The current scene retains thirty-six intersections, twenty-four blocks, 94 buildings and a 78 x 176 m park within a 220 x 340 m map. It has 224 active/posable people (260 rigs including vehicles), eight resting neighbors, two balls, full-size courts with six new light poles, eight compact subway entrances and unchanged scaffolding. The population and lighting checkpoints below are historical, not a substitute for current verification. Automated coverage does not establish physical-device FPS, long-session, cross-combination or assistive-technology acceptance. Production readiness is not claimed; camera-follow and the drone remain excluded.
+**Status: connected walking trips, street names, population diversity, removed landmark selection and night lighting pass targeted integration checks. Served-browser and physical-device gates remain open.** The current scene retains thirty-six intersections, twenty-four blocks, 94 buildings and a 78 x 176 m park within a 220 x 340 m map. It has 224 active/posable people (260 rigs including vehicles), eight resting neighbors, two balls, full-size courts with six light poles, eight compact subway entrances, unchanged scaffolding and twenty-four street-name blades on twelve existing signal poles. Previous feature and merge records below are historical. Automated coverage does not substitute for physical-device FPS, long-session, cross-combination or assistive-technology verification. Production readiness is not claimed; landmark selection, camera-follow and the drone remain excluded.
 
 Use this matrix when implementing each [roadmap](ROADMAP.md) milestone. Numerical budgets are working targets; name the reference devices and record actual results before declaring them met. The [experience spec](EXPERIENCE_SPEC.md) is authoritative for pause/camera behavior.
 
+## Walking-trip and street-sign integration - 2026-09-13
+
+Main `603495a` (connected walking trips) is merged into the street-sign/controls branch at `234a08d`. Application code merged without conflicts. Three documentation conflicts were resolved by preserving both the movement requirements and explicit landmark-selection removal, with upstream and earlier verification records labeled separately. Signs, lighting, manual camera controls and city-wide/guided tours remain intact; population doubling remains planned only.
+
+Strict TypeScript, ESLint and the production build pass. Focused verification passes **118 tests**: 114 across eight pedestrian, locomotion, runtime/recovery, person, model, vehicle-lighting, sign and UI files (41.25 seconds), plus four seed-2401 twenty-minute traffic scenarios covering dry, wet, minimum and changing grip (37.18 seconds). These retain footprint separation, stop-line safety and progress requirements. The remaining traffic cases and complete suite were not rerun; this is targeted merge verification, not a new full-suite claim.
+
+Browser checks were not repeated after the previously established Chromium startup crash and WebKit navigation timeout. No new browser, visual or physical-device result is claimed. Vite retains its existing large-chunk warning (entry 530.44 kB / 158.91 kB gzip; renderer 461.89 kB / 124.26 kB gzip).
+
+## Lighting and street-sign integration - 2026-09-13
+
+**Pre-walking-merge record (`234a08d`).**
+
+Main `06ecb95` (city, vehicle and court lighting) is merged into the street-sign/controls branch at `bef6fb2`. Five conflicts were resolved by retaining lighting imports and vehicle-light rigs while keeping landmark selection, raycasting and highlights removed. Street signs retain their scene ownership; lighting retains pause, quality and graphics-recovery integration. Both branches' earlier verification histories remain below.
+
+Strict TypeScript, ESLint, the production build and **all 463 tests across 25 files pass**. The complete single-worker suite took 298.47 seconds, without retries or relaxed limits. This covers signs, lighting, population, traffic, manual camera and city-wide/guided tours, removed selection, weather, resource budgets/disposal and restoration. Seven affected documents passed 87 relative-link-target checks and JSON-example parsing; no conflict markers or unmerged entries remain.
+
+The applicable nighttime-rain/recovery Playwright attempt still fails at Chromium startup with `SIGSEGV`, before application assertions; the second scenario did not run. No new browser, isolated-render or physical-device pass is claimed for this merge. The existing large-chunk warning remains (entry 525.56 kB / 157.13 kB gzip; renderer 461.65 kB / 124.19 kB gzip).
+
+## Landmark-selection removal - 2026-09-13
+
+**Pre-lighting-merge record (`bef6fb2`).**
+
+The user removed the whole feature, not just its toolbar: no landmark registry, selection commands/state, bracket shortcuts, scene raycaster, semantic hit volumes, highlight ring, static markers, descriptions or landmark-specific tours remain. Manual camera controls, the original six-view city-wide tour order and reduced-motion guided views are retained. Reservoir ripples now use the shared physical reservoir coordinates. Original scenery, signs, traffic and SVG illustrations remain unchanged.
+
+Typecheck, ESLint and the production build pass. The complete single-worker run passed **445 of 446 tests across 23 files** in 252.92 seconds. Its sole failure was an airplane fixture that selected camera anchors by array position; it now selects the same four original views by stable ID, without changing flight behavior or visibility requirements. The subsequent airplane/UI run passed **all 48 tests**. The full suite was not rerun after this test-only correction. Scene budget, disposal, weather, population, tour, pause and restoration checks passed in that complete run. Eight changed documents passed 94 relative-link-target checks and JSON-example parsing; the original illustrations have no diff.
+
+The fresh production Playwright attempt still fails at Chromium startup with `SIGSEGV`, before any app assertions; fourteen further scenarios did not run after the first failure. A bounded WebKit fallback also timed out navigating to the HTTP-responsive local app. No new served-browser, visual, accessibility-scan or physical-device pass is claimed. The preview server responds on port 4191. Vite retains its existing large-chunk warning (entry 521.89 kB / 155.93 kB gzip; renderer 451.12 kB / 120.90 kB gzip).
+
+## Street-name design checkpoint - 2026-09-13
+
+The subsequent main sync combines this feature with population commit `121817c`. Both the sign-resource ownership and the new person/meadow activity wiring are retained. Typecheck, lint and production build passed. The full single-worker run passed 447 of 448 tests across 23 files; the seed-42 dry-traffic soak exceeded its 30-second timeout under load. That exact test passed unchanged on an isolated retry (9.14 seconds for the run). The build retains its existing large-chunk warning. The scene budget checks pass against main's 600,000-triangle / 110-submission / 36-material limits. No new served-browser or physical-device result is claimed by this merge.
+
+**Pre-merge record (`e7a49dc`).** The original street-sign follow-up started from main `b81eb32`. Twelve selected intersections carry twenty-four double-sided green blades; all six avenues and six cross streets have original names. No obsolete loop geometry, misleading one-way plates, new poles, traffic changes or extra UI controls were restored from the earlier draft.
+
+- Strict TypeScript, ESLint, the production build and the **complete 423-test suite across 20 files** pass. The full suite ran with `--maxWorkers=1` in 127.52 seconds.
+- Six new sign tests cover all-road name coverage, unique junction IDs, existing-pole positions, sidewalk/metro/park clearance, facade separation, road-overhang height, paired front/rear orientation, finite letter bounds, explicit missing-glyph errors and bounded static resources. Existing scene tests cover independent/idempotent disposal, deterministic geometry, and the unchanged whole-scene budgets; runtime tests retain pause and recovery behavior.
+- CPU traversal counts **549,184 base-scene triangles, 98 visible mesh submissions, 34 visible materials and 39 geometries**. The signs add 5,672 triangles, four submissions and one shared material. No existing 550,000 / 110 / 36 ceiling was raised. This is not GPU/FPS accounting; snow/effect/shadow passes are separate.
+- An isolated in-memory WebKit bundle rendered and was visually inspected in seven views: magnified front/reverse details, a supported maximum-zoom corner composition, Night, Rain, Mist/Lightweight and overview. There were no reported page or shader errors. The actual city/renderer/environment modules supplied the artwork; the diagnostic camera and captures remain session artifacts rather than production hooks.
+- The targeted production Playwright scenario was retried against this revision, but Chromium crashed with `SIGSEGV` before page creation. Earlier full-Chromium probing also timed out at startup. The isolated WebKit captures do **not** establish served navigation, asset loading, storage behavior, UI interaction parity, all viewing angles or physical-device performance. Existing broader browser/device gates remain open.
+- Vite's existing large-chunk warning remains: entry **522.85 KB / 155.66 KB gzip**, renderer **446.66 KB / 119.05 KB gzip**. No warning was suppressed and no general performance-optimization milestone is claimed.
+
 ## Connected pedestrian movement and main integration - 2026-09-13
+
+**Upstream movement checkpoint (`603495a`), before this branch's merge.**
 
 Latest `origin/main` (`06ecb95`, night/vehicle/court lighting) was fast-forwarded into this branch while the uncommitted movement work was preserved in a named stash. Three restored-file conflicts were resolved explicitly: retain indicator initialization alongside the new pedestrians, retain both lighting and crossing lifecycle tests, and replace obsolete road-only movement fingerprints with the new safety/progress checks. The incoming locomotion restoration now also uses uninterrupted pedestrian travel distance and retained activity poses. No lighting implementation, population, court geometry or existing controls were removed.
 
@@ -22,11 +65,13 @@ Five verified movement sources and their explicit approximation boundaries are r
 
 ## Juniper Court lighting follow-up - 2026-09-13
 
+**Historical lighting-branch checkpoint, before integration into this branch.**
+
 Six new twin-head poles illuminate the basketball/pickleball parcel shown in the user's follow-up image. All bases remain outside both full runoff areas and the shared passage, with no street, building, player or court-layout changes. Physical heads, smooth ground footprints and focused-view spotlights use the same inward targets. Dusk activation, Lightweight cues, weather/snow support and deterministic pause/recovery use the existing lighting lifecycle.
 
 **Pre-merge lighting checkpoint:** all **434 Vitest cases in 21 files passed** with `--maxWorkers=1` in 131.74 seconds; typecheck, lint and production build passed. Added tests cover all six placements, invalid parcel/runoff/passage positions, inward footprint matrices, focused court lighting and daytime switch-off. An earlier full run had one 30-second traffic-soak timeout while 433 cases passed; the unchanged-timeout rerun passed completely. No simulation behavior or timeout was relaxed.
 
-| Current CPU accounting | Triangles | Visible mesh submissions | Visible materials | Geometries |
+| Historical court-lighting CPU accounting | Triangles | Visible mesh submissions | Visible materials | Geometries |
 | --- | --- | --- | --- | --- |
 | Base scene | 541,958 | 93 | 32 | 34 |
 | Night with lighting/weather adapters | 571,534 | 103 | 37 | 39 |
@@ -59,6 +104,8 @@ The production renderer chunk is **447.37 kB minified / 119.16 kB gzip**; the en
 **Remaining environment limitations:** the applicable `test:e2e` command selected nighttime-rain and weather/recovery scenarios, but Chromium crashed at launch (`SIGSEGV`) before any application assertion; the second scenario did not run. WebKit launches but still times out navigating to the local served URL. The isolated renderer does not establish production loading, persistent browser preferences, physical-device FPS, all-angle occlusion or long-session behavior. No deployment, commit, push or new pull request was performed.
 
 ## Population diversity verification - 2026-09-13
+
+**Pre-merge record (`121817c`).**
 
 **442 tests in 22 files pass** in the complete single-worker Vitest run (180.93 s). Strict TypeScript, ESLint and the production build pass. The requested increase is 144 street walkers, 36 park walkers, eighteen runners, twelve cyclists, six court players and eight meadow family figures; eight picnic figures remain separately counted. Stable IDs, all thirteen work roles, five age bands, seven skin tones, independent appearance, actual clothing/accessory geometry and purposeful pace are covered. See [people and research](PEOPLE_AND_ACTIVITY.md).
 
@@ -164,10 +211,10 @@ These initial captures established isolated renderer operation, not successful n
 | ID | Acceptance criterion | Planned verification |
 | --- | --- | --- |
 | AC-01 | Product is an original ambient city. No directory, listings, ads/sponsors, commercial landing sections, commerce, identity, moderation, analytics, or presence counters. No backend/database/login dependency. | Review runtime routes/content and network requests: only required static app/assets, no captured source APIs or tracking calls. Confirm original asset provenance. |
-| AC-02 | Every visible control is named, keyboard reachable, operable, and not intercepted by another layer. Overlay interaction never pans, zooms, raycasts, or selects the world. | RTL semantics plus Playwright hit-testing of control centers/edges and event assertions. Exercise touch/pointer cancellation and scroll inside panels. |
-| AC-03 | Pan reaches all modeled map edges; zoom, 360-degree orbit, 30-75 degree tilt, reset, and focus stay inside valid bounds and do not clip into buildings at authored views. | Unit bounds/pivot tests plus browser Command-drag and control-parity checks at supported desktop sizes. |
-| AC-04 | Only one camera mode drives the pose. Manual input cancels focus transitions/tours on the next rendered frame; no competing transition continues. Stop retains current pose. Modal dismissal does not automatically restart a tour. | State-machine tests for all mode pairs and integration tests issuing rapid conflicting commands. Assert no stale controller writes afterward. |
-| AC-05 | Original POI focus resolves stable IDs. Missing targets produce a visible explanation. Actor IDs remain stable across regeneration and quality changes; no camera-follow action is exposed. | Manifest validation and actor identity checks; keyboard and pointer landmark selection parity. |
+| AC-02 | Every visible control is named, keyboard reachable, operable, and not intercepted by another layer. Overlay interaction never pans or zooms the world. Scenery clicks have no selection behavior. | RTL semantics plus Playwright hit-testing of control centers/edges and event assertions. Exercise touch/pointer cancellation and scroll inside panels. |
+| AC-03 | Pan reaches all modeled map edges; zoom, 360-degree orbit, 30-75 degree tilt, reset, and guided views stay inside valid bounds and do not clip into buildings at authored views. | Unit bounds/pivot tests plus browser Command-drag and control-parity checks at supported desktop sizes. |
+| AC-04 | Only one camera mode drives the pose. Manual input cancels reset transitions/tours or guided views on the next rendered frame; no competing transition continues. Stop retains current pose. Modal dismissal does not automatically restart a tour. | State-machine tests for all mode pairs and integration tests issuing rapid conflicting commands. Assert no stale controller writes afterward. |
+| AC-05 | City-wide tour anchors have unique IDs, readable subjects and valid bounded poses. No landmark-selection bar, commands/state, bracket shortcuts, raycaster, click volumes, highlights or contextual tours remain. Actor IDs remain stable; no camera-follow action is exposed. | Validate the ordered six-view tour and actor identity. Assert absent selection UI/resources, inert clicks/brackets, and preserved manual camera/guided-view behavior. |
 | AC-06 | User pause freezes actors, signals, autonomous camera, event timers, weather progress, accelerated clock, and audio; manual view/settings and reduced-motion guided views remain useful. A new continuous tour is explained as unavailable while paused. Resume has no catch-up jump. | Inject clock: after 30 seconds paused, simulation tick/progress are unchanged; first resumed movement is no more than normal fixed-step travel. Test manual interruption and guided views while paused. |
 | AC-07 | Hidden/pagehide suspends frame/audio work, preserves user pause, and resets elapsed timing. Blur alone does not stop a visible second-screen world. | Test a five-minute hidden interval, return, and compare state to the next expected tick. Confirm no hidden RAF chain or burst of queued events. Clear held keys on blur. |
 | AC-08 | Route loops are continuous, speeds/dwell times are bounded, and conflicting road/crossing actors do not simultaneously occupy authored exclusive conflict zones. Populations/events are capped. | Seeded multi-minute simulation tests, boundary/loop/stop tests, and visual traffic review. No teleport-through-conflict workaround. |
@@ -180,8 +227,8 @@ These initial captures established isolated renderer operation, not successful n
 | AC-15 | Quality modes respect bounded DPR/caps, do not change simulation speed, and retain core interaction and target validity. Automatic uses hysteresis and no network telemetry. | Inject frame samples, assert no tier flapping or unbounded DPR; profile High/Auto/Lightweight and compare actor travel over equal simulation time. |
 | AC-16 | Initial district geometry aims for 3-5 MB compressed; loading state/still is honest and useful. | Record encoded/transferred/decoded sizes separately, cold and warm loads, compression/decoder overhead, and asset version. No fabricated loading percentages. |
 | AC-17 | Retry, late-load cancellation, unmount, and context restore never create duplicate worlds. All GPU/audio/listener/timer resources are released by disposal. | Ten mount/unmount and failure/retry cycles; inspect resource counts after settling. Trigger WebGL context loss/restoration where supported and verify explicit fallback on failure. |
-| AC-18 | Long sessions do not accumulate actors, histories, timers, resources, or stale frame work. | Two-hour visible/hidden/pause stress session with periodic quality/weather/focus changes and resource snapshots. Investigate monotonic growth. |
-| AC-19 | Unsupported WebGL/load error/context failure shows an original static fallback, explanation, help, and noncommercial landmark focus navigation; no directory. Unavailable controls explain why. | Disable WebGL, fail assets, lose context, retry, and use keyboard/screen reader at supported desktop widths. Verify original assets, no copied source poster. |
+| AC-18 | Long sessions do not accumulate actors, histories, timers, resources, or stale frame work. | Two-hour visible/hidden/pause stress session with periodic quality/weather/tour changes and resource snapshots. Investigate monotonic growth. |
+| AC-19 | Unsupported WebGL/load error/context failure shows an original static fallback, explanation, help and a concise accessible scene description, without landmark navigation; no directory. Unavailable controls explain why. | Disable WebGL, fail assets, lose context, retry, and use keyboard/screen reader at supported desktop widths. Verify original assets, no copied source poster. |
 | AC-20 | Same seed, simulation tick, weather, time, quality, viewport, and asset version reproduce the same composed scene within agreed raster tolerance. | Deterministic screenshots and state assertions; no wall-clock/random drift in fixtures. |
 
 ## Viewports and accessibility targets
@@ -192,7 +239,7 @@ No page-level horizontal overflow at supported desktop widths; panels fit within
 
 Proposed touch targets are at least **44 x 44 CSS px** with adequate separation. Target WCAG AA text contrast (4.5:1 normal text, 3:1 large text) and 3:1 for meaningful controls/focus indicators. State cannot depend on color alone. Check text zoom to 200% and reflow at an effective 320 px width. Use semantic controls and readable accessible names, not unlabeled icon canvases.
 
-Keyboard walkthrough must include initial guide, pan/zoom/rotate/reset, Previous/Next landmark, tour/guided views, pause, time/weather, audio, quality, help, fullscreen/expanded view, and fallback as their milestones become available. Bus/drone follow buttons and B/D shortcuts must remain absent. No essential feature may be mouse-only. This walkthrough is not a directory requirement.
+Keyboard walkthrough must include initial guide, pan/zoom/rotate/reset, city-wide tour/guided views, pause, time/weather, audio, quality, help, fullscreen/expanded view, and fallback as their milestones become available. Bus/drone follow buttons and B/D shortcuts must remain absent. No essential feature may be mouse-only. This walkthrough is not a directory requirement.
 
 Automated Chromium is necessary but insufficient for physical-device performance claims: record a named computer and its browser/OS versions before declaring those budgets met. Screen-reader checks should include the supported desktop platform combination, not only an automated accessibility scan. Physical-phone testing is outside the current request.
 

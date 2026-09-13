@@ -1,6 +1,6 @@
 # Technical architecture
 
-**Status: main integration was published at `48dc3fe`; full-size courts, denser pedestrian activity and compact subway/shed refinements are under current-slice verification.** The application uses React, strict TypeScript, Vite, direct Three.js, and npm with exact locked versions. Preserve the expanded simulation, original art, five-landmark navigation/tours, weather physics and accumulating snow/water, optional audio, compact Settings dock, quality presets, occasional airplane, and local preferences. Historical checkpoints do not verify a later revision. Physical-device, long-session and adaptive-quality work remain deferred outside this session's requested slice. No services or backend exist; the app ships as a static Vite build (see Deployment).
+**Status: main integration was published at `48dc3fe`; full-size courts, denser pedestrian activity and compact subway/shed refinements are under current-slice verification.** The application uses React, strict TypeScript, Vite, direct Three.js, and npm with exact locked versions. Preserve the expanded simulation, original art, manual camera controls and city-wide tours, weather physics and accumulating snow/water, optional audio, compact Settings dock, quality presets, occasional airplane, and local preferences. Historical checkpoints do not verify a later revision. Physical-device, long-session and adaptive-quality work remain deferred outside this session's requested slice. No services or backend exist; the app ships as a static Vite build (see Deployment).
 
 ## Current implementation
 
@@ -20,7 +20,9 @@ The central village/vehicle loop is removed. `src/content/streets.ts` defines th
 
 `src/world/streetscape.ts` builds original perimeter blocks and road details from that shared street contract, not independently positioned decorative roads. Traffic lights display simulation-owned signal states. `src/world/park.ts` renders the shared curves as path ribbons and owns its landscape surfaces/materials. `src/world/pavement.ts` owns two reusable original stencil geometries; paint materials and static instance buffers belong to the parent scene. `ActorInstances` batches all 260 active people/vehicle rigs, eight resting neighbors and two sports balls while borrowing scene geometries/materials. Running is a distinct distance-driven gait in `locomotion.ts`, not per-frame React state or a new scheduler. Hidden source meshes retain their rig transforms; dynamic instance matrices update imperatively. Instance buffers are disposed separately from the shared geometry/material owners.
 
-The scene, overview camera, shadow coverage, and bounded rain/cloud footprint grow together. Five original landmarks share one focus/tour interface; the matching `rainlight-005.svg` is a simplified original fallback. The fixed actor population, protected-lane geometry, and signal/clearance rules are fictional miniature design choices, not an implementation of NYC traffic engineering standards. The shared `bikeLaneOffset` resolves both directions onto the same park-side track on the two selected horizontal streets. Art, stop bars, pavement symbols and cycling routes must use this same signed offset. See [NYC research](NYC_CITY_RESEARCH.md) for source-backed distinctions and future options.
+`src/content/streetNames.ts` adds original road labels without modifying the traffic graph. `streetSigns.ts` places double-sided green name blades on twelve existing signal poles, using the same shared lateral offset as `streetscape.ts`. Four quadrant meshes share one vertex-colored material; original synchronous letter geometry avoids a font/texture loading path. Their resources register with the parent scene's existing ownership sets before weather capture. Signs remain static scenery, not new POIs or navigation controls, and are rebuilt with the scene after graphics recovery. Two-way roads retain two-way operation and receive no “ONE WAY” plates.
+
+The scene, overview camera, shadow coverage, and bounded rain/cloud footprint grow together. Six ordered camera anchors supply the city-wide tour and reduced-motion guided views; the matching `rainlight-005.svg` is a simplified original fallback. The fixed actor population, protected-lane geometry, and signal/clearance rules are fictional miniature design choices, not an implementation of NYC traffic engineering standards. The shared `bikeLaneOffset` resolves both directions onto the same park-side track on the two selected horizontal streets. Art, stop bars, pavement symbols and cycling routes must use this same signed offset. See [NYC research](NYC_CITY_RESEARCH.md) for source-backed distinctions and future options.
 
 The combined active population is 260 rigs: six buses, thirty other road vehicles, 180 walkers (36 in the park), eighteen runners, twelve cyclists, six court players and eight meadow family figures. The traveling-actor collection contains 246 entries; court and meadow activity are sampled separately. Eight picnic people remain stationary. Green duration is eight seconds; occupied reservations retain priority through all-red clearance. Stop bars at 8.5 m and turn boundaries at 7 m are deliberately distinct. Buses do not have scheduled stops.
 
@@ -30,7 +32,7 @@ The combined active population is 260 rigs: six buses, thirty other road vehicle
 
 `src/content/people.ts` generates immutable ID-keyed profiles. Independent feature hashes separate skin/build/hair from work roles and clothing choices. Simulation constructors use profile pace without adding random draws to the road-traffic stream. Walkers are grouped by their existing sidewalk route before headway checks, avoiding all-neighborhood pair scans. `src/world/person.ts` builds layered original clothing, headwear, hair, bags and age-scaled articulated bodies from two shared geometries and one neutral material. Static instance colors are uploaded once; animated matrices still update through `ActorInstances`. `WalkerRig.scale` converts world distance/speed to skeleton-local metres, preserving planted-foot contact for smaller children and differently sized adults. Court skeleton scale stays one for existing hand/paddle contracts; cycling keeps its existing bicycle fit. `PlayActivity` samples separate, nonintersecting meadow play circles from retained time and holds a still under reduced motion. See [people and activity](PEOPLE_AND_ACTIVITY.md).
 
-`src/content/courts.ts` shares full-size playing/runoff footprints, net/hoop positions and six player definitions: basketball 28.6512 x 15.24 m at (-18, 113.5), pickleball 13.4112 x 6.096 m at (15, 113.5). The basketball cycle is 24 seconds; pickleball repeats in 5.6 seconds. `CourtActivity` samples absolute retained time before actor upload, including grounded movement and moving hand/paddle contacts. It owns no timers or GPU allocations. Player supports and bounce floors accept retained snow lift while rim/net targets stay fixed. Scene-owned paddle blades retain the local contact center (0, -0.65, 0) after resizing. A bounded rectangular semantic volume covers both courts and runoffs without selecting adjacent streets; Juniper's focus anchor is (-5, 113.5). Rebuilding samples the retained clock, while reduced motion uses a fixed still.
+`src/content/courts.ts` shares full-size playing/runoff footprints, net/hoop positions and six player definitions: basketball 28.6512 x 15.24 m at (-18, 113.5), pickleball 13.4112 x 6.096 m at (15, 113.5). The basketball cycle is 24 seconds; pickleball repeats in 5.6 seconds. `CourtActivity` samples absolute retained time before actor upload, including grounded movement and moving hand/paddle contacts. It owns no timers or GPU allocations. Player supports and bounce floors accept retained snow lift while rim/net targets stay fixed. Scene-owned paddle blades retain the local contact center (0, -0.65, 0) after resizing. Juniper's tour anchor remains (-5, 113.5); the courts have no selection volumes. Rebuilding samples the retained clock, while reduced motion uses a fixed still.
 
 `src/content/metro.ts` shares eight compact entrance positions, cardinal orientations and 1.9 x 4.5 m openings. Static art supplies low railings and twelve genuinely descending treads. `scene.ts` cuts matching holes through both the island and the unlit backdrop, so neither fills the stairwells. Weather capture initializes below the lowest static geometry rather than clipping deep treads to the former -0.96 m backdrop floor. Crosstown's existing semantic ID and camera anchor follow its shared entrance coordinates; the other entrances remain scenery, not new directory entries or underground simulation.
 
@@ -42,9 +44,9 @@ The camera uses a 340 m pivot distance, 850 m far plane, 30-75 degree elevation,
 
 ### Retained foundation
 
-`src/app/App.tsx` owns React status, help/focus, and lazy renderer loading with late-load cancellation. A retained `WorldModel` owns the camera controller and actor simulation, so retry/context restoration retains pause, selection, route progress, and pose. `createWorld.ts` owns one RAF chain, a fixed-step clock, GPU resources, scene-only input, and visibility/context listeners. `input.ts` locks gestures and clears pointer capture on cancellation, blur, and suspension. UI changes publish semantic status; frame updates do not run through React.
+`src/app/App.tsx` owns React status, help/focus, and lazy renderer loading with late-load cancellation. A retained `WorldModel` owns the camera controller and actor simulation, so retry/context restoration retains pause, tour intent, route progress, and pose. `createWorld.ts` owns one RAF chain, a fixed-step clock, GPU resources, scene-only input, and visibility/context listeners. `input.ts` locks gestures and clears pointer capture on cancellation, blur, and suspension. UI changes publish semantic status; frame updates do not run through React.
 
-`src/content/city.ts` keeps versioned semantic IDs and bounded landmark/tour anchors separate from `scene.ts` geometry; street and park routes live in their own shared content modules. `CITY.busId` aliases the existing street bus `city-vehicle-6`; the removed `square-bus` and `car-1..3` are not restored. The M2 reproducible workflow is direct authored TypeScript geometry, not a downloaded or opaque GLB. Vite hashes the generated application chunks. The current SVG is separately versioned as `rainlight-005.svg` to avoid stale cached composition; earlier stills remain unchanged historical originals.
+`src/content/city.ts` keeps versioned semantic IDs and bounded, labeled city-wide tour anchors separate from `scene.ts` geometry; street and park routes live in their own shared content modules. `CITY.busId` aliases the existing street bus `city-vehicle-6`; the removed `square-bus` and `car-1..3` are not restored. The M2 reproducible workflow is direct authored TypeScript geometry, not a downloaded or opaque GLB. Vite hashes the generated application chunks. The current SVG is separately versioned as `rainlight-005.svg` to avoid stale cached composition; earlier stills remain unchanged historical originals.
 
 The clock runs at 30 simulation steps/second with at most three steps per rendered frame; actors render at the latest completed tick. Sub-tick visual interpolation is not claimed. The initial scene is Afternoon/Sunny with capped DPR 1.5. The quality selector is implemented: High/Automatic currently share the capped default rendering policy, while Lightweight uses DPR 1 and fewer effects. The separately tested adaptive-quality algorithm is not yet connected to runtime frame sampling.
 
@@ -60,7 +62,7 @@ The source uses Vinext/RSC signatures, but this app has no server-rendered busin
 
 | Owner | Owns | Must not own |
 | --- | --- | --- |
-| React UI | Panel state, settings choices, selected semantic ID, lifecycle/status text, focus management. | Per-frame actor transforms, geometry mutation, particle arrays, camera interpolation. |
+| React UI | Panel state, settings choices, lifecycle/status text, focus management. | Per-frame actor transforms, geometry mutation, particle arrays, camera interpolation. |
 | World runtime | Renderer lifecycle, frame scheduling, simulation clock, systems and their resources. | DOM focus, commerce data, source-site APIs. |
 | Camera controller | Camera pose and transitions; mode arbitration and safe framing. | Independent component-specific camera writers. |
 | Actor systems | Route progress, speed/dwell state, instance transforms, deterministic variation. | React state updates every frame. |
@@ -86,7 +88,7 @@ src/
     environment/         Lighting, weather, local-time mapping
     audio.ts             Explicitly enabled Web Audio graph
     quality.ts           Presets, measurements, hysteresis
-  content/               Original POI, route, tour and anchor manifests
+  content/                 Original route and city-wide tour anchor manifests
   preferences/           Versioned non-sensitive local preference validation
   styles/                Original UI tokens and styles
 public/city/              Only original/licensed versioned geometry and stills
@@ -102,9 +104,9 @@ Do not copy `research/` into `public/`, import captures into source code, or loa
 
 Own exactly one animation frame chain per mounted world. Use an abort signal or generation token so a late load cannot attach resources after disposal or retry. Cleanup must be idempotent and survive React development-mode mount/unmount cycles. Explicitly handle load rejection, WebGL creation failure, context loss, and restoration instead of returning a fake ready state.
 
-On resize, measure the scene container rather than assuming full window dimensions; clamp DPR and update projection once per layout change. Use ResizeObserver with teardown. Clamp zoom and target bounds using the POI/scene manifest; recalculate framing when control panels or mobile safe areas change.
+On resize, measure the scene container rather than assuming full window dimensions; clamp DPR and update projection once per layout change. Use ResizeObserver with teardown. Clamp zoom and target bounds using the tour/scene manifest; recalculate framing when control panels or mobile safe areas change.
 
-When paused with no active input, request renders only for changes such as resize, focus, settings, or context recovery. When hidden, stop the loop completely. Context loss prevents default browser disposal handling where appropriate, suspends systems, and rebuilds resources from retained CPU-side content on restoration. Allow one restoration attempt per loss before requiring explicit Retry if it fails. Report the failure and offer static fallback.
+When paused with no active input, request renders only for changes such as resize, guided views, settings, or context recovery. When hidden, stop the loop completely. Context loss prevents default browser disposal handling where appropriate, suspends systems, and rebuilds resources from retained CPU-side content on restoration. Allow one restoration attempt per loss before requiring explicit Retry if it fails. Report the failure and offer static fallback.
 
 On dispose: cancel frame requests/timers, abort pending loads, release pointer capture, unsubscribe listeners/observers, stop audio scheduling, disconnect/close audio resources, and dispose unique geometries/materials/textures/render targets/renderer. Shared resources need explicit ownership; dispose once, not once per instance. Do not leave a global debug object or a detached canvas retaining the entire world.
 
@@ -128,7 +130,7 @@ Aerial routes use safe altitude bands and scripted loops; they do not need aerod
 
 ## Semantic manifests and example contracts
 
-Geometry must not be the database of interaction identity. Store original POIs, routes, and camera/tour anchors separately from the geometry. IDs survive geometry regeneration and mesh batching; never use a mesh array index as a persistent selection ID.
+Keep routes and city-wide camera anchors separate from geometry, with stable IDs across regeneration and batching. The user removed the landmark registry, selection state/commands, pointer raycaster, hit volumes and highlight resources. Reservoir ripples use the shared physical `PARK_RESERVOIR` coordinates rather than a former landmark position.
 
 Proposed conventions: meters, Y-up, right-handed coordinates, versioned schema, explicit asset version, seed, and bounded scene extents. Validate unique IDs, finite coordinates, references, route continuity, positive durations, and camera bounds before showing ready. Report malformed authored content as a load error.
 
@@ -136,15 +138,12 @@ Illustrative TypeScript contracts, not executable project files:
 
 ```ts
 type Vec3 = readonly [number, number, number];
-type CameraMode = "overview" | "free" | "focus" | "tour";
+type CameraMode = "overview" | "free" | "guided" | "tour";
 
-interface Landmark {
+interface CameraAnchor {
   id: string;
-  name: string;
-  description: string;
-  position: Vec3;
-  focusAnchorId: string;
-  hitRadius: number;
+  subject: string;
+  pose: { x: number; z: number; yaw: number; pitch: number; zoom: number };
 }
 
 interface RouteStop {
@@ -164,20 +163,19 @@ interface ActorRoute {
 
 type WorldCommand =
   | { type: "set-paused"; paused: boolean }
-  | { type: "focus-landmark"; id: string }
+  | { type: "guided-step"; direction: -1 | 1 }
   | { type: "start-tour" }
-  | { type: "stop-camera" }
-  | { type: "reset-view" };
+  | { type: "stop" }
+  | { type: "reset" };
 
 interface WorldStatus {
   cameraMode: CameraMode;
   userPaused: boolean;
   effectiveRunning: boolean;
-  selectedId: string | null;
 }
 ```
 
-This command union is a small example, not the complete input/settings API. Production contracts must cover every action in the experience spec. No buyer, placement, advertiser, price, availability, or external business URL belongs in a POI contract.
+This command union is a small example, not the complete input/settings API. Production contracts must cover every action in the experience spec. No buyer, placement, advertiser, price, availability, or external business URL belongs in city content.
 
 Example of **new proposed content**, not source-city names or coordinates:
 
@@ -189,22 +187,11 @@ Example of **new proposed content**, not source-city names or coordinates:
   "units": "meters",
   "upAxis": "Y",
   "bounds": { "min": [-60, 0, -60], "max": [60, 45, 60] },
-  "landmarks": [
-    {
-      "id": "civic-observatory",
-      "name": "Civic Observatory",
-      "description": "A quiet rooftop above the garden walk.",
-      "position": [12, 16, -8],
-      "focusAnchorId": "observatory-view",
-      "hitRadius": 7
-    }
-  ],
   "cameraAnchors": [
     {
       "id": "observatory-view",
-      "position": [32, 30, 18],
-      "target": [12, 12, -8],
-      "viewHeight": 36
+      "subject": "Civic Observatory",
+      "pose": { "x": 12, "z": -8, "yaw": 0.78, "pitch": 0.6, "zoom": 3.5 }
     }
   ]
 }
@@ -212,7 +199,7 @@ Example of **new proposed content**, not source-city names or coordinates:
 
 ## Rendering and asset efficiency
 
-Batch static geometry by material when beneficial, but retain spatial chunks for culling and loading. Use shared geometry/materials and instancing for repeated windows/trees/props/actors where practical. Semantic hit volumes remain separate from visual batches. Avoid per-object material clones to highlight one POI; use a separate marker/outline representation.
+Batch static geometry by material when beneficial, but retain spatial chunks for culling and loading. Use shared geometry/materials and instancing for repeated windows/trees/props/actors where practical. There are no selection hit volumes, marker meshes or highlight materials.
 
 Use a restrained light setup and profile shadows before adding post-processing. Static surfaces, dynamic actors, and rain should not all cast expensive shadows by default. Reuse vectors/matrices and preallocate hot-path buffers. Never allocate unbounded particles, sounds, or events.
 
@@ -250,9 +237,9 @@ Store a small versioned preferences object in localStorage: time/weather modes, 
 
 Parse as unknown, validate an allowlisted schema, and bound numeric values. Migrate known versions or reset invalid preferences with a visible nonblocking notice. If storage is unavailable/quota-limited, continue in memory and explain that settings will not be saved. A new visit always requires explicit audio enable, regardless of saved mute preference. Session camera pose, user pause, and tour progress need not persist across reloads.
 
-Input routing checks overlay ownership before world hit testing. Use one command path for pointer, buttons, and keyboard. Scope shortcuts to the named scene navigation region, ignore composing/editable targets, clear key state on blur, and keep reduced-motion and modal policies centralized.
+Input routing keeps overlay controls separate from scene gestures. Use one command path for pointer, buttons, and keyboard. Scope shortcuts to the named scene navigation region, ignore composing/editable targets, clear key state on blur, and keep reduced-motion and modal policies centralized.
 
-Settings has one standalone lower-left trigger inside the scene, with a non-modal dock stacked above it, internal scrolling and no backdrop. Opening sends `stop-camera` once, not `open-panel`; only Help uses the world's modal `open-panel`/`close-panel` commands. Settings owns focus entry and Escape within its boundary, without containing Tab or disabling city controls. Landmark cycling and concise selection status live in the bottom toolbar, including the unsupported-WebGL fallback.
+Settings has one standalone lower-left trigger inside the scene, with a non-modal dock stacked above it, internal scrolling and no backdrop. Opening sends `stop` once, not `open-panel`; only Help uses the world's modal `open-panel`/`close-panel` commands. Settings owns focus entry and Escape within its boundary, without containing Tab or disabling city controls. The bottom toolbar contains Pause/Tour/Fullscreen and optional guided-view steps, with no landmark selection or fallback markers.
 
 The header/browser title remain CitiVibe. The title overlay and Field guide header button stay removed; an offscreen h1 preserves the world's accessible name. Settings exposes keyboard help, and `?` opens Help from the focused city navigation region. Neither the dock merge nor weather controls restore removed camera-follow features.
 
@@ -260,7 +247,7 @@ The header/browser title remain CitiVibe. The title overlay and Field guide head
 
 Pure units: clock/pause math, route interpolation, stop/conflict arbitration, seeded events, camera state transitions, content/preference validation, and quality hysteresis.
 
-Component tests: accessible control names/states, settings changes, modal focus return, errors/fallback, and no world input through overlays. Browser tests: actual canvas hit routing, WebGL lifecycle, pointer/touch/keyboard, visibility, audio gating, fullscreen, and deterministic visual captures. Real devices: GPU/frame behavior, thermal/long-session stability, mobile Safari and Android interaction.
+Component tests: accessible control names/states, settings changes, modal focus return, errors/fallback, and no world input through overlays. Browser tests: scene gesture routing and inert scenery clicks, WebGL lifecycle, pointer/touch/keyboard, visibility, audio gating, fullscreen, and deterministic visual captures. Real devices: GPU/frame behavior, thermal/long-session stability, mobile Safari and Android interaction.
 
 The complete matrix and implementation verification record are in [acceptance criteria](ACCEPTANCE_CRITERIA.md). Current tooling is Vitest + React Testing Library + Playwright, with ESLint and TypeScript checks. Physical-device profiling remains outstanding.
 

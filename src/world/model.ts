@@ -1,4 +1,4 @@
-import { CAMERA_ANCHORS, CONTENT, LANDMARKS } from '../content/city';
+import { CAMERA_ANCHORS } from '../content/city';
 import { ActorSimulation } from './actors';
 import { AirplaneSimulation } from './airplane';
 import { CameraController, OVERVIEW } from './camera';
@@ -34,7 +34,6 @@ export class WorldModel {
   paused: boolean;
   reducedMotion: boolean;
   quality: QualityMode;
-  selectedId: string | null = null;
   modalOpen = false;
   private guided: { views: TourView[]; index: number } | null = null;
   private message = 'Welcome to Rainlight Square.';
@@ -57,7 +56,6 @@ export class WorldModel {
   snapshot(): WorldStatus {
     return {
       cameraMode: this.camera.mode,
-      selectedId: this.selectedId,
       paused: this.paused,
       reducedMotion: this.reducedMotion,
       view: this.guided ? {
@@ -76,7 +74,7 @@ export class WorldModel {
 
   command(command: WorldCommand): void {
     const immediate = this.paused || this.reducedMotion;
-    if (['navigate', 'reset', 'focus-landmark', 'stop', 'clear-selection', 'open-panel', 'set-reduced-motion'].includes(command.type)) this.guided = null;
+    if (['navigate', 'reset', 'stop', 'open-panel', 'set-reduced-motion'].includes(command.type)) this.guided = null;
     switch (command.type) {
       case 'navigate':
         if (this.modalOpen) return;
@@ -84,36 +82,12 @@ export class WorldModel {
         this.message = 'Free view.';
         break;
       case 'reset':
-        this.selectedId = null;
         this.camera.frame('overview', { ...OVERVIEW }, immediate);
         this.message = 'Overview of Rainlight Square.';
         break;
-      case 'focus-landmark': {
-        const landmark = LANDMARKS.find(({ id }) => id === command.id);
-        if (!landmark) {
-          this.camera.stop();
-          this.message = 'Landmark unavailable.';
-          break;
-        }
-        const anchor = CAMERA_ANCHORS.find(({ id }) => id === landmark.focusAnchorId);
-        if (!anchor) {
-          this.camera.stop();
-          this.message = 'Landmark view unavailable.';
-          break;
-        }
-        this.selectedId = landmark.id;
-        this.camera.frame('focus', { ...anchor.pose }, immediate);
-        this.message = landmark.name;
-        break;
-      }
       case 'stop':
         this.camera.stop();
         this.message = 'Automatic view stopped.';
-        break;
-      case 'clear-selection':
-        this.selectedId = null;
-        this.camera.stop();
-        this.message = 'Selection cleared.';
         break;
       case 'set-paused':
         if (this.paused && !command.paused) this.environment.resyncLocal(new Date());
@@ -158,24 +132,15 @@ export class WorldModel {
           this.message = 'Resume the city before starting a continuous tour.';
           break;
         }
-        const selected = LANDMARKS.find(({ id }) => id === this.selectedId);
-        const anchor = CAMERA_ANCHORS.find(({ id }) => id === selected?.focusAnchorId);
-        const views: TourView[] = anchor && selected
-          ? [-0.3, 0.3, 0.6, 0].map((offset) => ({
-            pose: { ...anchor.pose, yaw: anchor.pose.yaw + offset }, subject: selected.name,
-          }))
-          : CONTENT.tourAnchorIds.flatMap((id) => {
-            const view = CAMERA_ANCHORS.find((candidate) => candidate.id === id);
-            return view ? [{ pose: { ...view.pose }, subject: LANDMARKS.find((landmark) => landmark.focusAnchorId === id)?.name ?? 'District overview' }] : [];
-          });
+        const views: TourView[] = CAMERA_ANCHORS.map(({ pose, subject }) => ({ pose: { ...pose }, subject }));
         if (!views.length) {
           this.camera.stop();
-          this.message = 'No tour views are available. Use landmark navigation instead.';
+          this.message = 'No tour views are available. Use manual camera controls instead.';
           break;
         }
         if (this.reducedMotion) {
           this.guided = { views, index: 0 };
-          this.camera.frame('focus', views[0].pose, true);
+          this.camera.frame('guided', views[0].pose, true);
           this.message = `Guided view 1 of ${views.length}: ${views[0].subject}. Use Previous or Next view.`;
         } else {
           this.camera.startTour(views);
@@ -189,7 +154,7 @@ export class WorldModel {
           break;
         }
         this.guided.index = (this.guided.index + command.direction + this.guided.views.length) % this.guided.views.length;
-        this.camera.frame('focus', this.guided.views[this.guided.index].pose, true);
+        this.camera.frame('guided', this.guided.views[this.guided.index].pose, true);
         this.message = `Guided view ${this.guided.index + 1} of ${this.guided.views.length}: ${this.guided.views[this.guided.index].subject}.`;
         break;
       case 'open-panel':

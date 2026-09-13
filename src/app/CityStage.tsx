@@ -1,5 +1,5 @@
 import type { KeyboardEventHandler, ReactNode, RefObject } from 'react';
-import { CITY, LANDMARKS } from '../content/city';
+import { CITY } from '../content/city';
 import { WEATHER_LABELS } from '../content/preferences';
 import type { WorldCommand, WorldStatus } from '../world/types';
 import { Navigation } from './Controls';
@@ -21,13 +21,11 @@ interface CityStageProps {
 }
 
 export function CityStage({ canvas, attempt, live, guide, status, send, settings, settingsOpen, settingsTrigger, onSettings, onDismissGuide, onKeyDown }: CityStageProps) {
-  const selected = LANDMARKS.find(({ id }) => id === status.selectedId);
   return <section className="scene-shell" data-night={live && status.daylight === 'Night'} aria-label={`${CITY.name} experience`}>
     <h1 className="sr-only">{CITY.name}</h1>
     <div className="scene-navigation" role="region" aria-label="City navigation" aria-describedby="navigation-hint" tabIndex={0} onKeyDown={onKeyDown}>
       <div className={`poster-frame ${live ? 'poster-hidden' : ''}`}>
         <img className="city-poster" src={`/city/${CITY.version}.svg`} alt="Original miniature city with a reservoir running loop, lawns, woodland, a lake and bridge, and a tree-lined mall. Busy avenues and two-way bike paths surround the park; neighbors play basketball and pickleball at Juniper Court." />
-        {!live && selected ? <div className={`static-marker marker-${selected.id}`}><span aria-hidden="true" />{selected.name}</div> : null}
       </div>
       <canvas key={attempt} ref={canvas} className={live ? 'world-canvas' : 'world-canvas canvas-hidden'} aria-hidden="true" />
     </div>

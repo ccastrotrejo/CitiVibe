@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
-import { LANDMARKS } from '../content/city';
 import { WorldModel } from '../world/model';
 import type { WorldCommand } from '../world/types';
 import { loadPreferences, savePreferences } from '../content/preferences';
@@ -80,22 +79,16 @@ export function App() {
     send({ type: 'stop' });
     setPanel('settings');
   }
-  function cycle(direction: number) {
-    const current = LANDMARKS.findIndex(({ id }) => id === model.selectedId);
-    const next = current < 0 ? (direction > 0 ? 0 : LANDMARKS.length - 1) : (current + direction + LANDMARKS.length) % LANDMARKS.length;
-    send({ type: 'focus-landmark', id: LANDMARKS[next].id });
-  }
   function keyDown(event: KeyboardEvent<HTMLDivElement>) {
     if (event.target !== event.currentTarget || event.nativeEvent.isComposing || event.altKey || event.metaKey || event.ctrlKey || panel === 'help') return;
     const key = event.key.toLowerCase();
     if (key === '?') { event.preventDefault(); openHelp(); return; }
     if (key === 'f') { event.preventDefault(); if (!event.repeat) void screenMode.toggle(); return; }
-    if (key === '[' || key === ']') { event.preventDefault(); cycle(key === ']' ? 1 : -1); return; }
     if (key === 'escape') {
       if (screenMode.blocksEscape()) return;
       event.preventDefault();
       if (screenMode.expanded) screenMode.exitExpanded();
-      else send({ type: status.view ? 'stop' : 'clear-selection' });
+      else if (status.view) send({ type: 'stop' });
       return;
     }
     if (key === 'r') { event.preventDefault(); send({ type: 'reset' }); return; }
@@ -125,12 +118,12 @@ export function App() {
         settingsOpen={panel === 'settings'} settingsTrigger={settingsTrigger} onSettings={toggleSettings}
         settings={panel === 'settings' ? <Settings preferences={preferences} audioStatus={audio.status} onChange={changePreferences} onEnableSound={audio.enable} onSetMuted={audio.setMuted} notice={storageNotice} onClose={closeSettings} /> : null} />
       {!live ? <div className="lifecycle-panel" role="status"><div><strong>{lifecycle === 'loading' ? 'Growing a little city' : lifecycle === 'lost' || lifecycle === 'restoring' ? 'Restoring city' : 'Live city unavailable'}</strong><p>{detail}</p></div><div className="lifecycle-actions">{lifecycle !== 'loading' && lifecycle !== 'lost' && lifecycle !== 'restoring' ? <button onClick={retry}>Retry live city</button> : null}</div></div> : null}
-      <Controls status={status} live={live} send={send} onCycle={cycle} fullscreenLabel={screenMode.label} onFullscreen={() => { void screenMode.toggle(); }} />
+      <Controls status={status} live={live} send={send} fullscreenLabel={screenMode.label} onFullscreen={() => { void screenMode.toggle(); }} />
       {screenMode.message ? <div className="view-notice" role="status"><span>{screenMode.message}</span>{!screenMode.expanded && !screenMode.fullscreen ? <button onClick={screenMode.expand}>Use expanded view</button> : null}</div> : null}
       {storageNotice && panel !== 'settings' ? <p className="view-notice" role="status">{storageNotice}</p> : null}
     </div>
-    <footer className="app-footer"><span className={`run-status ${live && !status.paused ? 'is-running' : ''}`}><span aria-hidden="true" />{!live ? 'Live city loading' : status.paused ? 'City paused' : 'City is living'}</span><span className="camera-status">{status.cameraMode === 'tour' ? 'Tour view' : status.cameraMode === 'focus' ? 'Landmark view' : status.cameraMode === 'free' ? 'Free view' : 'Overview'}</span><span>{AUDIO_STATUS_LABELS[audio.status.state]}</span></footer>
-    <p id="navigation-hint" className="sr-only">Drag to pan; Command or Control-drag to rotate and tilt. Focus here to use arrow keys to pan, plus and minus to zoom, Q and E to rotate, W and S to tilt, brackets to visit landmarks, Space to pause, R to reset, T for tours, F for fullscreen, and question mark for help.</p>
+    <footer className="app-footer"><span className={`run-status ${live && !status.paused ? 'is-running' : ''}`}><span aria-hidden="true" />{!live ? 'Live city loading' : status.paused ? 'City paused' : 'City is living'}</span><span className="camera-status">{status.cameraMode === 'tour' ? 'Tour view' : status.cameraMode === 'guided' ? 'Guided view' : status.cameraMode === 'free' ? 'Free view' : 'Overview'}</span><span>{AUDIO_STATUS_LABELS[audio.status.state]}</span></footer>
+    <p id="navigation-hint" className="sr-only">Drag to pan; Command or Control-drag to rotate and tilt. Focus here to use arrow keys to pan, plus and minus to zoom, Q and E to rotate, W and S to tilt, Space to pause, R to reset, T for tours, F for fullscreen, and question mark for help.</p>
     <p className="sr-only" aria-live="polite" aria-atomic="true">{status.message}</p>
     {panel === 'help' ? <Help reduced={status.reducedMotion} onClose={closeHelp} onReducedChange={(reduced) => changePreferences({ motion: reduced ? 'reduced' : 'full' })} /> : null}
   </main>;

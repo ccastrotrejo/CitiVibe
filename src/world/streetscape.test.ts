@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { BASKETBALL_COURT, COURT_PLAYERS, PICKLEBALL_COURT, RECREATION_AREA, netHeightAt } from '../content/courts';
-import { CAMERA_ANCHORS, CAMERA_PROJECTION, LANDMARKS } from '../content/city';
+import { CAMERA_ANCHORS, CAMERA_PROJECTION } from '../content/city';
 import { METRO_ENTRANCES, METRO_GEOMETRY, METRO_OPENINGS, type MetroEntrance } from '../content/metro';
 import {
   BIKE_OFFSET, CITY_EXTENT, INTERSECTIONS, ROAD_HALF_WIDTH, SIDEWALK_HALF_WIDTH, SIDEWALK_OFFSET,
@@ -832,9 +832,9 @@ describe('original connected-city streetscape', () => {
       expect(visibleSteps, `${entrance.id} stair flight ${blocked.join('; ')}`).toBeGreaterThanOrEqual(3);
     }
     const entrance = SUBWAY_ENTRANCES[0];
-    const landmark = LANDMARKS.find(({ id }) => id === 'crosstown-steps')!;
-    expect(Math.hypot(entrance.x - landmark.position.x, entrance.z - landmark.position.z)).toBeLessThan(landmark.hitRadius);
-    const focus = CAMERA_ANCHORS.find(({ id }) => id === landmark.focusAnchorId)!;
+    const focus = CAMERA_ANCHORS.find(({ id }) => id === 'crosstown-view')!;
+    expect(focus.pose.x).toBe(entrance.x);
+    expect(focus.pose.z).toBe(entrance.z);
     expect(focus.pose.yaw).toBe(pose.yaw);
     expect(focus.pose.pitch).toBe(pose.pitch);
     const height = Math.max(CAMERA_PROJECTION.overviewHeight, CAMERA_PROJECTION.overviewWidth / 1.6) / focus.pose.zoom;
