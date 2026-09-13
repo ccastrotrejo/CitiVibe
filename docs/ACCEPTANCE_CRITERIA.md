@@ -1,8 +1,46 @@
 # Acceptance criteria and verification plan
 
-**Status: the population-diversity follow-up passes local automated checks; served-browser and physical-device gates remain open.** The current scene retains thirty-six intersections, twenty-four blocks, 94 buildings and a 78 x 176 m park within a 220 x 340 m map. It now has 224 active/posable people (260 rigs including vehicles), eight resting neighbors, two balls and the unchanged courts, entrances and scaffolding. Previous version-005 and merge records below are historical. Automated coverage does not substitute for physical-device FPS, long-session, cross-combination or assistive-technology verification. Production readiness is not claimed; camera-follow and the drone remain excluded.
+**Status: population diversity and night lighting are integrated for combined verification; served-browser and physical-device gates remain open.** The current scene retains thirty-six intersections, twenty-four blocks, 94 buildings and a 78 x 176 m park within a 220 x 340 m map. It has 224 active/posable people (260 rigs including vehicles), eight resting neighbors, two balls, full-size courts with six new light poles, eight compact subway entrances and unchanged scaffolding. The population and lighting checkpoints below are historical, not a substitute for combined verification. Automated coverage does not establish physical-device FPS, long-session, cross-combination or assistive-technology acceptance. Production readiness is not claimed; camera-follow and the drone remain excluded.
 
 Use this matrix when implementing each [roadmap](ROADMAP.md) milestone. Numerical budgets are working targets; name the reference devices and record actual results before declaring them met. The [experience spec](EXPERIENCE_SPEC.md) is authoritative for pause/camera behavior.
+
+## Juniper Court lighting follow-up - 2026-09-13
+
+Six new twin-head poles illuminate the basketball/pickleball parcel shown in the user's follow-up image. All bases remain outside both full runoff areas and the shared passage, with no street, building, player or court-layout changes. Physical heads, smooth ground footprints and focused-view spotlights use the same inward targets. Dusk activation, Lightweight cues, weather/snow support and deterministic pause/recovery use the existing lighting lifecycle.
+
+**Pre-merge lighting checkpoint:** all **434 Vitest cases in 21 files passed** with `--maxWorkers=1` in 131.74 seconds; typecheck, lint and production build passed. Added tests cover all six placements, invalid parcel/runoff/passage positions, inward footprint matrices, focused court lighting and daytime switch-off. An earlier full run had one 30-second traffic-soak timeout while 433 cases passed; the unchanged-timeout rerun passed completely. No simulation behavior or timeout was relaxed.
+
+| Current CPU accounting | Triangles | Visible mesh submissions | Visible materials | Geometries |
+| --- | --- | --- | --- | --- |
+| Base scene | 541,958 | 93 | 32 | 34 |
+| Night with lighting/weather adapters | 571,534 | 103 | 37 | 39 |
+| Retained snow with lighting/weather adapters | 889,812 | 151 | 39 | 39 |
+
+The same `traverseVisible` accounting and caveats below apply. The unchanged base ceilings still pass. Capacities are now 507 halos and 183 footprints for 87 public fixtures plus vehicle lighting; the fixed eight real-light slots and texture allocations are unchanged. The renderer chunk is 448.65 kB minified / 119.68 kB gzip; the entry remains 526.54 kB / 156.87 kB gzip with its existing warning.
+
+**Visual evidence and limits:** focused in-memory WebKit captures cover both courts at night, in Lightweight, in rain and in the afternoon, without reported page/shader errors. They show all six poles, soft illumination and unobstructed play/access areas. The shared browser preview intermittently reports unavailable WebGL (`context.getContextAttributes()` on null); Retry briefly restored its live status, but did not establish stable operation. The applicable nighttime-rain E2E attempt again stopped at Chromium startup with `SIGSEGV`, before application assertions. Isolated rendering is not a served-browser or physical-device sign-off. Changes remain local and uncommitted.
+
+## Night-lighting follow-up - 2026-09-13
+
+Latest main was fetched before edits; the worktree was current at `b81eb32`. The [sixteen-source lighting study](LIGHTING_RESEARCH.md) supports the bounded follow-up rather than reopening city layout, sports or UI scope.
+
+**Initial lighting checkpoint, before the court addition:** all **431 Vitest cases in 21 files passed** with `--maxWorkers=1` in 131.60 seconds. Strict TypeScript, ESLint and the production build passed. Lighting coverage includes all 36 motor vehicles and twelve bicycles, head/tail/brake separation, both turn directions, approach/queue/junction/exit state, independent signal phases, reduced-motion steady cues, weather activation, orientation, snow/height masks, bounded light allocations and idempotent disposal. Runtime coverage verifies unchanged lamp colors and positions through pause, hidden time and graphics reconstruction. The existing twenty-minute traffic fingerprints remain unchanged after excluding only new lighting metadata.
+
+The first renderer inspection caught duplicated vehicle-light rig registration and overly bright overlapping footprints; both were corrected before the final run. The new recovery regression also exposed neutral suspension poses after rebuilding graphics. Retaining and reapplying locomotion memory fixes the attached lamp transforms without advancing time or resetting the scene.
+
+| Initial lighting CPU accounting | Triangles | Visible mesh submissions | Visible materials | Geometries |
+| --- | --- | --- | --- | --- |
+| Base scene | 541,118 | 93 | 32 | 34 |
+| Night with lighting/weather adapters | 569,914 | 103 | 37 | 39 |
+| Retained snow with lighting/weather adapters | 887,952 | 151 | 39 | 39 |
+
+These counts use `traverseVisible`, matching the existing base geometry test; they include semantic/color-write-disabled meshes and empty instance batches, not just actual GPU draws. The base scene remains within **550,000 triangles / 110 submissions / 36 materials**. Runtime effects are explicitly separate, not a relaxation or claim to meet base-only limits. The lighting adapter uses three batches, up to 420 lenses, 501 halo slots and 177 ground-footprint slots. It allocates eight unshadowed spotlights, one 64x64 mask and one 680x680 RG float texture (3,699,200 data bytes). No additional shadow-map pass is introduced. These are bounded CPU/object counts, not laptop FPS or total GPU-memory measurements.
+
+The production renderer chunk is **447.37 kB minified / 119.16 kB gzip**; the entry chunk is **526.54 kB / 156.87 kB gzip**. The existing >500 kB entry warning remains unsuppressed.
+
+**Visual evidence:** isolated in-memory WebKit rendering compiled the final lamp, ground-light, weather and snow shaders without reported page/shader errors. Captures cover night overview, street/park views, front and rear vehicle lamps, rain, accumulated snow, mist/Lightweight and afternoon. The rear view confirms paired red lamps, a cabin-mounted upper stop lamp and separate amber indication; the snow view confirms visible supported public-light footprints. These captures are renderer fixtures, not a successful served application walkthrough. The day fixture follows a wet/snowy sequence and retains its authored weather state rather than claiming a pristine first-load screenshot.
+
+**Remaining environment limitations:** the applicable `test:e2e` command selected nighttime-rain and weather/recovery scenarios, but Chromium crashed at launch (`SIGSEGV`) before any application assertion; the second scenario did not run. WebKit launches but still times out navigating to the local served URL. The isolated renderer does not establish production loading, persistent browser preferences, physical-device FPS, all-angle occlusion or long-session behavior. No deployment, commit, push or new pull request was performed.
 
 ## Population diversity verification - 2026-09-13
 

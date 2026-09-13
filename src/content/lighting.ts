@@ -1,5 +1,6 @@
 import { CITY_EXTENT, INTERSECTIONS, ROAD_HALF_WIDTH, STREET_X } from './streets';
 import { PARK_BOUNDS, PARK_PATHS } from './park';
+import { BASKETBALL_COURT, PICKLEBALL_COURT, RECREATION_AREA } from './courts';
 import { Vector3 } from 'three';
 
 /** A cantilevered cobra-head street lamp on the sidewalk; `arm` points its luminaire over the road. */
@@ -17,6 +18,12 @@ export interface ParkLamp {
   z: number;
 }
 
+/** Shielded recreation light outside the runoff, aimed inward at its playing surface. */
+export interface CourtLamp extends ParkLamp {
+  targetZ: number;
+  radius: number;
+}
+
 /** Shared fixture proportions; heads and pools are driven on at dusk by the environment layer. */
 export const LAMP_GEOMETRY = {
   streetHeight: 5,
@@ -27,9 +34,10 @@ export const LAMP_GEOMETRY = {
   headSize: [0.44, 0.2, 0.72],
   headDrop: 0.32,
   parkGlobeRadius: 0.34,
-  streetPoolRadius: 3,
-  parkPoolRadius: 2.1,
-  surfaceY: 0.02,
+  streetPoolRadius: 6.5,
+  parkPoolRadius: 4.6,
+  courtHeight: 6.4,
+  courtBaseRadius: 0.22,
 } as const;
 
 /** Sidewalk offset from the road centreline: just past the kerb, clear of the traffic lane. */
@@ -73,17 +81,51 @@ export const PARK_LAMPS: readonly ParkLamp[] = Object.freeze([
   { id: 'meadow-b-lamp', x: 26.4, z: 45.2 },
 ]);
 
-/** Fail before allocating fixtures if any lamp leaves the island or intrudes on the park lawn. */
+export const COURT_LAMPS: readonly CourtLamp[] = Object.freeze([
+  ...[-1, 1].flatMap((side) => [-1, 1].map((end) => ({
+    id: `basketball-${side}-${end}-light`,
+    x: BASKETBALL_COURT.x + side * 7,
+    z: BASKETBALL_COURT.z + end * (BASKETBALL_COURT.runoffDepth / 2 + 0.8),
+    targetZ: BASKETBALL_COURT.z + end * 3.5,
+    radius: 10,
+  }))),
+  ...[-1, 1].map((side) => ({
+    id: `pickleball-${side}-light`,
+    x: PICKLEBALL_COURT.x,
+    z: PICKLEBALL_COURT.z + side * (PICKLEBALL_COURT.runoffDepth / 2 + 0.8),
+    targetZ: PICKLEBALL_COURT.z + side * 1.2,
+    radius: 8,
+  })),
+]);
+
+/** Reject off-parcel fixtures and poles obstructing lawns, paths or court runoffs. */
 export function validateLighting(
   streetLamps: readonly StreetLamp[] = STREET_LAMPS,
   parkLamps: readonly ParkLamp[] = PARK_LAMPS,
+  courtLamps: readonly CourtLamp[] = COURT_LAMPS,
 ): void {
   const ids = new Set<string>();
-  for (const lamp of [...streetLamps, ...parkLamps]) {
+  for (const lamp of [...streetLamps, ...parkLamps, ...courtLamps]) {
     if (ids.has(lamp.id)) throw new Error(`Duplicate lamp id: ${lamp.id}.`);
     ids.add(lamp.id);
     if (Math.abs(lamp.x) > CITY_EXTENT.x || Math.abs(lamp.z) > CITY_EXTENT.z) {
       throw new Error(`Lamp ${lamp.id} falls outside the island.`);
+    }
+  }
+  for (const lamp of courtLamps) {
+    const clearance = LAMP_GEOMETRY.courtBaseRadius;
+    if (lamp.x - clearance < RECREATION_AREA.minX || lamp.x + clearance > RECREATION_AREA.maxX ||
+      lamp.z - clearance < RECREATION_AREA.minZ || lamp.z + clearance > RECREATION_AREA.maxZ) {
+      throw new Error(`Court light ${lamp.id} leaves the recreation parcel.`);
+    }
+    if (lamp.x + clearance > RECREATION_AREA.passageMinX && lamp.x - clearance < RECREATION_AREA.passageMaxX) {
+      throw new Error(`Court light ${lamp.id} blocks the shared passage.`);
+    }
+    for (const court of [BASKETBALL_COURT, PICKLEBALL_COURT]) {
+      if (Math.abs(lamp.x - court.x) < court.runoffWidth / 2 + clearance &&
+        Math.abs(lamp.z - court.z) < court.runoffDepth / 2 + clearance) {
+        throw new Error(`Court light ${lamp.id} blocks a court runoff.`);
+      }
     }
   }
   for (const lamp of streetLamps) {

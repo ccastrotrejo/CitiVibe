@@ -4,6 +4,16 @@
 
 ## Current implementation
 
+### Night lighting follow-up
+
+`vehicleLighting.ts` samples head/tail/brake/indicator levels from the retained environment, traffic state and simulation clock. `traffic.ts` exposes upcoming turn and brake-held/deceleration metadata without changing routes, speeds or reservations. `scene.ts` defines lamp sockets on real vehicle bodies, separates non-emissive vehicle glazing from window materials and lights taxi/subway fixtures.
+
+`LightingVisual` owns three instanced draws (420 lenses, up to 507 halos and 183 ground footprints), a fixed 680x680 RG float height/retention texture, one small procedural halo mask and eight unshadowed inverse-square spotlights. No per-light timers, React frame updates, post-processing dependencies or new shadow maps are added. Ground footprints use a smooth finite falloff, height masking and snow support. Ranked local-light selection fades to zero at its boundary and by overview zoom; Lightweight sets detailed-light intensities to zero while retaining cues. All allocations have idempotent disposal. Locomotion memory survives graphics restoration and reapplies the same body poses before rebuilding the lamp transforms.
+
+`COURT_LAMPS` keeps the six recreation fixtures separate from the main park manifest, preserving park-boundary validation. Court-derived pole locations and inward targets drive both pitched twin-head geometry and soft footprints/local spots; allocation remains six public plus two vehicle spotlights. Validation includes base-radius clearance from the parcel edge, both runoffs and the shared passage.
+
+The renderer explicitly uses sRGB output, Neutral tone mapping and PCF soft directional-shadow filtering. Weather material hooks and existing sky/time interpolation remain intact. This is a hybrid approximation: no calibrated photometry, complete occlusion, volumetric scattering or ray-traced reflections. See [lighting research](LIGHTING_RESEARCH.md) and the current [verification record](ACCEPTANCE_CRITERIA.md#night-lighting-follow-up---2026-09-13).
+
 ### Connected-city expansion
 
 The central village/vehicle loop is removed. `src/content/streets.ts` defines the surrounding six-by-six street grid, thirty-six intersections, twenty-four blocks, protected bike offsets, and a bounded actor manifest. The map is 220 x 340 m, with 94 buildings outside the 78 x 176 m car-free park. `src/world/traffic.ts` owns neighborhood movement and intersection state. `src/content/park.ts` defines shared walking curves, open gates, outside sidewalks, the reservoir running loop, and the 36-walker/eighteen-runner manifest. `src/world/actors.ts` enforces same-route headway and geometric spacing. The separated walking circuits no longer require the former south-merge reservation. Spline distance tables include every control-point knot to avoid speed spikes where long straights meet short bends. `ActorSimulation` steps both systems on the same fixed clock and exposes all traveling actors through one retained collection. Rendering recovery never constructs a replacement simulation.
