@@ -92,6 +92,13 @@ describe('varied articulated people', () => {
         expect(Math.max(Math.abs(bounds.min.x), Math.abs(bounds.max.x)), profile.id).toBeLessThan(PERSON_SPACE.width / 2);
         expect(Math.max(Math.abs(bounds.min.z), Math.abs(bounds.max.z)), profile.id).toBeLessThan(PERSON_SPACE.length / 2);
       }
+      for (const activityTime of [0, 0.6, 1.2, 2.8, 4, 6]) {
+        poseWalkerRig(rig, { distance: 0, speed: 0, blend: 0, reducedMotion: false,
+          activity: 'looking-around', activityTime });
+        const bounds = new THREE.Box3().setFromObject(group);
+        expect(Math.max(Math.abs(bounds.min.x), Math.abs(bounds.max.x)), profile.id).toBeLessThan(PERSON_SPACE.width / 2);
+        expect(Math.max(Math.abs(bounds.min.z), Math.abs(bounds.max.z)), profile.id).toBeLessThan(PERSON_SPACE.length / 2);
+      }
     }
   });
 
@@ -136,11 +143,13 @@ describe('varied articulated people', () => {
     for (let tick = 0; tick < 30; tick++) traffic.step(1 / 30);
     const speeds = { commute: [] as number[], tour: [] as number[] };
     for (const actor of traffic.actors) {
-      if (actor.kind !== 'pedestrian') continue;
+      if (actor.kind !== 'pedestrian' || actor.state !== 'moving') continue;
       const profile = createPersonProfile(actor.id, 'street');
-      expect(actor.speed).toBeCloseTo(profile.pace, 8);
+      expect(actor.speed).toBeGreaterThanOrEqual(profile.pace * 0.9 - 1e-7);
+      expect(actor.speed).toBeLessThanOrEqual(profile.pace);
       if (profile.purpose === 'commute' || profile.purpose === 'tour') speeds[profile.purpose].push(actor.speed);
     }
+    expect(speeds.commute.length + speeds.tour.length).toBeGreaterThan(40);
     const average = (values: number[]) => values.reduce((sum, value) => sum + value, 0) / values.length;
     expect(average(speeds.commute) - average(speeds.tour)).toBeGreaterThan(0.3);
   });

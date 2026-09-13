@@ -3,7 +3,7 @@ import {
   STREET_X, STREET_Z, TRAFFIC_ACTORS, VEHICLE_OFFSET, type TrafficSignalState, type TrafficVehicleType,
 } from '../content/streets';
 import type { ActorState } from './actors';
-import { createPersonProfile, PERSON_SPACE } from '../content/people';
+import { StreetPedestrians } from './pedestrians';
 
 export type { TrafficSignalState } from '../content/streets';
 
@@ -323,8 +323,7 @@ export class CityTraffic {
   elapsed = 0;
   private readonly junctions: Junction[];
   private readonly motions: Motion[];
-  private readonly walkers: Motion[];
-  private readonly sidewalkGroups: Motion[][];
+  readonly pedestrians: StreetPedestrians;
 
   constructor(seed = 2401) {
     if (!Number.isInteger(seed) || seed < 0 || seed > 0xffffffff) throw new RangeError('Traffic seed must be an unsigned 32-bit integer.');
@@ -362,19 +361,8 @@ export class CityTraffic {
         advance: 0, permit: -1, releaseRemaining: 0, requestSince: -1,
       };
     });
-    const walkerDefinitions = TRAFFIC_ACTORS.filter(({ kind }) => kind === 'pedestrian');
-    const walkersPerRoute = Math.ceil(walkerDefinitions.length / SIDEWALK_ROUTES.length);
-    this.walkers = walkerDefinitions.map((definition, index) => {
-      const route = SIDEWALK_ROUTES[index % SIDEWALK_ROUTES.length];
-      const distance = Math.floor(index / SIDEWALK_ROUTES.length) * route.length / walkersPerRoute + random();
-      return {
-        actor: createActor(definition.id, definition.kind, route, distance),
-        route, segment: 0, length: PERSON_SPACE.length, bicycle: false, desiredSpeed: createPersonProfile(definition.id, 'street').pace,
-        advance: 0, permit: -1, releaseRemaining: 0, requestSince: -1,
-      };
-    });
-    this.sidewalkGroups = SIDEWALK_ROUTES.map((route) => this.walkers.filter((walker) => walker.route === route));
-    this.actors = Object.freeze([...this.motions.map(({ actor }) => actor), ...this.walkers.map(({ actor }) => actor)]);
+    this.pedestrians = new StreetPedestrians(SIDEWALK_ROUTES, seed);
+    this.actors = Object.freeze([...this.motions.map(({ actor }) => actor), ...this.pedestrians.actors]);
     this.motions.forEach((motion) => this.updateIndicator(motion));
   }
 
@@ -405,15 +393,16 @@ export class CityTraffic {
         }
       }
     }
-    this.advanceWalkers(seconds);
+    this.pedestrians.step(seconds, this.signals);
   }
 
   private advanceSignals(dt: number): void {
-    for (const junction of this.junctions) {
+    for (const [index, junction] of this.junctions.entries()) {
       junction.elapsed += dt;
       const green = junction.stage === 0 || junction.stage === 2;
       const duration = green ? TRAFFIC.greenSeconds : junction.stage === 4 ? TRAFFIC.pedestrianSeconds : TRAFFIC.clearanceSeconds;
       if (junction.elapsed + EPSILON < duration || (!green && junction.owner !== null)) continue;
+      if (junction.phase === 'clearance' && this.pedestrians.isCrossingOccupied(index)) continue;
       junction.stage = (junction.stage + 1) % PHASES.length;
       junction.phase = PHASES[junction.stage];
       junction.elapsed = 0;
@@ -543,17 +532,4 @@ export class CityTraffic {
     place(segments[index], actor.distance - segments[index].start, actor);
   }
 
-  private advanceWalkers(dt: number): void {
-    for (const group of this.sidewalkGroups) for (const walker of group) {
-      let available = walker.route.length;
-      for (const other of group) {
-        if (other === walker) continue;
-        available = Math.min(available, Math.max(0, ahead(walker.actor.distance, other.actor.distance, walker.route.length) - PERSON_SPACE.headway));
-      }
-      walker.advance = Math.min(available, walker.desiredSpeed * dt);
-      walker.actor.speed = walker.advance / dt;
-      walker.actor.state = walker.advance > EPSILON ? 'moving' : 'waiting';
-    }
-    for (const walker of this.walkers) this.move(walker);
-  }
 }
