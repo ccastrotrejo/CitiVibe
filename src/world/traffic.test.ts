@@ -2,6 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { PARK_BOUNDS } from '../content/park';
 import { PERSON_SPACE } from '../content/people';
+import { LAMP_GEOMETRY, STREET_LAMPS } from '../content/lighting';
 import {
   BIKE_OFFSET, bikeLaneOffset, CITY_EXTENT, INTERSECTION_GATE, INTERSECTIONS, ROAD_HALF_WIDTH,
   SIDEWALK_HALF_WIDTH, SIDEWALK_OFFSET, STOP_LINE_OFFSET, STREET_BLOCKS, STREET_X, STREET_Z, TRAFFIC_ACTORS, VEHICLE_OFFSET,
@@ -9,7 +10,8 @@ import {
 } from '../content/streets';
 import { ActorSimulation, type ActorState } from './actors';
 import {
-  CityTraffic, sampleTrafficRoute, SIDEWALK_ROUTES, TRAFFIC, TRAFFIC_LENGTHS, TRAFFIC_ROUTES,
+  CityTraffic, sampleTrafficRoute, SIDEWALK_ROUTES, SIDEWALK_WALKING_OFFSETS, SIDEWALK_WALKING_ROUTES,
+  TRAFFIC, TRAFFIC_LENGTHS, TRAFFIC_ROUTES,
   type TrafficRoute, type TrafficSegment,
 } from './traffic';
 
@@ -39,10 +41,12 @@ function angleDifference(first: number, second: number): number {
   return Math.abs(Math.atan2(Math.sin(first - second), Math.cos(first - second)));
 }
 
-function actorRoute(index: number): TrafficRoute {
+function actorRoute(index: number, seed = 2401): TrafficRoute {
   if (index < MOTOR_COUNT) return TRAFFIC_ROUTES[index % 6];
   if (index < MOTION_COUNT) return TRAFFIC_ROUTES[6 + (index - MOTOR_COUNT) % 6];
-  return SIDEWALK_ROUTES[(index - MOTION_COUNT) % SIDEWALK_ROUTES.length];
+  const walker = index - MOTION_COUNT;
+  const lane = (Math.floor(walker / SIDEWALK_WALKING_ROUTES.length) + (seed & 1)) % 2;
+  return SIDEWALK_WALKING_ROUTES[walker % SIDEWALK_WALKING_ROUTES.length][lane];
 }
 
 function actorSegment(actor: ActorState, route: TrafficRoute): TrafficSegment {
@@ -88,6 +92,23 @@ function overlap(
 }
 
 describe('shared connected street graph', () => {
+  it('keeps relocated street poles outside full motor and protected cycling footprints', () => {
+    const pose = { position: { x: 0, y: 0, z: 0 }, heading: 0 };
+    const blocked = new Set<string>();
+    for (const route of TRAFFIC_ROUTES) {
+      const bicycle = route.id.startsWith('cycle');
+      for (let distance = 0; distance < route.length; distance += 0.1) {
+        sampleTrafficRoute(route, distance, pose);
+        for (const pole of STREET_LAMPS) {
+          if (Math.abs(pose.position.x - pole.x) > 4 || Math.abs(pose.position.z - pole.z) > 4) continue;
+          if (overlap(pose.position.x, pose.position.z, pose.heading, bicycle ? 1 : 2.4, bicycle ? 0.4 : 1.1,
+            pole.x, pole.z, 0, LAMP_GEOMETRY.poleRadius, LAMP_GEOMETRY.poleRadius)) blocked.add(pole.id);
+        }
+      }
+    }
+    expect([...blocked]).toEqual([]);
+  });
+
   it('reserves bounds enclosing the authored vehicles, wheels, and walking bodies', () => {
     const artBounds = {
       sedan: { length: 2.7, width: 1.45 },
@@ -118,14 +139,18 @@ describe('shared connected street graph', () => {
     expect(new Set(INTERSECTIONS.map(({ id }) => id)).size).toBe(36);
     expect(STREET_BLOCKS).toHaveLength(24);
     expect(STREET_BLOCKS.some(({ id }) => id === 'block-2-2')).toBe(false);
-    expect(TRAFFIC_ACTORS).toHaveLength(192);
-    expect(TRAFFIC_ACTORS.filter(({ kind }) => kind === 'car')).toHaveLength(30);
+    expect(TRAFFIC_ACTORS).toHaveLength(228);
+    expect(TRAFFIC_ACTORS.filter(({ kind }) => kind === 'car')).toHaveLength(42);
     expect(TRAFFIC_ACTORS.filter(({ kind }) => kind === 'bus')).toHaveLength(6);
     expect(TRAFFIC_ACTORS.filter(({ kind }) => kind === 'cyclist')).toHaveLength(12);
-    expect(TRAFFIC_ACTORS.filter(({ kind }) => kind === 'pedestrian')).toHaveLength(144);
-    expect(new Set(TRAFFIC_ACTORS.map(({ id }) => id)).size).toBe(192);
+    expect(TRAFFIC_ACTORS.filter(({ kind }) => kind === 'pedestrian')).toHaveLength(168);
+    expect(new Set(TRAFFIC_ACTORS.map(({ id }) => id)).size).toBe(228);
     expect(TRAFFIC_ACTORS.filter(({ kind }) => kind === 'pedestrian').map(({ id }) => id))
-      .toEqual(Array.from({ length: 144 }, (_, index) => `city-walker-${index + 1}`));
+      .toEqual(Array.from({ length: 168 }, (_, index) => `city-walker-${index + 1}`));
+    expect(TRAFFIC_ACTORS.filter(({ kind }) => kind === 'bus').map(({ id }) => id))
+      .toEqual([6, 12, 18, 24, 30, 36].map((id) => `city-vehicle-${id}`));
+    expect(TRAFFIC_ACTORS.slice(36, 48).map(({ vehicleType }) => vehicleType))
+      .toEqual(Array.from({ length: 3 }, () => ['sedan', 'taxi', 'van', 'truck']).flat());
     expect(new Set(TRAFFIC_ACTORS.map(({ vehicleType }) => vehicleType).filter(Boolean)))
       .toEqual(new Set(['sedan', 'taxi', 'van', 'truck', 'bus', 'bicycle']));
   });
@@ -164,7 +189,7 @@ describe('shared connected street graph', () => {
     const before = { position: { x: 0, y: 0, z: 0 }, heading: 0 };
     const after = { position: { x: 0, y: 0, z: 0 }, heading: 0 };
     const epsilon = 0.00001;
-    for (const route of [...TRAFFIC_ROUTES, ...SIDEWALK_ROUTES]) {
+    for (const route of [...TRAFFIC_ROUTES, ...SIDEWALK_ROUTES, ...SIDEWALK_WALKING_ROUTES.flat()]) {
       for (let index = 0; index < route.segments.length; index += 1) {
         const segment = route.segments[index];
         const previous = route.segments[(index + route.segments.length - 1) % route.segments.length];
@@ -314,26 +339,28 @@ describe('shared connected street graph', () => {
 });
 
 describe('CityTraffic', () => {
-  it.each([0, 1, 42, 91, 2401, 0xffffffff])('places six spaced walkers on every peripheral sidewalk for seed %s', (seed) => {
+  it.each([0, 1, 42, 91, 2401, 0xffffffff])('places seven spaced walkers on every peripheral sidewalk for seed %s', (seed) => {
     const traffic = new CityTraffic(seed);
     const occupied = new Map<string, number>();
     for (const actor of traffic.actors) {
       if (actor.kind !== 'pedestrian') continue;
       const block = STREET_BLOCKS.find(({ minX, maxX, minZ, maxZ }) =>
-        actor.position.x >= minX + SIDEWALK_OFFSET - 1e-7 && actor.position.x <= maxX - SIDEWALK_OFFSET + 1e-7 &&
-        actor.position.z >= minZ + SIDEWALK_OFFSET - 1e-7 && actor.position.z <= maxZ - SIDEWALK_OFFSET + 1e-7);
+        actor.position.x >= minX + SIDEWALK_WALKING_OFFSETS[0] - 1e-7 &&
+        actor.position.x <= maxX - SIDEWALK_WALKING_OFFSETS[0] + 1e-7 &&
+        actor.position.z >= minZ + SIDEWALK_WALKING_OFFSETS[0] - 1e-7 &&
+        actor.position.z <= maxZ - SIDEWALK_WALKING_OFFSETS[0] + 1e-7);
       expect(block, actor.id).toBeDefined();
       occupied.set(block!.id, (occupied.get(block!.id) ?? 0) + 1);
     }
     expect(occupied.size).toBe(STREET_BLOCKS.length);
-    for (const count of occupied.values()) expect(count).toBe(6);
+    for (const count of occupied.values()) expect(count).toBe(7);
     for (let first = MOTION_COUNT; first < traffic.actors.length; first += 1) {
       for (let second = first + 1; second < traffic.actors.length; second += 1) {
-        if (actorRoute(first) !== actorRoute(second)) continue;
+        if (actorRoute(first, seed) !== actorRoute(second, seed)) continue;
         const a = traffic.actors[first];
         const b = traffic.actors[second];
         const gap = Math.min(travel(a.distance, b.distance, a.routeLength), travel(b.distance, a.distance, a.routeLength));
-        expect(gap).toBeGreaterThanOrEqual(a.routeLength / 6 - 1);
+        expect(gap).toBeGreaterThanOrEqual(a.routeLength / 7 - 1);
         expect(Math.hypot(a.position.x - b.position.x, a.position.z - b.position.z)).toBeGreaterThan(1.2);
         expect(overlap(a.position.x, a.position.z, a.heading, 0.35, 0.35,
           b.position.x, b.position.z, b.heading, 0.35, 0.35)).toBe(false);
@@ -400,6 +427,8 @@ describe('CityTraffic', () => {
   it.each([0.75, 0.3])('scales road acceleration at grip %s without slowing the signal or sidewalk clocks', (traction) => {
     const dry = new CityTraffic();
     const slippery = new CityTraffic();
+    const dryWalkingClock = vi.spyOn(dry.pedestrians, 'step');
+    const slipperyWalkingClock = vi.spyOn(slippery.pedestrians, 'step');
     const initialPhases = dry.signals.map(({ phase }) => phase);
     const dryChanges = new Float64Array(INTERSECTIONS.length);
     const slipperyChanges = new Float64Array(INTERSECTIONS.length);
@@ -408,6 +437,7 @@ describe('CityTraffic', () => {
     for (let index = 0; index < MOTION_COUNT; index += 1) {
       expect(slippery.actors[index].speed).toBeCloseTo(TRAFFIC.acceleration * traction * DT, 10);
     }
+    expect(slippery.pedestrians.actors).toEqual(dry.pedestrians.actors);
     for (let tick = 1; tick < 240; tick += 1) {
       dry.step(DT);
       slippery.step(DT, traction);
@@ -419,7 +449,9 @@ describe('CityTraffic', () => {
     expect(dryChanges.every((time) => time > 0)).toBe(true);
     expect(slipperyChanges).toEqual(dryChanges);
     expect(slippery.elapsed).toBe(dry.elapsed);
-    expect(slippery.actors.slice(MOTION_COUNT)).toEqual(dry.actors.slice(MOTION_COUNT));
+    // Occupied wet-road crossings may defer entry; the walking clock and desired pace are not scaled.
+    expect(dryWalkingClock.mock.calls.map(([dt]) => dt)).toEqual(Array(240).fill(DT));
+    expect(slipperyWalkingClock.mock.calls.map(([dt]) => dt)).toEqual(Array(240).fill(DT));
   });
 
   it.each([0, 2401])('retains footprint and stop-line safety during abrupt grip changes for seed %s', (seed) => {
@@ -532,8 +564,8 @@ describe('CityTraffic', () => {
   });
 
   it('initializes many seeds with unique, unoccupied incoming lanes', () => {
-    for (let seed = 0; seed < 128; seed += 1) {
-      const traffic = new CityTraffic(seed * 7919);
+    for (const seed of [91, ...Array.from({ length: 128 }, (_, index) => index * 7919)]) {
+      const traffic = new CityTraffic(seed);
       const occupied = new Set<string>();
       for (let index = 0; index < MOTION_COUNT; index += 1) {
         const actor = traffic.actors[index];
@@ -594,7 +626,7 @@ describe('CityTraffic', () => {
   it.each(GRIP_SOAKS)('keeps seed $seed safe and live for twenty minutes at grip $traction (changing=$changing)', ({ seed, traction: initialTraction, changing }) => {
     const traffic = new CityTraffic(seed);
     const actors = traffic.actors;
-    const routes = actors.map((_, index) => actorRoute(index));
+    const routes = actors.map((_, index) => actorRoute(index, seed));
     const previous = actors.map((actor) => ({ ...actor.position, distance: actor.travelDistance ?? actor.distance, speed: actor.speed, heading: actor.heading }));
     const segments = actors.map((actor, index) => actorSegment(actor, routes[index]));
     const totals = new Float64Array(actors.length);
@@ -623,7 +655,8 @@ describe('CityTraffic', () => {
         if (!Number.isFinite(actor.position.x + actor.position.z + actor.distance + actor.heading + actor.speed) ||
           actor.distance < 0 || actor.distance >= actor.routeLength || actor.position.y !== 0 ||
           displacement > topSpeed * DT + 1e-7 || movement > topSpeed * DT + 1e-7 ||
-          angleDifference(before.heading, actor.heading) > (index < MOTION_COUNT ? 0.04 : 1.56 * DT) ||
+          angleDifference(before.heading, actor.heading) >
+            (index < MOTION_COUNT ? 0.04 : 1.56 * DT / routes[index].segments[0].radius) ||
           Math.abs(actor.position.x) > CITY_EXTENT.x || Math.abs(actor.position.z) > CITY_EXTENT.z) {
           throw new Error(`Discontinuous ${actor.id}, seed ${seed}, tick ${tick}`);
         }

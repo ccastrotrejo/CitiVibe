@@ -15,7 +15,10 @@ import { MURAL_WALLS, buildStreetscape } from './streetscape';
 import { buildStreetSigns } from './streetSigns';
 import { validateFacadeContent } from '../content/facades';
 import { buildMurals } from './murals';
-import { poseNeutral } from './locomotion';
+import { buildStreetFurniture } from './streetFurniture';
+import { buildBikeShare, buildSharedBike } from './bikeShare';
+import { buildSignLettering } from './signLettering';
+import { poseNeutral, WALKER } from './locomotion';
 import type { VehicleRig, WheelRig } from './locomotion';
 import { buildPersonRig, personPart, type PersonArt } from './person';
 import { PlayActivity } from './playActivity';
@@ -150,6 +153,8 @@ export function buildCityScene(): CityScene {
   palette.glass.userData.window = true;
   const vehicleGlass = material(palette.glass.clone());
   vehicleGlass.userData = {};
+  const civicBlue = paint('#256897');
+  civicBlue.userData.weatherSurface = true;
   // Public lighting: luminaire heads emit and pools brighten only after dusk (driven by frame.night).
   const lampGlow = material(new THREE.MeshStandardMaterial({
     color: '#ffe7bb', emissive: '#ffd68f', emissiveIntensity: 0, roughness: 0.5,
@@ -167,6 +172,8 @@ export function buildCityScene(): CityScene {
   const box = geometry(new THREE.BoxGeometry());
   const cylinder = geometry(new THREE.CylinderGeometry(1, 1, 1, 10));
   const crown = geometry(new THREE.DodecahedronGeometry(1));
+  const personArt: PersonArt = { box, head: geometry(new THREE.IcosahedronGeometry(1)), material: paint('#ffffff') };
+  personArt.material.name = 'Shared person colors';
   const dummy = new THREE.Object3D();
 
   function batcher(parent: THREE.Object3D) {
@@ -294,6 +301,11 @@ export function buildCityScene(): CityScene {
   const streetscape = buildStreetscape({ block, add: district.add, box, cylinder, crown, palette }, lampGlow);
   scene.add(streetscape.group);
   const pavement = buildPavementMarkings({ block, add: district.add, box, cylinder, crown, palette });
+  buildStreetFurniture({ block, add: district.add, box, cylinder, crown, palette }, civicBlue, vehicleGlass, {
+    food: geometry(buildSignLettering('FOOD', 2.8, 0.48)),
+    parking: geometry(buildSignLettering('P', 0.4, 0.52)),
+  });
+  const bikeShare = buildBikeShare({ block, add: district.add, box, cylinder, crown, palette }, personArt, civicBlue);
   const { streetHeight, parkHeight, poleRadius, armLength, armHeight, headSize, headDrop,
     parkGlobeRadius } = LAMP_GEOMETRY;
   for (const { x, z, arm } of STREET_LAMPS) {
@@ -401,9 +413,8 @@ export function buildCityScene(): CityScene {
     spin.add(limb(cylinder, palette.stone, [Math.sign(x) * 0.1, 0, 0], [0.16 * radiusFactor, 0.05, 0.16 * radiusFactor], [0, 0, Math.PI / 2]));
     return { steer, spin, front };
   }
-  const personArt: PersonArt = { box, head: geometry(new THREE.IcosahedronGeometry(1)), material: paint('#ffffff') };
-  personArt.material.name = 'Shared person colors';
-  const neighborhoodActors: THREE.Group[] = [];
+  const neighborhoodActors: THREE.Group[] = [...bikeShare.rigs];
+  scene.add(...bikeShare.rigs);
   for (const definition of PARK_ACTORS) {
     const running = definition.gait === 'run';
     const walker = actorGroup(definition.id, running ? 'Park runner' : 'Park walker');
@@ -413,7 +424,6 @@ export function buildCityScene(): CityScene {
     poseNeutral(rig);
   }
 
-  const bicycleTire = geometry(new THREE.TorusGeometry(0.32, 0.035, 6, 12).rotateY(Math.PI / 2));
   for (const [index, definition] of TRAFFIC_ACTORS.entries()) {
     const group = actorGroup(definition.id, `Neighborhood ${definition.vehicleType ?? definition.kind}`);
     neighborhoodActors.push(group);
@@ -446,39 +456,40 @@ export function buildCityScene(): CityScene {
       const riderPart = (name: string, color: string, p: readonly [number, number, number],
         size: readonly [number, number, number], rounded = false) =>
         personPart(personArt, body, name, color, p, size, rounded);
-      part(palette.teal, 0, 0.58, 0, 0.08, 0.1, 1.25);
-      part(palette.teal, 0, 0.7, -0.15, 0.08, 0.6, 0.08);
-      part(palette.rubber, 0, 1.03, -0.25, 0.28, 0.08, 0.35);
-      part(palette.copperEdge, 0, 0.85, 0.62, 0.06, 0.75, 0.06);
-      part(palette.rubber, 0, 1.2, 0.62, 0.58, 0.06, 0.08);
+      const bicycle = buildSharedBike(personArt, civicBlue);
+      body.add(bicycle.group);
+      for (const wheel of bicycle.wheelRigs) group.add(wheel.steer);
+      wheels.push(...bicycle.wheelRigs);
       riderPart('Cycling jacket', person.top, [0, 1.42, -0.05], [0.35 * person.build, 0.52, 0.24]);
+      riderPart('Seated cycling trousers', person.bottom, [0, 1.075, -0.28], [0.36, 0.22, 0.25]);
       riderPart('Cyclist face', person.skin, [0, 1.82, 0.05], [0.18, 0.2, 0.18], true);
       riderPart('Cycle helmet', person.accent, [0, 1.95, 0.05], [0.21, 0.12, 0.22], true);
       riderPart('Helmet stripe', '#e9e7d9', [0, 2.05, 0.05], [0.065, 0.035, 0.3]);
       if (person.bag !== 'none') riderPart('Cyclist backpack', person.accent, [0, 1.45, -0.26], [0.28, 0.36, 0.19]);
       for (const side of [-1, 1]) {
-        riderPart('Cyclist sleeve', person.top, [side * 0.23, 1.35, 0.29], [0.11, 0.12, 0.6]).rotation.x = -0.25;
+        riderPart('Cyclist sleeve', person.top, [side * 0.22, 1.3325, 0.255],
+          [0.11, Math.hypot(0.535, 0.45), 0.11]).rotation.x = Math.atan2(0.45, -0.535);
+        riderPart('Cyclist hand', person.skin, [side * 0.22, 1.065, 0.48], [0.09, 0.09, 0.1]);
       }
-      for (const z of [-0.58, 0.58]) {
-        const steer = new THREE.Object3D();
-        steer.position.set(0, 0.355, z);
-        group.add(steer);
-        const spin = new THREE.Object3D();
-        steer.add(spin);
-        spin.add(limb(bicycleTire, palette.rubber, [0, 0, 0], [1, 1, 1]));
-        spin.add(limb(box, palette.stone, [0, 0, 0], [0.03, 0.59, 0.025]));
-        spin.add(limb(box, palette.stone, [0, 0, 0], [0.03, 0.025, 0.59]));
-        wheels.push({ steer, spin, front: z > 0 });
-      }
-      const pedals = [-1, 1].map((side) => {
-        const crank = new THREE.Object3D();
-        crank.position.set(side * 0.16, 0.78, -0.12);
-        personPart(personArt, crank, 'Cyclist trouser leg', person.bottom, [0, -0.15, 0], [0.12, 0.36, 0.13]);
-        body.add(crank);
-        return crank;
+      const cyclingLegs = bicycle.pedals.map((crank, index) => {
+        const pedal = crank.getObjectByName('Pedal');
+        if (!pedal) throw new Error('Shared bicycle is missing its pedal platform.');
+        const hip = new THREE.Object3D();
+        const knee = new THREE.Object3D();
+        const ankle = new THREE.Object3D();
+        hip.position.set(index === 0 ? -0.16 : 0.16, 1, -0.28);
+        knee.position.y = -WALKER.thigh;
+        ankle.position.y = -WALKER.shank;
+        body.add(hip); hip.add(knee); knee.add(ankle);
+        personPart(personArt, hip, 'Cyclist trouser thigh', person.bottom,
+          [0, -WALKER.thigh / 2, 0], [0.12, WALKER.thigh, 0.13]);
+        personPart(personArt, knee, 'Cyclist trouser shin', person.bottom,
+          [0, -WALKER.shank / 2, 0], [0.11, WALKER.shank, 0.12]);
+        personPart(personArt, ankle, 'Cyclist shoe', person.shoes, [0, 0.045, 0.05], [0.15, 0.09, 0.26]);
+        return { joints: { hip, knee, ankle }, crank, pedal };
       });
-      const rig: VehicleRig = { kind: 'vehicle', body, wheels, wheelRadius: 0.355, pedals };
-      lamp('head', 0, 1.18, 0.69, [0.12, 0.1, 0.09]);
+      const rig: VehicleRig = { kind: 'vehicle', body, wheels, wheelRadius: 0.32, pedals: bicycle.pedals, cyclingLegs };
+      lamp('head', 0, 1.04, 0.79, [0.12, 0.1, 0.09]);
       lamp('tail', 0, 0.93, -0.76, [0.1, 0.1, 0.07]);
       vehicleLights.push({ id: definition.id, body, length: 2, lamps, bicycle: true });
       group.userData.rig = rig;
@@ -634,6 +645,7 @@ export function buildCityScene(): CityScene {
       if (!disposed) {
         courtActivity.update(elapsedSeconds, reducedMotion, groundLift);
         playActivity.update(elapsedSeconds, reducedMotion, groundLift);
+        bikeShare.update(elapsedSeconds, reducedMotion, groundLift);
         for (const person of restingPeople) person.position.y = 0.025 + groundLift;
       }
     },
@@ -641,6 +653,7 @@ export function buildCityScene(): CityScene {
       if (disposed) return;
       disposed = true;
       actorInstances.dispose();
+      bikeShare.dispose();
       pavement.dispose();
       park.dispose();
       streetscape.dispose();

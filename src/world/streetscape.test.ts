@@ -13,10 +13,12 @@ import {
   VEHICLE_OFFSET, bikeLaneOffset,
 } from '../content/streets';
 import {
-  buildStreetscape, MURAL_WALLS, SIDEWALK_SHEDS, STREET_BLOCKS, STREET_BUILDINGS, SUBWAY_ENTRANCES,
-  validateStreetscape,
-  type Streetscape, type StreetscapeBuilder, type StreetscapeSignalState,
+  buildStreetscape, BUILDING_SIDEWALK_INSET, createStreetBuildings, MURAL_WALLS, SIDEWALK_SHEDS,
+  STREET_BLOCKS, STREET_BUILDINGS, SUBWAY_ENTRANCES, validateStreetscape,
+  type StreetBuilding, type Streetscape, type StreetscapeBuilder, type StreetscapeSignalState,
 } from './streetscape';
+import { sampleTrafficRoute, SIDEWALK_WALKING_CLEARANCE, SIDEWALK_WALKING_OFFSETS, SIDEWALK_WALKING_ROUTES } from './traffic';
+import { FoliageWind } from './weatherArt';
 
 interface Part {
   shape: THREE.BufferGeometry;
@@ -106,6 +108,20 @@ function positions(mesh: THREE.InstancedMesh) {
   return result;
 }
 
+function buildingParts(parts: Part[], building: StreetBuilding) {
+  const isBase = ({ position, scale }: Part, candidate: StreetBuilding) =>
+    position[0] === candidate.x && position[2] === candidate.z &&
+    position[1] === (candidate.brownstone ? 0.4 : 0.17) &&
+    scale[0] === candidate.width + 0.3 && scale[2] === candidate.depth + 0.3;
+  const start = parts.findIndex((part) => isBase(part, building));
+  expect(start).toBeGreaterThanOrEqual(0);
+  const next = STREET_BUILDINGS[STREET_BUILDINGS.indexOf(building) + 1];
+  const end = next ? parts.findIndex((part) => isBase(part, next)) : parts.findIndex((part, index) =>
+    index > start && part.position[1] === 0.01 && part.scale[0] === 1.45);
+  expect(end).toBeGreaterThan(start);
+  return parts.slice(start, end);
+}
+
 afterEach(() => {
   cleanups.splice(0).forEach((cleanup) => cleanup());
   vi.restoreAllMocks();
@@ -152,6 +168,10 @@ describe('original connected-city streetscape', () => {
     for (const building of STREET_BUILDINGS) {
       expect(Math.abs(building.x) - building.width / 2 > parkHalfX ||
         Math.abs(building.z) - building.depth / 2 > parkHalfZ).toBe(true);
+      expect(building.width).toBeLessThanOrEqual(building.reservedWidth);
+      expect(building.width).toBeGreaterThanOrEqual(building.reservedWidth * 0.75);
+      expect(building.depth).toBeLessThanOrEqual(building.reservedDepth);
+      expect(building.depth).toBeGreaterThanOrEqual(building.reservedDepth * 0.9);
     }
     for (const id of [`block-${centerColumn - 1}-${centerRow}`, `block-${centerColumn + 1}-${centerRow}`]) {
       const wall = STREET_BUILDINGS.filter(({ blockId }) => blockId === id);
@@ -180,11 +200,11 @@ describe('original connected-city streetscape', () => {
     for (const side of [-1, 1]) {
       const masonry = STREET_BUILDINGS.filter(({ blockId, brownstone }) => !brownstone &&
         blockId === `block-${centerColumn + side}-${centerRow}`);
-      expect(masonry.every(({ width }) => width >= 12.8)).toBe(true);
+      expect(masonry.every(({ width }) => width >= 12.8 * 0.9)).toBe(true);
     }
   });
 
-  it('relocates every displaced frontage building without shrinking or losing its architectural identity', () => {
+  it('retains all relocated IDs and court clearances while varying dimensions inside their original envelopes', () => {
     expect(STREET_BUILDINGS.map(({ id }) => id)).toEqual(
       Array.from({ length: 94 }, (_, index) => `street-building-${index + 1}`));
     const destinations = [
@@ -195,12 +215,14 @@ describe('original connected-city streetscape', () => {
       const building = STREET_BUILDINGS[10 + column];
       const brownstone = column === 0 || column === 4;
       expect(building.blockId).toBe(destinations[column]);
-      expect(building.width).toBeCloseTo(column % 2 ? 6.6 : 6.3);
-      expect(building.depth).toBeCloseTo(7.6 + column % 3 * 0.6);
-      expect(building.floors).toBe(Math.min(3 + (column * 3 + 2) % 5, brownstone ? 5 : 7));
-      if (brownstone) expect(building.family).toBe('brownstone');
-      expect(tonesOf(building.family).map(({ hex }) => hex)).toContain(building.tone);
-      expect(building.roof).toBe(['tank', 'chimneys', 'garden', 'plant'][(10 + column) % 4]);
+      expect(building.width).toBeLessThanOrEqual(column % 2 ? 6.6 : 6.3);
+      expect(building.width).toBeGreaterThanOrEqual((column % 2 ? 6.6 : 6.3) * 0.75);
+      expect(building.depth).toBeLessThanOrEqual(7.6 + column % 3 * 0.6);
+      expect(building.depth).toBeGreaterThanOrEqual((7.6 + column % 3 * 0.6) * 0.9);
+      expect(building.floors).toBeGreaterThanOrEqual(3);
+      expect(building.floors).toBeLessThanOrEqual(brownstone ? 5 : 7);
+      if (brownstone) expect(building.facadeFamily).toBe('brownstone');
+      expect(tonesOf(building.facadeFamily).map(({ hex }) => hex)).toContain(building.tone);
       expect(building.brownstone).toBe(brownstone);
       expect(building.stoop).toBe(column % 2 === 0);
       expect(building.fireEscape).toBe((10 + column) % 3 === 0);
@@ -209,11 +231,11 @@ describe('original connected-city streetscape', () => {
     for (const row of [0, 4]) {
       const wall = STREET_BUILDINGS.filter(({ blockId }) => blockId === `block-2-${row}`).sort((a, b) => a.x - b.x);
       expect(wall).toHaveLength(6);
-      expect(wall[0].width).toBeCloseTo(6.3);
-      expect(wall[5].width).toBeCloseTo(6.3);
+      expect(wall[0].width).toBeLessThanOrEqual(6.3);
+      expect(wall[5].width).toBeLessThanOrEqual(6.3);
       for (let index = 1; index < wall.length; index++) {
         expect(wall[index].x - wall[index].width / 2 - wall[index - 1].x - wall[index - 1].width / 2)
-          .toBeCloseTo(0.8);
+          .toBeGreaterThanOrEqual(0.8);
       }
     }
   });
@@ -224,14 +246,43 @@ describe('original connected-city streetscape', () => {
       [first, first],
       [{ ...first, x: 0, z: 0 }],
       [{ ...first, width: Infinity }],
+      [{ ...first, width: first.reservedWidth + 0.01 }],
+      [{ ...first, reservedDepth: NaN }],
       [{ ...first, floors: 2.5 }],
       [{ ...first, floors: 9 }],
       [{ ...first, setbackFloors: 5 }],
+      [{ ...first, architecture: { ...first.architecture, floorHeight: Infinity } }],
+      [{ ...first, architecture: { ...first.architecture, windowWidth: -0.1 } }],
+      [{ ...first, architecture: { ...first.architecture, baySpacing: 0.5 } }],
+      [{ ...first, architecture: { ...first.architecture, parapetHeight: 1 } }],
+      [{ ...first, architecture: { ...first.architecture, family: 'loft' as const } }],
       [{ ...first, blockId: 'not-a-parcel' }],
       [{ ...first, z: -33, stoop: true }],
       [{ ...first, x: -39 + first.width / 2 + 0.4 - 0.0001 }],
       [first, { ...first, id: 'overlapping-neighbor' }],
     ]) expect(() => validateStreetscape(buildings)).toThrow();
+  });
+
+  it('seeds dimensions, facade families and rooflines independently without moving the authored city', () => {
+    expect(createStreetBuildings()).toEqual(STREET_BUILDINGS);
+    const another = createStreetBuildings(173);
+    expect(another).not.toEqual(STREET_BUILDINGS);
+    const footprint = (building: StreetBuilding) => [building.id, building.blockId, building.x, building.z];
+    expect(another.map(footprint)).toEqual(STREET_BUILDINGS.map(footprint));
+    expect(new Set(STREET_BUILDINGS.map(({ width, depth }) => `${width}:${depth}`)).size).toBe(94);
+    expect(new Set(STREET_BUILDINGS.map(({ architecture }) => architecture.family)).size).toBe(4);
+    for (const feature of ['windowWidth', 'windowHeight', 'baySpacing', 'floorHeight', 'parapetHeight'] as const) {
+      expect(new Set(STREET_BUILDINGS.map(({ architecture }) => architecture[feature])).size).toBeGreaterThan(80);
+    }
+    for (const family of ['masonry', 'loft', 'terrace']) {
+      const members = STREET_BUILDINGS.filter(({ architecture }) => architecture.family === family);
+      expect(members.length).toBeGreaterThan(15);
+      expect(new Set(members.map(({ tone }) => tone)).size).toBeGreaterThan(4);
+      expect(new Set(members.map(({ roof }) => roof)).size).toBe(4);
+    }
+    for (const seed of [0, 1, 42, 173, 2401, 8128]) {
+      expect(() => validateStreetscape(createStreetBuildings(seed))).not.toThrow();
+    }
   });
 
   it('draws glazing at every authored floor on all four facades, including setbacks', () => {
@@ -243,7 +294,8 @@ describe('original connected-city streetscape', () => {
         const width = building.width - (inset ? 1.4 : 0);
         const depth = building.depth - (inset ? 2.2 : 0);
         const principal = building.brownstone && floor === 0;
-        const y = 0.3 + floor * 2.4 + (principal ? 1.6 : 1.25);
+        const y = 0.3 + floor * building.architecture.floorHeight +
+          (principal ? 1.6 : building.architecture.floorHeight * 0.52);
         for (const side of [-1, 1]) {
           // A lot-line wall is blank masonry, so only setbacks above it are glazed.
           const party = inset ? null : building.partyWall;
@@ -257,6 +309,77 @@ describe('original connected-city streetscape', () => {
             Math.abs(x - building.x - side * (width / 2 + 0.025)) < 0.001)).toBe(flank === 'glazed');
         }
       }
+    }
+  });
+
+  it('renders coherent window proportions and sash, divided or picture glazing, not metadata-only variants', () => {
+    const { parts, builder } = createArt();
+    const renderedWidths = new Set<number>();
+    for (const building of STREET_BUILDINGS) {
+      const art = buildingParts(parts, building);
+      const { windowWidth, windowHeight, floorHeight, mullions, parapetHeight } = building.architecture;
+      const windows = art.filter(({ surface, scale }) => surface === builder.palette.glass &&
+        (scale[0] === windowWidth || scale[2] === windowWidth) && scale[1] === windowHeight);
+      expect(windows.length, building.id).toBeGreaterThan(0);
+      windows.forEach((window) => {
+        const front = window.scale[2] === 0.045;
+        const side = Math.sign(window.position[front ? 2 : 0] - building[front ? 'z' : 'x']);
+        const horizontal = art.find(({ surface, position, scale }) =>
+          surface === builder.palette.rubber && position[1] === window.position[1] &&
+          position[front ? 0 : 2] === window.position[front ? 0 : 2] &&
+          Math.abs(position[front ? 2 : 0] - window.position[front ? 2 : 0] - side * 0.03) < 1e-9 &&
+          scale[1] === 0.065 && scale[front ? 0 : 2] === windowWidth);
+        const vertical = art.find(({ surface, position, scale }) =>
+          surface === builder.palette.rubber && position[1] === window.position[1] &&
+          position[front ? 0 : 2] === window.position[front ? 0 : 2] &&
+          Math.abs(position[front ? 2 : 0] - window.position[front ? 2 : 0] - side * 0.03) < 1e-9 &&
+          scale[1] === windowHeight && scale[front ? 0 : 2] === 0.06);
+        expect(!!horizontal, `${building.id} horizontal mullion`).toBe(mullions !== 'none');
+        expect(!!vertical, `${building.id} vertical mullion`).toBe(mullions === 'cross');
+        const floor = Math.round((window.position[1] - 0.3 - floorHeight * 0.52) / floorHeight);
+        expect(window.bounds.min.y).toBeGreaterThan(0.3 + floor * floorHeight);
+        expect(window.bounds.max.y).toBeLessThan(0.3 + (floor + 1) * floorHeight);
+        const inset = floor >= building.floors;
+        const span = front ? building.width - (inset ? 1.4 : 0) : building.depth - (inset ? 2.2 : 0);
+        const center = building[front ? 'x' : 'z'];
+        expect(window.bounds.min[front ? 'x' : 'z']).toBeGreaterThan(center - span / 2);
+        expect(window.bounds.max[front ? 'x' : 'z']).toBeLessThan(center + span / 2);
+      });
+      // A blank lot line can leave a flank window first, so read the width off its own axis.
+      renderedWidths.add(windows[0].scale[2] === 0.045 ? windows[0].scale[0] : windows[0].scale[2]);
+      expect(art.some(({ surface, position, scale }) => surface === builder.palette.paving &&
+        scale[1] === parapetHeight && position[1] >
+        (building.floors + building.setbackFloors) * floorHeight)).toBe(true);
+    }
+    expect(renderedWidths.size).toBeGreaterThan(80);
+  });
+
+  it('keeps actual building details inside their retained clearance envelopes with shared borrowed resources', () => {
+    const { parts, builder } = createArt();
+    for (const building of STREET_BUILDINGS) {
+      const art = buildingParts(parts, building);
+      const parcel = STREET_BLOCKS.find(({ id }) => id === building.blockId)!;
+      const inset = BUILDING_SIDEWALK_INSET - SIDEWALK_HALF_WIDTH;
+      const envelope = new THREE.Box3(
+        new THREE.Vector3(building.x - building.reservedWidth / 2 - 0.4, -0.01,
+          building.z - building.reservedDepth / 2 - 0.35),
+        new THREE.Vector3(building.x + building.reservedWidth / 2 + 0.4, 24,
+          building.z + building.reservedDepth / 2 + (building.stoop ? 1.2 : 0.35)),
+      ).intersect(new THREE.Box3(
+        new THREE.Vector3(parcel.minX + inset, -0.01, parcel.minZ + inset),
+        new THREE.Vector3(parcel.maxX - inset, 24, parcel.maxZ - inset),
+      )).expandByScalar(1e-9);
+      for (const part of art) {
+        expect(envelope.containsBox(part.bounds), `${building.id} ${part.surface.name} ${part.position}`).toBe(true);
+        expect([builder.box, builder.cylinder, builder.crown]).toContain(part.shape);
+        expect(Object.values(builder.palette)).toContain(part.surface);
+      }
+      expect(art.some(({ shape, surface, scale }) => shape === builder.cylinder &&
+        surface === builder.palette.wood && scale[0] === 0.95)).toBe(building.roof === 'tank');
+      expect(art.some(({ shape, surface }) => shape === builder.crown && surface === builder.palette.leaf))
+        .toBe(building.roof === 'garden');
+      expect(art.filter(({ surface, scale }) => surface === builder.palette.clay &&
+        scale[0] === 0.55 && scale[1] === 1.1)).toHaveLength(building.roof === 'chimneys' ? 2 : 0);
     }
   });
 
@@ -277,18 +400,21 @@ describe('original connected-city streetscape', () => {
       expect(Math.max(...steps.map(({ bounds }) => bounds.max.y))).toBeCloseTo(door.bounds.min.y);
       const principalWindows = parts.filter(({ surface, position, scale }) =>
         surface === builder.palette.glass && Math.abs(position[0] - building.x) < building.width / 2 &&
-        Math.abs(position[2] - front - 0.025) < 0.001 && scale[1] === 1.55);
-      expect(principalWindows).toHaveLength(Math.floor(building.width / 1.8) - 1);
+        Math.abs(position[2] - front - 0.025) < 0.001 &&
+        scale[1] === building.architecture.windowHeight + 0.25);
+      expect(principalWindows.length).toBeGreaterThanOrEqual(1);
+      expect(principalWindows.length).toBeLessThan(Math.floor((building.width - 0.5) / building.architecture.baySpacing));
       principalWindows.forEach(({ position }) => {
         expect(parts.some(({ surface, position: lintel, scale }) =>
           surface === builder.palette.copperEdge && lintel[0] === position[0] &&
-          Math.abs(lintel[1] - position[1] - 0.875) < 0.001 && scale[0] === 1.06)).toBe(true);
+          Math.abs(lintel[1] - position[1] - (building.architecture.windowHeight + 0.25) / 2 - 0.1) < 0.001 &&
+          scale[0] === building.architecture.windowWidth + 0.27)).toBe(true);
       });
       const rails = parts.filter(({ surface, position, scale }) => surface === builder.palette.rubber &&
         Math.abs(Math.abs(position[0] - entryX) - 0.72) < 0.001 &&
         position[2] > front && position[2] < front + 1.1 && scale[0] === 0.045);
       expect(rails).toHaveLength(6);
-      const corniceY = building.floors * 2.4 + 0.3;
+      const corniceY = building.floors * building.architecture.floorHeight + 0.3;
       expect(parts.some(({ surface, position, scale }) => surface === builder.palette.copperEdge &&
         position[0] === building.x && Math.abs(position[1] - corniceY - 0.03) < 0.001 &&
         scale[0] === building.width + 0.65 && scale[1] === 0.26)).toBe(true);
@@ -347,13 +473,20 @@ describe('original connected-city streetscape', () => {
     for (const intersection of INTERSECTIONS) {
       for (const side of [-1, 1]) {
         const horizontal = lines.filter(({ position, scale }) =>
-          Math.abs(position[2] - intersection.z - side * SIDEWALK_OFFSET) < 0.001 &&
-          Math.abs(position[0] - intersection.x) <= ROAD_HALF_WIDTH && scale[2] === 1.65);
+          Math.abs(position[2] - intersection.z - side * 6.7) < 0.001 &&
+          Math.abs(position[0] - intersection.x) <= ROAD_HALF_WIDTH && scale[2] === 2);
         const vertical = lines.filter(({ position, scale }) =>
-          Math.abs(position[0] - intersection.x - side * SIDEWALK_OFFSET) < 0.001 &&
-          Math.abs(position[2] - intersection.z) <= ROAD_HALF_WIDTH && scale[0] === 1.65);
+          Math.abs(position[0] - intersection.x - side * 6.7) < 0.001 &&
+          Math.abs(position[2] - intersection.z) <= ROAD_HALF_WIDTH && scale[0] === 2);
         expect(horizontal).toHaveLength(11);
         expect(vertical).toHaveLength(11);
+        for (const stripe of [...horizontal, ...vertical]) {
+          const axis = horizontal.includes(stripe) ? 'z' : 'x';
+          expect(Math.min(Math.abs(stripe.bounds.min[axis] - intersection[axis]),
+            Math.abs(stripe.bounds.max[axis] - intersection[axis]))).toBeCloseTo(5.7);
+          expect(Math.max(Math.abs(stripe.bounds.min[axis] - intersection[axis]),
+            Math.abs(stripe.bounds.max[axis] - intersection[axis]))).toBeCloseTo(7.7);
+        }
         if (Math.abs(intersection.z - side * STOP_LINE_OFFSET) < CITY_EXTENT.z) {
           expect(lines.some(({ position, scale }) =>
             position[0] === intersection.x - side * VEHICLE_OFFSET &&
@@ -361,6 +494,30 @@ describe('original connected-city streetscape', () => {
         }
       }
     }
+  });
+
+  it('supports both walking lanes and rounded corners on locally widened paving without extending into the park', () => {
+    const { parts, builder } = createArt();
+    expect(BUILDING_SIDEWALK_INSET).toBe(SIDEWALK_WALKING_CLEARANCE);
+    const paving = parts.filter(({ surface, bounds }) => surface === builder.palette.paving &&
+      Math.abs(bounds.max.y + 0.08) < 1e-9);
+    const sample = { position: { x: 0, y: 0, z: 0 }, heading: 0 };
+    const uncovered: string[] = [];
+    for (const route of SIDEWALK_WALKING_ROUTES.flat()) {
+      for (let distance = 0; distance < route.length; distance += 0.75) {
+        sampleTrafficRoute(route, distance, sample);
+        for (let direction = 0; direction < 8; direction++) {
+          const angle = direction * Math.PI / 4;
+          const x = sample.position.x + Math.cos(angle) * 0.4;
+          const z = sample.position.z + Math.sin(angle) * 0.4;
+          if (!paving.some(({ bounds }) => x >= bounds.min.x - 1e-9 && x <= bounds.max.x + 1e-9 &&
+            z >= bounds.min.z - 1e-9 && z <= bounds.max.z + 1e-9)) uncovered.push(`${route.id}: ${x},${z}`);
+        }
+      }
+    }
+    expect(uncovered).toEqual([]);
+    expect(paving.every(({ bounds }) => bounds.max.x <= -parkHalfX || bounds.min.x >= parkHalfX ||
+      bounds.max.z <= -parkHalfZ || bounds.min.z >= parkHalfZ)).toBe(true);
   });
 
   it('builds real park-side two-way tracks with shared lane positions and safe single separator rows', () => {
@@ -657,6 +814,62 @@ describe('original connected-city streetscape', () => {
     }
   });
 
+  it('keeps the shifted west court fence clear of a rotated 0.8 by 1.2 m walking body', () => {
+    const { parts, builder } = createArt();
+    const fenceX = RECREATION_AREA.minX + 0.85;
+    expect(fenceX).toBeCloseTo(-38.15);
+    const fence = parts.filter(({ surface, position }) => position[0] === fenceX &&
+      (surface === builder.palette.copperEdge || surface === builder.palette.rubber) &&
+      Math.abs(position[2] - BASKETBALL_COURT.z) < BASKETBALL_COURT.runoffDepth / 2 + 0.46);
+    expect(fence).toHaveLength(70);
+    expect(fence.every(({ bounds }) => bounds.max.x <
+      BASKETBALL_COURT.x - BASKETBALL_COURT.runoffWidth / 2)).toBe(true);
+    const body = new THREE.Box3(new THREE.Vector3(-0.4, 0.12, -0.6), new THREE.Vector3(0.4, 2.4, 0.6));
+    const pose = new THREE.Object3D();
+    const inverse = new THREE.Matrix4();
+    const relative = new THREE.Matrix4();
+    const fenceMatrix = new THREE.Matrix4();
+    const broad = new THREE.Box3();
+    const candidateBounds = new THREE.Box3();
+    const triangle = new THREE.Triangle();
+    const sample = { position: { x: 0, y: 0, z: 0 }, heading: 0 };
+    const routes = SIDEWALK_WALKING_ROUTES.flat().filter(({ id }) => id === `block-${centerColumn}-${centerRow + 1}`);
+    expect(routes).toHaveLength(2);
+    const findCollision = (offsetX: number) => {
+      for (const route of routes) {
+        for (let distance = 0; distance < route.length; distance += 0.1) {
+          sampleTrafficRoute(route, distance, sample);
+          pose.position.set(sample.position.x, 0, sample.position.z);
+          pose.rotation.set(0, sample.heading, 0);
+          pose.updateMatrix();
+          inverse.copy(pose.matrix).invert();
+          broad.copy(body).applyMatrix4(pose.matrix);
+          for (const part of fence) {
+            candidateBounds.copy(part.bounds);
+            candidateBounds.min.x += offsetX;
+            candidateBounds.max.x += offsetX;
+            if (!broad.intersectsBox(candidateBounds)) continue;
+            fenceMatrix.copy(part.matrix);
+            fenceMatrix.elements[12] += offsetX;
+            relative.multiplyMatrices(inverse, fenceMatrix);
+            const vertices = part.shape.getAttribute('position');
+            const indices = part.shape.index;
+            for (let index = 0; index < (indices?.count ?? vertices.count); index += 3) {
+              [triangle.a, triangle.b, triangle.c].forEach((vertex, corner) =>
+                vertex.fromBufferAttribute(vertices, indices ? indices.getX(index + corner) : index + corner)
+                  .applyMatrix4(relative));
+              if (body.intersectsTriangle(triangle)) {
+                return `${route.id} ${distance}: ${part.surface.name} ${part.position}`;
+              }
+            }
+          }
+        }
+      }
+    };
+    expect(findCollision(-0.4)).toBeDefined();
+    expect(findCollision(0)).toBeUndefined();
+  });
+
   it('distributes eight compact openings beside sidewalks without occupying buildings or walking channels', () => {
     expect(METRO_ENTRANCES).toHaveLength(8);
     expect(new Set(METRO_ENTRANCES.map(({ id }) => id)).size).toBe(8);
@@ -675,20 +888,50 @@ describe('original connected-city streetscape', () => {
       );
       const distances: number[] = [];
       for (const [roads, min, max] of [[STREET_X, envelope.min.x, envelope.max.x], [STREET_Z, envelope.min.z, envelope.max.z]] as const) {
-        for (const road of roads) for (const side of [-1, 1]) {
-          const walk = road + side * SIDEWALK_OFFSET;
+        for (const road of roads) for (const side of [-1, 1]) for (const offset of SIDEWALK_WALKING_OFFSETS) {
+          const walk = road + side * offset;
           const distance = Math.max(min - walk, walk - max);
-          expect(distance, `${hole.id}: walkway ${walk}`).toBeGreaterThan(1);
+          expect(distance, `${hole.id}: walkway ${walk}`).toBeGreaterThan(offset === SIDEWALK_OFFSET ? 1 : 0.4);
           distances.push(distance);
         }
       }
-      expect(Math.min(...distances)).toBeLessThan(1.3);
+      expect(Math.min(...distances)).toBeLessThan(0.6);
       for (const building of STREET_BUILDINGS) {
         const footprint = new THREE.Box3(
           new THREE.Vector3(building.x - building.width / 2 - 0.15, -3, building.z - building.depth / 2 - 0.15),
           new THREE.Vector3(building.x + building.width / 2 + 0.15, 24, building.z + building.depth / 2 + 0.15),
         );
         expect(envelope.intersectsBox(footprint), `${hole.id}: ${building.id}`).toBe(false);
+      }
+    }
+  });
+
+  it('keeps rendered metro sweeps at 5.8–7.6 m and entrance approaches clear after the buildingward move', () => {
+    const { parts } = createArt();
+    const g = METRO_GEOMETRY;
+    const obstacles = parts.filter(({ bounds }) => bounds.max.y > 0.12 && bounds.min.y < 2.4);
+    for (const entrance of METRO_ENTRANCES) {
+      const horizontal = Math.abs(Math.sin(entrance.yaw)) > 0.5;
+      const across = horizontal ? 'z' : 'x';
+      const along = horizontal ? 'x' : 'z';
+      const roads = horizontal ? STREET_Z : STREET_X;
+      const road = roads.reduce((nearest, value) =>
+        Math.abs(value - entrance[across]) < Math.abs(nearest - entrance[across]) ? value : nearest);
+      const side = Math.sign(entrance[across] - road);
+      const sweep = new THREE.Box3(
+        new THREE.Vector3(0, 0.12, 0), new THREE.Vector3(0, 2.4, 0),
+      );
+      sweep.min[across] = Math.min(road + side * 5.8, road + side * 7.6);
+      sweep.max[across] = Math.max(road + side * 5.8, road + side * 7.6);
+      sweep.min[along] = entrance[along] - g.openingDepth / 2 - 0.5;
+      sweep.max[along] = entrance[along] + g.openingDepth / 2 + g.apronDepth + 0.5;
+      const approach = new THREE.Box3().setFromPoints([
+        metroPoint(entrance, -0.8, 0.12 - g.surfaceY, g.openingDepth / 2 + 0.1),
+        metroPoint(entrance, 0.8, 2.4 - g.surfaceY, g.openingDepth / 2 + g.apronDepth + 0.9),
+      ]);
+      for (const [name, corridor] of [['parallel sweep', sweep], ['entry approach', approach]] as const) {
+        expect(obstacles.filter(({ bounds }) => bounds.intersectsBox(corridor))
+          .map(({ surface, position }) => `${surface.name} ${position}`), `${entrance.id}: ${name}`).toEqual([]);
       }
     }
   });
@@ -864,7 +1107,8 @@ describe('original connected-city streetscape', () => {
     const walkZ = STREET_Z[centerRow] - SIDEWALK_OFFSET;
     const shedX = westX + 1.05;
     const deck = parts.find(({ surface, position, scale }) => surface === builder.palette.roof &&
-      position[0] === shedX && position[1] === 2.78 && scale[0] === 7.3 && scale[2] === 2.7)!;
+      position[0] === shedX && position[1] === 2.78 && scale[0] === 7.3 &&
+      Math.abs(scale[2] - 3.1) < 1e-9)!;
     expect(deck).toBeDefined();
     expect(deck.bounds.min.y).toBeGreaterThan(2.6);
     const corridor = new THREE.Box3(
@@ -941,6 +1185,86 @@ describe('original connected-city streetscape', () => {
       art.setSignals(allSignals(phase));
       expect(lamps(art, 'amber').count).toBe(0);
       if (phase === 'clearance') expect(lamps(art, 'green').count).toBe(0);
+    }
+  });
+
+  it('keeps the full 5.8–7.6 m bidirectional pedestrian sweep clear beneath every sidewalk shed', () => {
+    const { parts } = createArt();
+    const corridors = SIDEWALK_SHEDS.map((shed) => {
+      const road = STREET_X.reduce((nearest, x) => Math.abs(x - shed.x) < Math.abs(nearest - shed.x) ? x : nearest);
+      return { x: road + Math.sign(shed.x - road) * 6.7, z: shed.z, width: 1.8, depth: shed.length };
+    });
+    corridors.push({ x: westX + 1.05, z: STREET_Z[centerRow] - 6.7, width: 7.3, depth: 1.8 });
+    for (const { x, z, width, depth } of corridors) {
+      const corridor = new THREE.Box3(
+        new THREE.Vector3(x - width / 2, 0.12, z - depth / 2),
+        new THREE.Vector3(x + width / 2, 2.4, z + depth / 2),
+      );
+      expect(parts.filter(({ bounds }) => bounds.intersectsBox(corridor))
+        .map(({ surface, position }) => `${surface.name} ${position}`)).toEqual([]);
+    }
+  });
+
+  it('retains all trees and crown shapes while clearing walking headroom, including maximum wind bending', () => {
+    const { parts, builder } = createArt();
+    const trunks = parts.filter(({ shape, surface, scale }) =>
+      shape === builder.cylinder && surface === builder.palette.wood && scale[0] === 0.14);
+    const foliage = parts.filter(({ shape, surface }) => shape === builder.crown &&
+      (surface === builder.palette.leaf || surface === builder.palette.leafLight));
+    expect(trunks).toHaveLength(39);
+    let raised = 0;
+    for (const trunk of trunks) {
+      const large = foliage.find(({ surface, position, scale }) => surface === builder.palette.leaf &&
+        position[2] === trunk.position[2] &&
+        Math.abs(position[0] + 0.35 * scale[0] / 1.35 - trunk.position[0]) < 1e-9)!;
+      expect(large).toBeDefined();
+      const size = large.scale[0] / 1.35;
+      const lift = large.position[1] - 3.3 * size;
+      expect(lift).toBeGreaterThanOrEqual(-1e-9);
+      expect(lift).toBeLessThan(1.5);
+      if (lift > 0.01) raised++;
+      expect(trunk.bounds.min.y).toBeCloseTo(0);
+      expect(trunk.scale[1]).toBeCloseTo(3.2 * size + lift);
+      [1.35 * size, 1.6 * size, 1.25 * size].forEach((value, axis) =>
+        expect(large.scale[axis]).toBeCloseTo(value, 10));
+      const small = foliage.find(({ surface, position }) => surface === builder.palette.leafLight &&
+        Math.abs(position[0] - trunk.position[0] - 0.5 * size) < 1e-9 &&
+        Math.abs(position[2] - trunk.position[2] - 0.1) < 1e-9)!;
+      expect(small).toBeDefined();
+      expect(small.position[1]).toBeCloseTo(3.9 * size + lift);
+      [0.95 * size, 1.1 * size, size].forEach((value, axis) =>
+        expect(small.scale[axis]).toBeCloseTo(value, 10));
+    }
+    expect(raised).toBeGreaterThan(20);
+    expect(raised).toBeLessThan(39);
+    const samples: { x: number; z: number }[] = [];
+    const sample = { position: { x: 0, y: 0, z: 0 }, heading: 0 };
+    for (const route of SIDEWALK_WALKING_ROUTES.flat()) {
+      for (let distance = 0; distance < route.length; distance += 0.5) {
+        sampleTrafficRoute(route, distance, sample);
+        samples.push({ x: sample.position.x, z: sample.position.z });
+      }
+    }
+    const mesh = new THREE.InstancedMesh(builder.crown, builder.palette.leaf, foliage.length);
+    cleanups.push(() => mesh.dispose());
+    const batch = { mesh, transforms: foliage.map(({ matrix }) => matrix) };
+    const wind = new FoliageWind();
+    const matrix = new THREE.Matrix4();
+    for (let direction = 0; direction < 8; direction++) {
+      const angle = direction * Math.PI / 4;
+      wind.update([batch], { x: Math.cos(angle) * 20, z: Math.sin(angle) * 20 }, direction * 1.5, false);
+      const obstacles = trunks.map(({ bounds }) => bounds);
+      for (let index = 0; index < foliage.length; index++) {
+        mesh.getMatrixAt(index, matrix);
+        const bounds = builder.crown.boundingBox!.clone().applyMatrix4(matrix);
+        if (bounds.min.y < 2.4) obstacles.push(bounds);
+      }
+      const collisions = obstacles.filter((bounds) => samples.some(({ x, z }) => {
+        const dx = Math.max(bounds.min.x - x, 0, x - bounds.max.x);
+        const dz = Math.max(bounds.min.z - z, 0, z - bounds.max.z);
+        return dx * dx + dz * dz < 0.4 ** 2 - 1e-9;
+      }));
+      expect(collisions.map(({ min, max }) => [min.toArray(), max.toArray()])).toEqual([]);
     }
   });
 
@@ -1040,13 +1364,13 @@ describe('original connected-city streetscape', () => {
     }
     // Blockfronts share a family, so a run reads as one development rather than a colour riot.
     const runs = new Map<string, Set<string>>();
-    for (const { blockId, family } of STREET_BUILDINGS) {
+    for (const { blockId, facadeFamily } of STREET_BUILDINGS) {
       if (!runs.has(blockId)) runs.set(blockId, new Set());
-      runs.get(blockId)!.add(family);
+      runs.get(blockId)!.add(facadeFamily);
     }
     expect(Math.max(...[...runs.values()].map((families) => families.size)))
       .toBeLessThan(Object.keys(FACADE_FAMILY_WEIGHTS).length);
-    expect(new Set(STREET_BUILDINGS.map(({ family }) => family)).size).toBeGreaterThan(4);
+    expect(new Set(STREET_BUILDINGS.map(({ facadeFamily }) => facadeFamily)).size).toBeGreaterThan(4);
   });
 
   it('exposes blank lot-line walls away from entrances, fire escapes and sheds', () => {
@@ -1069,7 +1393,8 @@ describe('original connected-city streetscape', () => {
       const building = STREET_BUILDINGS.find(({ id }) => id === wall.buildingId)!;
       expect(wall.height).toBeGreaterThanOrEqual(4);
       expect(wall.baseY).toBeGreaterThan(0);
-      expect(wall.baseY + wall.height).toBeCloseTo(0.3 + building.floors * 2.4);
+      expect(wall.baseY + wall.height)
+        .toBeCloseTo(0.3 + building.floors * building.architecture.floorHeight);
       expect(wall.width).toBeCloseTo(wall.axis === 'x' ? building.depth : building.width);
     }
   });

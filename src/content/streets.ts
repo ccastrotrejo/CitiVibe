@@ -52,6 +52,7 @@ export interface TrafficActorDefinition {
 }
 
 const VEHICLE_TYPES = ['sedan', 'taxi', 'van', 'truck', 'sedan', 'bus'] as const;
+const ADDITIONAL_VEHICLE_TYPES = ['sedan', 'taxi', 'van', 'truck'] as const;
 
 /** Fixed semantic population; appearance is independent of simulation internals. */
 export const TRAFFIC_ACTORS: readonly TrafficActorDefinition[] = Object.freeze([
@@ -60,7 +61,9 @@ export const TRAFFIC_ACTORS: readonly TrafficActorDefinition[] = Object.freeze([
     return { id: `city-vehicle-${index + 1}`, kind: vehicleType === 'bus' ? 'bus' : 'car', vehicleType };
   }),
   ...Array.from({ length: 12 }, (_, index): TrafficActorDefinition =>
+    ({ id: `city-vehicle-${index + 37}`, kind: 'car', vehicleType: ADDITIONAL_VEHICLE_TYPES[index % ADDITIONAL_VEHICLE_TYPES.length] })),
+  ...Array.from({ length: 12 }, (_, index): TrafficActorDefinition =>
     ({ id: `city-cyclist-${index + 1}`, kind: 'cyclist', vehicleType: 'bicycle' })),
-  ...Array.from({ length: STREET_BLOCKS.length * 6 }, (_, index): TrafficActorDefinition =>
+  ...Array.from({ length: STREET_BLOCKS.length * 7 }, (_, index): TrafficActorDefinition =>
     ({ id: `city-walker-${index + 1}`, kind: 'pedestrian' })),
 ]);

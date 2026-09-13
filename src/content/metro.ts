@@ -28,14 +28,14 @@ const sideScale = PARK_BOUNDS.z / 98;
 
 /** Original compact entrances occupy frontage edges, not the public walking corridors. */
 export const METRO_ENTRANCES: readonly MetroEntrance[] = [
-  { id: 'crosstown-entrance', x: 67.4, z: -117.8, yaw: 0 },
-  { id: 'west-entrance', x: -54.6, z: 51.5 * sideScale, yaw: 0 },
-  { id: 'west-north-entrance', x: -54.6, z: -50.5 * sideScale, yaw: 0 },
-  { id: 'west-middle-entrance', x: -54.6, z: 0.5 * sideScale, yaw: 0 },
-  { id: 'east-north-entrance', x: 67.4, z: -50.5 * sideScale + 2, yaw: 0 },
-  { id: 'east-south-entrance', x: 67.4, z: 51.5 * sideScale, yaw: 0 },
-  { id: 'north-frontage-entrance', x: -17.5, z: -103.6, yaw: Math.PI / 2 },
-  { id: 'south-frontage-entrance', x: 16, z: 123.4, yaw: Math.PI / 2 },
+  { id: 'crosstown-entrance', x: 67.1, z: -117.8, yaw: 0 },
+  { id: 'west-entrance', x: -54.9, z: 51.5 * sideScale, yaw: 0 },
+  { id: 'west-north-entrance', x: -54.9, z: -50.5 * sideScale, yaw: 0 },
+  { id: 'west-middle-entrance', x: -54.9, z: 0.5 * sideScale, yaw: 0 },
+  { id: 'east-north-entrance', x: 67.1, z: -50.5 * sideScale + 2, yaw: 0 },
+  { id: 'east-south-entrance', x: 67.1, z: 51.5 * sideScale, yaw: 0 },
+  { id: 'north-frontage-entrance', x: -17.5, z: -103.9, yaw: Math.PI / 2 },
+  { id: 'south-frontage-entrance', x: 16, z: 123.1, yaw: Math.PI / 2 },
 ];
 
 /** Exact axis-aligned holes to cut through island/paving geometry; excludes the retaining walls. */
