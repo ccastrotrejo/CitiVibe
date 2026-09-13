@@ -12,6 +12,9 @@ export interface ActorState {
   heading: number;
   state: 'moving' | 'waiting' | 'dwelling';
   distance: number;
+  travelDistance?: number;
+  activity?: 'walking' | 'crossing' | 'waiting-to-cross' | 'looking-around' | 'resting';
+  activityTime?: number;
   speed: number;
   routeLength: number;
   lighting?: { turn: 'left' | 'right' | null; braking: boolean };

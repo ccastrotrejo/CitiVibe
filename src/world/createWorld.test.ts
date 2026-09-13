@@ -100,6 +100,33 @@ describe('runtime ownership and suspension', () => {
     expect(frames.size).toBe(0);
   });
 
+  it('retains an active pedestrian crossing through pause, hidden time and graphics restoration', () => {
+    const model = new WorldModel(false);
+    for (let tick = 0; tick < 1800; tick++) {
+      model.step(1 / 30);
+      if (model.simulation.traffic.pedestrians.actors.some(({ activity }) => activity === 'crossing')) break;
+    }
+    expect(model.simulation.traffic.pedestrians.actors.some(({ activity }) => activity === 'crossing')).toBe(true);
+    const { canvas, world } = mount(model);
+    onTestFinished(() => world.dispose());
+    world.command({ type: 'set-paused', paused: true });
+    const retained = model.simulation.traffic.pedestrians;
+    const snapshot = JSON.stringify(model.simulation);
+    tick(1000);
+    hidden = true;
+    document.dispatchEvent(new Event('visibilitychange'));
+    tick(300000);
+    hidden = false;
+    document.dispatchEvent(new Event('visibilitychange'));
+    canvas.dispatchEvent(new Event('webglcontextlost', { cancelable: true }));
+    canvas.dispatchEvent(new Event('webglcontextrestored'));
+    expect(model.simulation.traffic.pedestrians).toBe(retained);
+    expect(JSON.stringify(model.simulation)).toBe(snapshot);
+    world.command({ type: 'set-paused', paused: false });
+    tick(300034); tick(300068);
+    expect(JSON.stringify(model.simulation)).not.toBe(snapshot);
+  });
+
   it('wires meadow movement, pause, hidden time, snow, reduced motion and restored poses to the retained clock', () => {
     const model = new WorldModel(false);
     const { canvas, world } = mount(model);

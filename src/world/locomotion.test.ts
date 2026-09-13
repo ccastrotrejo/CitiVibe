@@ -190,6 +190,39 @@ describe('articulated walker rig', () => {
     expect(rig.torso.position.x).toBe(0);
     expect(rig.torso.rotation.z).toBe(0);
   });
+
+  it('uses uninterrupted traveled distance across block changes and freezes quiet activities', () => {
+    const world = scene();
+    const group = world.actors.get('city-walker-1')!;
+    const rig = group.userData.rig as WalkerRig;
+    const actor = new ActorSimulation().getActor('city-walker-1')!;
+    Object.assign(actor, { speed: 1, state: 'moving', distance: 100, travelDistance: 12.3 });
+    const driver = new Locomotion();
+    driver.update([actor], world.actors, 1, false);
+    const knee = rig.legs[0].knee.rotation.x;
+    actor.distance = 2;
+    driver.update([actor], world.actors, 1, false);
+    expect(rig.legs[0].knee.rotation.x).toBe(knee);
+    rig.legs[0].knee.rotation.x = 0;
+    driver.restore([actor], world.actors, false);
+    expect(rig.legs[0].knee.rotation.x).toBe(knee);
+    Object.assign(actor, { speed: 0, state: 'dwelling', activity: 'looking-around', activityTime: 0.5 });
+    driver.update([actor], world.actors, 1, false);
+    const turn = rig.torso.rotation.y;
+    expect(turn).not.toBe(0);
+    actor.activityTime = 1;
+    driver.update([actor], world.actors, 0, false);
+    expect(rig.torso.rotation.y).toBe(turn);
+    actor.activityTime = 0.5;
+    rig.torso.rotation.y = 0;
+    driver.restore([actor], world.actors, false);
+    expect(rig.torso.rotation.y).toBe(turn);
+    driver.update([actor], world.actors, 1, true);
+    expect(rig.torso.rotation.y).toBe(0);
+    actor.activity = 'walking';
+    driver.update([actor], world.actors, 1, false);
+    expect(rig.torso.rotation.y).toBe(0);
+  });
 });
 
 describe('distinct running gait', () => {

@@ -162,6 +162,8 @@ interface WalkerPose {
   blend: number;
   reducedMotion: boolean;
   running?: boolean;
+  activity?: ActorState['activity'];
+  activityTime?: number;
 }
 
 /** Pose an articulated pedestrian rig from its travelled distance. */
@@ -182,6 +184,8 @@ export function poseWalkerRig(rig: WalkerRig, pose: WalkerPose): void {
   rig.torso.rotation.x = (running ? RUNNER.trunkLean : WALKER.trunkLean) * blend * (reducedMotion ? 0.4 : 1);
   rig.torso.rotation.z = reducedMotion || blend === 0 ? 0 : WALKER.listAmp * Math.sin(TAU * cyclePhase) * blend;
   rig.torso.position.x = reducedMotion || blend === 0 ? 0 : WALKER.swayAmp * Math.sin(TAU * cyclePhase) * blend;
+  rig.torso.rotation.y = !reducedMotion && pose.activity === 'looking-around'
+    ? 0.12 * Math.sin(Math.PI * Math.min(1, (pose.activityTime ?? 0) / 1.5)) : 0;
 
   for (let leg = 0; leg < 2; leg += 1) {
     const phase = gaitPhase(distance, stride, leg === 1 ? 0.5 : 0);
@@ -265,8 +269,8 @@ export class Locomotion {
       if (!rig) continue;
       const memory = this.remember(actor);
       if (rig.kind === 'walker') {
-        poseWalkerRig(rig, { distance: actor.distance, speed: actor.speed, blend: memory.blend, reducedMotion,
-          running: actor.gait === 'run' });
+        poseWalkerRig(rig, { distance: actor.travelDistance ?? actor.distance, speed: actor.speed, blend: memory.blend, reducedMotion,
+          running: actor.gait === 'run', activity: actor.activity, activityTime: actor.activityTime });
       } else {
         poseVehicleRig(rig, { distance: actor.distance, pitch: memory.pitch, roll: memory.roll,
           steer: memory.steer, drop: memory.drop });
@@ -293,8 +297,8 @@ export class Locomotion {
       if (rig.kind === 'walker') {
         const moving = actor.state === 'moving' && actor.speed > WALKER.moveThreshold;
         memory.blend += ((moving ? 1 : 0) - memory.blend) * Math.min(1, dt * WALKER.blendRate);
-        poseWalkerRig(rig, { distance: actor.distance, speed: actor.speed, blend: memory.blend, reducedMotion,
-          running: actor.gait === 'run' });
+        poseWalkerRig(rig, { distance: actor.travelDistance ?? actor.distance, speed: actor.speed, blend: memory.blend, reducedMotion,
+          running: actor.gait === 'run', activity: actor.activity, activityTime: actor.activityTime });
         continue;
       }
       const acceleration = (actor.speed - memory.speed) / dt;

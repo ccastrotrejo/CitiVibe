@@ -12,6 +12,15 @@ Dependencies favor working vertical slices. Accessibility, cleanup, failure hand
 
 ## Latest authorized slice - connected NYC-inspired neighborhood
 
+**2026-09-13 movement follow-up:** [five-source movement research](PEOPLE_AND_ACTIVITY.md#movement-research-and-design-decisions) informs seeded destinations, brief activities and 72 crosswalk connections between neighborhood blocks. Preserve the fixed population, car-free park, weather, controls and retained pause/recovery state while verifying the new movement rules. Latest main's night/vehicle/court lighting (`06ecb95`) is integrated, including its retained-pose restoration; publication follows combined validation.
+
+### Next planned task - double the people
+
+- [ ] Double the current **232 people to 464 people total**, including resting figures; do not double motor vehicles. This is a user-requested planning item, not an implemented population increase. Starting from the current accounting, that means 448 active/posable people and sixteen resting people, with 36 unchanged vehicles (484 active rigs).
+- [ ] Allocate the additional people across street/park walking, running, cycling, meadow and resting activity. Confirm safe court capacity/choreography before increasing its six-player population; do not shrink people or playing surfaces to fit.
+- [ ] Increase route, crossing and destination capacity only where clearance allows; verify progress without overlap, starvation, blocked park gates or a crowded landing deadlock.
+- [ ] Measure the enlarged scene's geometry, submissions and desktop frame times, then run behavior, lifecycle and browser checks. Do not silently raise budgets or substitute CPU counts for physical-device performance.
+
 **2026-09-13 population follow-up:** expand and diversify people, not the street grid or UI. The implementation adds thirteen work roles, age-scaled people, independent appearance/accessories, purposeful walking pace, running sportswear and six children playing near two guardians. The bounded target is 224 active/posable people (260 rigs including vehicles), plus eight resting neighbors and two balls. Shared per-instance colors keep material/submission limits unchanged; the richer, roughly 49% larger human population revises the base triangle allowance from 550,000 to 600,000. Earlier density counts below are historical. See [people and activity](PEOPLE_AND_ACTIVITY.md) and [current verification](ACCEPTANCE_CRITERIA.md). No publication or deployment is requested in this follow-up.
 
 On 2026-09-12 the user explicitly resumed implementation from the latest main and requested a substantially larger city, multiple roads/intersections/traffic lights, vehicle variety, bike paths, and deeper NYC research. This supersedes the earlier M3 population cap and the reflection pause for this bounded slice. It does not authorize every possible feature listed by the research or restore excluded commerce, drones, camera follow, GIS, or backend systems.

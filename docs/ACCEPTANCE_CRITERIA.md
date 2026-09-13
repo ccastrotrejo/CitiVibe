@@ -1,10 +1,20 @@
 # Acceptance criteria and verification plan
 
-**Status: street names, population diversity, removed landmark selection and night lighting pass combined local automated checks. Served-browser and physical-device gates remain open.** The current scene retains thirty-six intersections, twenty-four blocks, 94 buildings and a 78 x 176 m park within a 220 x 340 m map. It has 224 active/posable people (260 rigs including vehicles), eight resting neighbors, two balls, full-size courts with six light poles, eight compact subway entrances, unchanged scaffolding and twenty-four street-name blades on twelve existing signal poles. Previous feature and merge records below are historical. Automated coverage does not substitute for physical-device FPS, long-session, cross-combination or assistive-technology verification. Production readiness is not claimed; landmark selection, camera-follow and the drone remain excluded.
+**Status: connected walking trips, street names, population diversity, removed landmark selection and night lighting pass targeted integration checks. Served-browser and physical-device gates remain open.** The current scene retains thirty-six intersections, twenty-four blocks, 94 buildings and a 78 x 176 m park within a 220 x 340 m map. It has 224 active/posable people (260 rigs including vehicles), eight resting neighbors, two balls, full-size courts with six light poles, eight compact subway entrances, unchanged scaffolding and twenty-four street-name blades on twelve existing signal poles. Previous feature and merge records below are historical. Automated coverage does not substitute for physical-device FPS, long-session, cross-combination or assistive-technology verification. Production readiness is not claimed; landmark selection, camera-follow and the drone remain excluded.
 
 Use this matrix when implementing each [roadmap](ROADMAP.md) milestone. Numerical budgets are working targets; name the reference devices and record actual results before declaring them met. The [experience spec](EXPERIENCE_SPEC.md) is authoritative for pause/camera behavior.
 
+## Walking-trip and street-sign integration - 2026-09-13
+
+Main `603495a` (connected walking trips) is merged into the street-sign/controls branch at `234a08d`. Application code merged without conflicts. Three documentation conflicts were resolved by preserving both the movement requirements and explicit landmark-selection removal, with upstream and earlier verification records labeled separately. Signs, lighting, manual camera controls and city-wide/guided tours remain intact; population doubling remains planned only.
+
+Strict TypeScript, ESLint and the production build pass. Focused verification passes **118 tests**: 114 across eight pedestrian, locomotion, runtime/recovery, person, model, vehicle-lighting, sign and UI files (41.25 seconds), plus four seed-2401 twenty-minute traffic scenarios covering dry, wet, minimum and changing grip (37.18 seconds). These retain footprint separation, stop-line safety and progress requirements. The remaining traffic cases and complete suite were not rerun; this is targeted merge verification, not a new full-suite claim.
+
+Browser checks were not repeated after the previously established Chromium startup crash and WebKit navigation timeout. No new browser, visual or physical-device result is claimed. Vite retains its existing large-chunk warning (entry 530.44 kB / 158.91 kB gzip; renderer 461.89 kB / 124.26 kB gzip).
+
 ## Lighting and street-sign integration - 2026-09-13
+
+**Pre-walking-merge record (`234a08d`).**
 
 Main `06ecb95` (city, vehicle and court lighting) is merged into the street-sign/controls branch at `bef6fb2`. Five conflicts were resolved by retaining lighting imports and vehicle-light rigs while keeping landmark selection, raycasting and highlights removed. Street signs retain their scene ownership; lighting retains pause, quality and graphics-recovery integration. Both branches' earlier verification histories remain below.
 
@@ -34,6 +44,25 @@ The subsequent main sync combines this feature with population commit `121817c`.
 - An isolated in-memory WebKit bundle rendered and was visually inspected in seven views: magnified front/reverse details, a supported maximum-zoom corner composition, Night, Rain, Mist/Lightweight and overview. There were no reported page or shader errors. The actual city/renderer/environment modules supplied the artwork; the diagnostic camera and captures remain session artifacts rather than production hooks.
 - The targeted production Playwright scenario was retried against this revision, but Chromium crashed with `SIGSEGV` before page creation. Earlier full-Chromium probing also timed out at startup. The isolated WebKit captures do **not** establish served navigation, asset loading, storage behavior, UI interaction parity, all viewing angles or physical-device performance. Existing broader browser/device gates remain open.
 - Vite's existing large-chunk warning remains: entry **522.85 KB / 155.66 KB gzip**, renderer **446.66 KB / 119.05 KB gzip**. No warning was suppressed and no general performance-optimization milestone is claimed.
+
+## Connected pedestrian movement and main integration - 2026-09-13
+
+**Upstream movement checkpoint (`603495a`), before this branch's merge.**
+
+Latest `origin/main` (`06ecb95`, night/vehicle/court lighting) was fast-forwarded into this branch while the uncommitted movement work was preserved in a named stash. Three restored-file conflicts were resolved explicitly: retain indicator initialization alongside the new pedestrians, retain both lighting and crossing lifecycle tests, and replace obsolete road-only movement fingerprints with the new safety/progress checks. The incoming locomotion restoration now also uses uninterrupted pedestrian travel distance and retained activity poses. No lighting implementation, population, court geometry or existing controls were removed.
+
+Strict TypeScript, ESLint and the production build pass. The complete single-worker run exercised **467 tests in 25 files: 466 passed, with one existing ten-mount/unmount test exceeding its unchanged five-second timeout** (5.251 seconds). A subsequent isolated run of all seventeen runtime/lifecycle cases passed in 19.61 seconds, without changing the timeout or assertions. These are a full run plus a successful targeted retry, not a claim of a single all-green 467-test run.
+
+Coverage includes 72 connected crosswalks, continuous departure/landing positions and headings, seeded destination/activity variation, entry only on WALK, retained all-red clearance, destination/landing protection, body envelopes, uninterrupted gait, bounded rests, and pause/hidden/recovery behavior. Three twenty-minute pedestrian scenarios exercise all eight internal streets and multiple activity durations. Fourteen existing twenty-minute traffic/weather scenarios retain full-footprint separation, stopping bars, park exclusion, acceleration/braking limits and complete road circuits. Denied-crossing regression coverage prevents the floating-point corner stall discovered during development.
+
+**Intentional timing change:** occupied crosswalks now extend real all-red time, so old road-only hashes and sub-second pedestrian-wait assumptions no longer apply. Walkers retain a 100-second overall queue bound and at least 0.3 m/s average progress across the twenty-minute scenarios, including rests. Dry road actors retain the 100-second bound; wet/snow road actors use a documented 180-second bound because slow vehicle clearance and pedestrian turns can span several cycles (the low-grip seed-2401 check observed approximately 156.77 seconds). Crossing admission itself times out after twelve seconds and reroutes safely. No collision or stop-line assertion was relaxed.
+
+The merged production renderer chunk is 454.93 kB minified / 122.20 kB gzip; the entry chunk is 535.70 kB / 160.62 kB gzip. Vite's existing >500 kB warning remains. The movement slice adds no rendered geometry, materials, light slots or population; it does not claim new physical-device frame-rate or memory measurements.
+
+**Browser evidence and limits:** the final merged Chromium smoke again fails during browser startup with `SIGSEGV`, before application assertions. An alternative WebKit served-navigation probe timed out. The shared browser did display the served app and responded to Pause/Resume; after hot reload it briefly failed to recreate WebGL, and Retry restored it. This is limited interactive evidence, not stable cross-browser acceptance. A separate pre-lighting-merge in-memory WebKit fixture rendered a pedestrian on an existing zebra crossing at 11.50 simulation seconds without reported page errors. That isolated fixture does not verify final merged lighting, loading, storage or long-session behavior. Physical-device performance, assistive technology and the full lighting/weather matrix remain open.
+
+Five verified movement sources and their explicit approximation boundaries are recorded in [people and activity](PEOPLE_AND_ACTIVITY.md#movement-research-and-design-decisions). The requested doubling to 464 total people is a separate roadmap item, not an implemented or measured density increase. Commit/push and a new PR against main are user-authorized; deployment remains excluded.
+
 ## Juniper Court lighting follow-up - 2026-09-13
 
 **Historical lighting-branch checkpoint, before integration into this branch.**
