@@ -4,6 +4,14 @@
 
 Use this matrix when implementing each [roadmap](ROADMAP.md) milestone. Numerical budgets are working targets; name the reference devices and record actual results before declaring them met. The [experience spec](EXPERIENCE_SPEC.md) is authoritative for pause/camera behavior.
 
+## Cross-input command parity - 2026-09-13
+
+This slice closes the outstanding M4 parity item. `src/app/commands.ts` is now the single source for every world command a person can invoke directly: the eleven camera actions plus pause and automatic views, each with its label, icon, shortcut keys, live-graphics requirement and held-key repeat rule. `Controls.tsx` renders its buttons from that table and `App.tsx` resolves shortcuts through it, so a button and its shortcut cannot drift apart. Behavior is unchanged: the same keys, command values, disabled states and repeat handling as before, including reset staying available on the static fallback.
+
+`src/app/inputParity.test.tsx` verifies parity rather than restating the table. It checks that every action has a unique key set, an on-screen control and an entry in keyboard help; that each camera button and each of its shortcuts dispatch one identical command; that pause and tour produce the same toggle command from either surface in the same state; that live-only actions are both disabled and inert on the static fallback while reset still works from both inputs; that held camera keys repeat while pause and tour do not; and that pointer, wheel, pinch and two-finger gestures move the camera along the same axes and directions as the matching buttons.
+
+**Executed checks:** strict TypeScript, whole-project ESLint and the `src/app` plus scene-input suites pass (**54 tests across 3 files**). The parity suite was mutation-checked: a wrong keyboard command, a toolbar button bypassing the shared table and an inverted shift-wheel rotation each made it fail, and all three were reverted. A full-suite run recorded 530 passing tests with 8 failures in `traffic`, `bikeShare`, `lightingVisual`, `model`, `createWorld` and `vehicleLighting`; a baseline run with this slice's changes removed failed the same long-running world-simulation scenarios, so they are pre-existing on `2a81866` and outside this slice. Their count varies between runs, which suggests timing sensitivity in those soaks rather than a parity regression. No browser or physical-device verification was performed here, so AC-02's served hit-testing gate stays open.
+
 ## Street-life expansion and corrections - 2026-09-13
 
 The local slice increases the population to 168 street walkers, 48 park walkers, 24 runners and 48 moving motor vehicles, retaining twelve road cyclists and all six buses. Court/meadow/picnic people and three bike-station users bring the total to **277 people**; the traveling simulation contains **300 actors**. The separately planned 464-person target is not implemented.

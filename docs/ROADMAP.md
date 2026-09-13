@@ -109,9 +109,9 @@ The implementation adds soft public/vehicle footprints, subtle halos, bounded lo
 - [x] Implement global/contextual tour segments and explicit tour Stop.
 - [x] Wire interruption, modal-close, pause, unavailable-target, and reduced-motion guided-view behavior through one camera state machine.
 - [x] Complete help, fullscreen or clearly labeled expanded-view fallback, and preference controls.
-- [ ] Add cross-input parity tests so toolbar, shortcuts, and touch invoke the same commands.
+- [x] Add cross-input parity tests so toolbar, shortcuts, and touch invoke the same commands. _One shared action table in `src/app/commands.ts` now defines every camera and city command; the toolbar and the keyboard handler both read it, and `src/app/inputParity.test.tsx` verifies button, shortcut and pointer/touch agreement._
 
-**Done when:** all camera transitions follow the experience contract; no camera resumes unexpectedly after manual input/modal dismissal; all actions have discoverable keyboard-operable controls. Applicable AC-02 through AC-06, AC-10 through AC-14. _Functionally implemented: toolbar buttons and keyboard shortcuts already dispatch identical world commands. Remaining: a dedicated cross-input parity test and final QA under M6._
+**Done when:** all camera transitions follow the experience contract; no camera resumes unexpectedly after manual input/modal dismissal; all actions have discoverable keyboard-operable controls. Applicable AC-02 through AC-06, AC-10 through AC-14. _Functionally implemented: toolbar buttons, keyboard shortcuts and scene gestures dispatch identical world commands from one shared action table, covered by the parity suite. Remaining: final desktop QA under M6._
 
 ### M5 - Weather, light, and optional sound
 
