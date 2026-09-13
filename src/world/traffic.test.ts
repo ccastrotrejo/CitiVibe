@@ -755,8 +755,10 @@ describe('CityTraffic', () => {
       expect(streetTravel[index], `${name} must carry actual moving motor traffic`).toBeGreaterThan(100);
     }
     if (!changing && initialTraction === 1 && DRY_ROAD_FINGERPRINTS[seed]) {
-      const snapshot = { actors: traffic.actors, signals: traffic.signals.map(({ id, phase }) => ({ id, phase })), elapsed: traffic.elapsed };
-      expect(createHash('sha256').update(JSON.stringify({ ...snapshot, actors: actors.slice(0, MOTION_COUNT) })).digest('hex'))
+      // Lighting is new metadata; keep the pre-lighting movement fingerprints unchanged.
+      const snapshot = { actors: traffic.actors.map((actor) => ({ ...actor, lighting: undefined })),
+        signals: traffic.signals.map(({ id, phase }) => ({ id, phase })), elapsed: traffic.elapsed };
+      expect(createHash('sha256').update(JSON.stringify({ ...snapshot, actors: snapshot.actors.slice(0, MOTION_COUNT) })).digest('hex'))
         .toBe(DRY_ROAD_FINGERPRINTS[seed]);
     }
   }, 30_000);

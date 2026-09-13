@@ -82,7 +82,6 @@ export class EnvironmentVisual {
     color: THREE.Color;
     max: number;
   }[] = [];
-  private readonly nightPools: { material: THREE.MeshBasicMaterial; opacity: number; max: number }[] = [];
   private disposed = false;
   private lastRevision = -1;
   private lastLightweight = false;
@@ -110,10 +109,6 @@ export class EnvironmentVisual {
         if (material instanceof THREE.MeshBasicMaterial && material.userData.environmentBackdrop === true && !seen.has(material)) {
           seen.add(material);
           this.backdrops.push({ material, color: material.color.clone() });
-        }
-        if (material instanceof THREE.MeshBasicMaterial && material.userData.nightPool === true && !seen.has(material)) {
-          seen.add(material);
-          this.nightPools.push({ material, opacity: material.opacity, max: Number(material.userData.nightOpacity ?? 0.4) });
         }
         if (material instanceof THREE.MeshStandardMaterial && material.userData.nightLight === true && !seen.has(material)) {
           seen.add(material);
@@ -193,9 +188,6 @@ export class EnvironmentVisual {
     for (const { material, color, max } of this.nightLights) {
       material.emissive.copy(color);
       material.emissiveIntensity = frame.night * max;
-    }
-    for (const { material, max } of this.nightPools) {
-      material.opacity = frame.night * max;
     }
     this.surfaces.update(physics);
     const changed = physics.revision !== this.lastRevision || options.lightweight !== this.lastLightweight ||
@@ -315,13 +307,11 @@ export class EnvironmentVisual {
       material.emissive.copy(emissive);
       material.emissiveIntensity = intensity;
     }
-    for (const { material, opacity } of this.nightPools) material.opacity = opacity;
     for (const { material, color } of this.backdrops) material.color.copy(color);
     this.lights.length = 0;
     this.windows.length = 0;
     this.backdrops.length = 0;
     this.nightLights.length = 0;
-    this.nightPools.length = 0;
     this.clouds.length = 0;
     this.group.clear();
   }

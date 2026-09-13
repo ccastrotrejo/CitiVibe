@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { Vector3 } from 'three';
-import { PARK_LAMPS, STREET_LAMPS, validateLighting, type ParkLamp } from './lighting';
+import { COURT_LAMPS, LAMP_GEOMETRY, PARK_LAMPS, STREET_LAMPS, validateLighting, type ParkLamp } from './lighting';
 import { CITY_EXTENT } from './streets';
 import { PARK_BOUNDS, PARK_PATHS } from './park';
+import { BASKETBALL_COURT, PICKLEBALL_COURT, RECREATION_AREA } from './courts';
 
 describe('public lighting manifest', () => {
   it('places street lamps on the island and clear of the park lawn', () => {
@@ -33,6 +34,28 @@ describe('public lighting manifest', () => {
 
   it('validates the shipped manifest without throwing', () => {
     expect(() => validateLighting()).not.toThrow();
+  });
+
+  it('keeps six court lights outside both runoffs and the full shared passage', () => {
+    expect(COURT_LAMPS).toHaveLength(6);
+    for (const lamp of COURT_LAMPS) {
+      expect(lamp.x).toBeGreaterThan(RECREATION_AREA.minX);
+      expect(lamp.x).toBeLessThan(RECREATION_AREA.maxX);
+      expect(lamp.z).toBeGreaterThan(RECREATION_AREA.minZ);
+      expect(lamp.z).toBeLessThan(RECREATION_AREA.maxZ);
+      expect(lamp.x + LAMP_GEOMETRY.courtBaseRadius < RECREATION_AREA.passageMinX ||
+        lamp.x - LAMP_GEOMETRY.courtBaseRadius > RECREATION_AREA.passageMaxX).toBe(true);
+      for (const court of [BASKETBALL_COURT, PICKLEBALL_COURT]) {
+        expect(Math.abs(lamp.x - court.x) > court.runoffWidth / 2 + LAMP_GEOMETRY.courtBaseRadius ||
+          Math.abs(lamp.z - court.z) > court.runoffDepth / 2 + LAMP_GEOMETRY.courtBaseRadius).toBe(true);
+      }
+    }
+  });
+
+  it('rejects a court light inside a runoff, the shared passage or outside its parcel', () => {
+    expect(() => validateLighting([], [], [{ ...COURT_LAMPS[0], z: BASKETBALL_COURT.z }])).toThrow(/runoff/);
+    expect(() => validateLighting([], [], [{ ...COURT_LAMPS[0], x: 0 }])).toThrow(/passage/);
+    expect(() => validateLighting([], [], [{ ...COURT_LAMPS[0], z: RECREATION_AREA.maxZ }])).toThrow(/parcel/);
   });
 
   it('rejects duplicate lamp ids', () => {

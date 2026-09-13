@@ -34,6 +34,12 @@ Keep one lower-left Settings trigger and compact non-modal dock, with Pause/Tour
 
 ## Milestones
 
+### Night-lighting follow-up - 2026-09-13
+
+The user requested extensive light-physics research and smoother nighttime illumination, including working vehicle headlights, rear/brake lamps and turn indicators, and asked to pull latest main first. The worktree was already current at fetched main `b81eb32`. The [lighting study](LIGHTING_RESEARCH.md) records sixteen primary sources and distinguishes physical facts from artistic approximations.
+
+The implementation adds soft public/vehicle footprints, subtle halos, bounded local spotlights, linear-color/output handling, behavior-driven vehicle lamps, bicycle lights, taxi/subway fixture emission and non-emissive vehicle glazing. Pause/reduced-motion and exact graphics-recovery lamp poses are covered. Existing city geometry, controls and traffic movement remain; no yellow-phase redesign, global illumination, new dependency, commit/push or deployment is included. Current executed checks and browser limitations belong in [acceptance criteria](ACCEPTANCE_CRITERIA.md#night-lighting-follow-up---2026-09-13), not the historical milestones below.
+
 | ID | Milestone | Depends on | Rough effort |
 | --- | --- | --- | --- |
 | M1 | Small interactive original slice | Explicit implementation request; confirm reference devices | 16-28 h |

@@ -10,13 +10,17 @@ The 220 x 340 m city retains its six-by-six street grid, 94 buildings, 78 x 176 
 
 React, strict TypeScript, Vite, and direct Three.js remain the stack. Camera controls, tours, pause, weather/time, optional sound, quality settings, fullscreen, and the occasional airplane remain intact. Camera-follow features and drones remain excluded. See the [NYC research and image references](docs/NYC_CITY_RESEARCH.md), [roadmap](docs/ROADMAP.md), and [verification record](docs/ACCEPTANCE_CRITERIA.md). Reference photographs inform original geometry only; no source-site model, photo, map or branded artwork is shipped.
 
+**Night-lighting follow-up:** [sixteen-source lighting research](docs/LIGHTING_RESEARCH.md) informs softer street/park illumination, restrained source halos and bounded local spotlights. Every motor vehicle now has headlights, red tail/brake lamps and route-driven amber indicators; bicycles, taxi roof signs and subway globes also light after dark. Vehicle windows no longer glow like apartments. Rain/mist/snow can activate driving lights by day. Pause and recovery retain light state; reduced motion holds indicators steady. These are physically informed miniature effects, not calibrated lighting or traffic certification.
+
+Juniper Court has six inward-facing, twin-head light poles: four around basketball and two around pickleball. Soft overlapping illumination switches on at dusk, with poles outside both runoff areas and the shared walking passage.
+
 The merged weather extension adds Snow and Windy alongside existing presets, wind-driven precipitation and foliage, rooftop impacts, growing snow depth on roofs/streets/canopies, rain-fed ground pools, a 0-30 mm/h rain-intensity control, wet surfaces, garden ripples, and cautious wet/snowy traffic. Its compact non-modal Settings dock preserves access to the city. See the [physics research and limitations](docs/WEATHER_PHYSICS_RESEARCH.md).
 
 **Verification boundary:** earlier merge results are historical, not verification of later changes. Isolated in-memory WebKit rendering works; the standard Chromium browser suite still fails during browser startup. Current results and limitations are recorded in [acceptance criteria](docs/ACCEPTANCE_CRITERIA.md). Physical-device frame-rate and long-session sign-off remain outstanding.
 
 ## GitHub destination
 
-The canonical GitHub destination is [ccastrotrejo/CitiVibe](https://github.com/ccastrotrejo/CitiVibe). The earlier city expansion landed in [PR #2](https://github.com/ccastrotrejo/CitiVibe/pull/2). The population-diversity follow-up landed in PR #5; its main commit is merged into the street-sign and controls branch for PR #6, with remaining browser/performance limitations documented. Deployment is not part of this request.
+The canonical GitHub destination is [ccastrotrejo/CitiVibe](https://github.com/ccastrotrejo/CitiVibe). The city expansion landed in [PR #2](https://github.com/ccastrotrejo/CitiVibe/pull/2), population diversity in [PR #5](https://github.com/ccastrotrejo/CitiVibe/pull/5), and city/vehicle lighting in [PR #7](https://github.com/ccastrotrejo/CitiVibe/pull/7) at main `06ecb95`. The street-sign and controls branch integrates these changes in [PR #6](https://github.com/ccastrotrejo/CitiVibe/pull/6), with remaining browser/performance limitations documented. Deployment is not part of this request.
 
 The local checkout remains `/Users/carloscastro/Desktop/LivingCity`; do not rename the Desktop folder or project. The ambient-only product scope below is unchanged.
 

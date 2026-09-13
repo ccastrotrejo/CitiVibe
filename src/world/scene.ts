@@ -4,7 +4,7 @@ import { PARK_ACTORS, PARK_PICNICS } from '../content/park';
 import { createPersonProfile } from '../content/people';
 import { PLAY_PEOPLE } from '../content/play';
 import { METRO_OPENINGS } from '../content/metro';
-import { LAMP_GEOMETRY, PARK_LAMPS, STREET_LAMPS, validateLighting } from '../content/lighting';
+import { COURT_LAMPS, LAMP_GEOMETRY, PARK_LAMPS, STREET_LAMPS, validateLighting } from '../content/lighting';
 import { BASKETBALL_COURT, COURT_PLAYERS, PICKLEBALL_COURT } from '../content/courts';
 import { CITY_EXTENT, TRAFFIC_ACTORS, type TrafficSignalState } from '../content/streets';
 import { ActorInstances } from './actorInstances';
@@ -20,6 +20,7 @@ import { PlayActivity } from './playActivity';
 import { captureWeatherSurface, type FoliageBatch } from './weatherArt';
 import type { WeatherSurface } from './weatherSurface';
 import { GROUND_LEVEL, GROUND_PUDDLES } from './groundWater';
+import type { VehicleLamp, VehicleLightingRig } from './vehicleLighting';
 
 export interface CityScene {
   scene: THREE.Scene;
@@ -28,6 +29,7 @@ export interface CityScene {
   weatherSurface: WeatherSurface;
   snowMeshes: THREE.Mesh[];
   foliage: FoliageBatch[];
+  vehicleLights: VehicleLightingRig[];
   setTrafficSignals?(signals: readonly TrafficSignalState[]): void;
   updateActors?(): void;
   updateCourtActivity?(elapsedSeconds: number, reducedMotion: boolean, groundLift?: number): void;
@@ -139,18 +141,15 @@ export function buildCityScene(): CityScene {
   };
   // Tag glazing so the environment layer can light windows warmly after dark.
   palette.glass.userData.window = true;
+  const vehicleGlass = material(palette.glass.clone());
+  vehicleGlass.userData = {};
   // Public lighting: luminaire heads emit and pools brighten only after dusk (driven by frame.night).
   const lampGlow = material(new THREE.MeshStandardMaterial({
     color: '#ffe7bb', emissive: '#ffd68f', emissiveIntensity: 0, roughness: 0.5,
   }));
   lampGlow.userData.nightLight = true;
   lampGlow.userData.nightColor = '#ffd68f';
-  lampGlow.userData.nightIntensity = 1.2;
-  const lampPool = material(new THREE.MeshBasicMaterial({
-    color: '#ffdca0', transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending,
-  }));
-  lampPool.userData.nightPool = true;
-  lampPool.userData.nightOpacity = 0.4;
+  lampGlow.userData.nightIntensity = 2.2;
   for (const surface of [palette.stone, palette.paving, palette.road, palette.line, palette.cream, palette.clay,
     palette.teal, palette.roof, palette.copper, palette.copperEdge, palette.wood, palette.leaf, palette.leafLight]) {
     surface.userData.weatherSurface = true;
@@ -160,8 +159,6 @@ export function buildCityScene(): CityScene {
   const box = geometry(new THREE.BoxGeometry());
   const cylinder = geometry(new THREE.CylinderGeometry(1, 1, 1, 10));
   const crown = geometry(new THREE.DodecahedronGeometry(1));
-  const disc = geometry(new THREE.CircleGeometry(1, 18));
-  disc.rotateX(-Math.PI / 2);
   const dummy = new THREE.Object3D();
 
   function batcher(parent: THREE.Object3D) {
@@ -277,22 +274,35 @@ export function buildCityScene(): CityScene {
 
   const park = buildCentralPark({ block, add: district.add, box, cylinder, crown, palette });
   scene.add(park.group);
-  const streetscape = buildStreetscape({ block, add: district.add, box, cylinder, crown, palette });
+  const streetscape = buildStreetscape({ block, add: district.add, box, cylinder, crown, palette }, lampGlow);
   scene.add(streetscape.group);
   const pavement = buildPavementMarkings({ block, add: district.add, box, cylinder, crown, palette });
   const { streetHeight, parkHeight, poleRadius, armLength, armHeight, headSize, headDrop,
-    parkGlobeRadius, streetPoolRadius, parkPoolRadius, surfaceY } = LAMP_GEOMETRY;
+    parkGlobeRadius } = LAMP_GEOMETRY;
   for (const { x, z, arm } of STREET_LAMPS) {
     district.add(cylinder, palette.rubber, [x, streetHeight / 2, z], [poleRadius, streetHeight, poleRadius]);
     const headX = x + arm * armLength;
     block(palette.rubber, (x + headX) / 2, armHeight, z, armLength, 0.09, 0.09);
-    block(lampGlow, headX, armHeight - headDrop, z, headSize[0], headSize[1], headSize[2]);
-    district.add(disc, lampPool, [headX, surfaceY, z], [streetPoolRadius, 1, streetPoolRadius]);
+    block(palette.rubber, headX, armHeight - headDrop, z, headSize[0], headSize[1], headSize[2]);
+    block(lampGlow, headX, armHeight - headDrop - headSize[1] / 2, z,
+      headSize[0] * 0.85, 0.035, headSize[2] * 0.85);
   }
   for (const { x, z } of PARK_LAMPS) {
     district.add(cylinder, palette.rubber, [x, parkHeight / 2, z], [poleRadius, parkHeight, poleRadius]);
     district.add(crown, lampGlow, [x, parkHeight + parkGlobeRadius, z], [parkGlobeRadius, parkGlobeRadius, parkGlobeRadius]);
-    district.add(disc, lampPool, [x, surfaceY, z], [parkPoolRadius, 1, parkPoolRadius]);
+  }
+  for (const { x, z, targetZ } of COURT_LAMPS) {
+    const height = LAMP_GEOMETRY.courtHeight;
+    district.add(cylinder, palette.rubber, [x, height / 2, z], [0.1, height, 0.1]);
+    district.add(cylinder, palette.stone, [x, 0.08, z],
+      [LAMP_GEOMETRY.courtBaseRadius, 0.16, LAMP_GEOMETRY.courtBaseRadius]);
+    block(palette.rubber, x, height - 0.12, z, 1.1, 0.1, 0.1);
+    const pitch = -Math.atan2(targetZ - z, height);
+    for (const side of [-1, 1]) {
+      district.add(box, palette.rubber, [x + side * 0.35, height, z], [0.52, 0.18, 0.72], [pitch, 0, 0]);
+      district.add(box, lampGlow, [x + side * 0.35, height - Math.cos(pitch) * 0.1, z - Math.sin(pitch) * 0.1],
+        [0.44, 0.035, 0.61], [pitch, 0, 0]);
+    }
   }
   district.finish();
   const streetSigns = buildStreetSigns();
@@ -323,10 +333,6 @@ export function buildCityScene(): CityScene {
       object.geometry = glazing;
       object.material = material(patchedWindowMaterial(palette.glass));
     }
-    if (object instanceof THREE.InstancedMesh && object.material === lampPool) {
-      object.castShadow = false;
-      object.renderOrder = 2;
-    }
   }
   const weatherSurface = captureWeatherSurface(scene);
   const snowMeshes: THREE.Mesh[] = [];
@@ -337,6 +343,7 @@ export function buildCityScene(): CityScene {
   });
 
   const actors = new Map<string, THREE.Group>();
+  const vehicleLights: VehicleLightingRig[] = [];
   function actorGroup(id: string, name: string) {
     const group = new THREE.Group();
     group.name = name;
@@ -397,6 +404,15 @@ export function buildCityScene(): CityScene {
     }
     const body = new THREE.Object3D();
     group.add(body);
+    const lamps: VehicleLamp[] = [];
+    const lamp = (channel: VehicleLamp['channel'], x: number, y: number, z: number,
+      size: VehicleLamp['size']) => {
+      const mount = new THREE.Object3D();
+      mount.name = `${channel} lamp socket`;
+      mount.position.set(x, y, z);
+      body.add(mount);
+      lamps.push({ mount, channel, size });
+    };
     const part = (surface: THREE.Material, x: number, y: number, z: number, w: number, h: number, d: number) => {
       const object = limb(box, surface, [x, y, z], [w, h, d]);
       body.add(object);
@@ -441,6 +457,9 @@ export function buildCityScene(): CityScene {
         return crank;
       });
       const rig: VehicleRig = { kind: 'vehicle', body, wheels, wheelRadius: 0.355, pedals };
+      lamp('head', 0, 1.18, 0.69, [0.12, 0.1, 0.09]);
+      lamp('tail', 0, 0.93, -0.76, [0.1, 0.1, 0.07]);
+      vehicleLights.push({ id: definition.id, body, length: 2, lamps, bicycle: true });
       group.userData.rig = rig;
       poseNeutral(rig);
       continue;
@@ -456,7 +475,7 @@ export function buildCityScene(): CityScene {
     const color = taxi ? palette.taxi : busType ? palette.cream :
       [palette.teal, palette.clay, palette.cream][index % 3];
     part(color, 0, taxi ? 0.63 : 0.7, 0, width, taxi ? 0.66 : 0.8, length - 0.1);
-    part(palette.glass, 0, taxi ? 1.13 : 1.24, large || van ? 0 : -0.15,
+    part(vehicleGlass, 0, taxi ? 1.13 : 1.24, large || van ? 0 : -0.15,
       width - 0.17, taxi ? 0.47 : 0.6, large || van ? length - 0.3 : 1.45);
     part(color, 0, taxi ? 1.39 : 1.6, large || van ? 0 : -0.15,
       taxi ? width - 0.09 : width, taxi ? 0.1 : 0.15, large || van ? length : 1.5);
@@ -469,7 +488,7 @@ export function buildCityScene(): CityScene {
       for (const side of [-1, 1]) part(palette.stone, side * width / 2, 1.22, -0.6, 0.03, 0.04, length - 1.5);
     } else if (taxi) {
       part(palette.rubber, 0, 1.46, -0.15, 0.66, 0.05, 0.3);
-      part(palette.cream, 0, 1.58, -0.15, 0.62, 0.22, 0.23).name = 'Unbranded taxi roof light';
+      part(lampGlow, 0, 1.58, -0.15, 0.62, 0.22, 0.23).name = 'Unbranded taxi roof light';
       part(palette.rubber, 0, 0.65, 1.32, 0.64, 0.18, 0.045).name = 'Taxi front grille';
       part(palette.taxi, 0, 0.43, 1.32, 0.26, 0.1, 0.045);
       for (const side of [-1, 1]) {
@@ -497,12 +516,19 @@ export function buildCityScene(): CityScene {
       });
     }
     for (const side of [-1, 1]) {
-      part(palette.line, side * width * 0.32, 0.75, length / 2 - 0.025, 0.23, 0.16, 0.04);
-      part(palette.clay, side * width * 0.32, 0.75, -length / 2 + 0.025, 0.2, 0.16, 0.04);
+      lamp('head', side * width * 0.3, 0.75, length / 2 - 0.005, [0.24, 0.18, 0.065]);
+      lamp('tail', side * width * 0.3, 0.75, -length / 2 + 0.005, [0.22, 0.18, 0.065]);
+      const channel = side === 1 ? 'left' : 'right';
+      for (const end of [-1, 1]) {
+        lamp(channel, side * width * 0.43, 0.73, end * (length / 2 - 0.005), [0.12, 0.15, 0.065]);
+      }
+      lamp(channel, side * (width / 2 + 0.01), 0.87, length * 0.12, [0.035, 0.09, 0.16]);
       for (const z of [-length * 0.32, length * 0.32]) {
         wheels.push(buildWheel(group, side * (width / 2 - 0.13), radius, z, radius / 0.38, 0.7, z > 0));
       }
     }
+    lamp('brake', 0, large || van ? 1.7 : 1.23, large || van ? -length / 2 + 0.015 : -0.9, [0.28, 0.07, 0.055]);
+    vehicleLights.push({ id: definition.id, body, length, lamps, bicycle: false });
     const rig: VehicleRig = { kind: 'vehicle', body, wheels, wheelRadius: radius };
     group.userData.rig = rig;
     poseNeutral(rig);
@@ -580,7 +606,7 @@ export function buildCityScene(): CityScene {
 
   let disposed = false;
   return {
-    scene, bus, actors, weatherSurface, snowMeshes, foliage,
+    scene, bus, actors, weatherSurface, snowMeshes, foliage, vehicleLights,
     setTrafficSignals: (signals) => streetscape.setSignals(signals),
     updateActors: () => actorInstances.update(),
     updateCourtActivity: (elapsedSeconds, reducedMotion, groundLift = 0) => {
@@ -607,6 +633,7 @@ export function buildCityScene(): CityScene {
       materials.clear();
       actors.forEach((actor) => actor.clear());
       actors.clear();
+      vehicleLights.length = 0;
       scene.clear();
     },
   };

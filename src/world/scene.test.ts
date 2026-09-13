@@ -472,21 +472,39 @@ describe('original car-free park district', () => {
 });
 
 describe('public street and park lighting fixtures', () => {
-  it('emits dusk-driven lamp heads and ground pools tagged for the night ramp', () => {
+  it('keeps dusk-driven fixtures but delegates soft pools to the lighting adapter', () => {
     const { scene } = createScene();
     const { materials, instances } = resources(scene);
     const glow = [...materials].find((material) => material.userData.nightLight === true) as THREE.MeshStandardMaterial;
-    const pool = [...materials].find((material) => material.userData.nightPool === true) as THREE.MeshBasicMaterial;
     expect(glow).toBeInstanceOf(THREE.MeshStandardMaterial);
     expect(glow.emissiveIntensity).toBe(0);
-    expect(pool).toBeInstanceOf(THREE.MeshBasicMaterial);
-    expect(pool.transparent).toBe(true);
-    const poolMeshes = instances.filter((mesh) => mesh.material === pool);
-    expect(poolMeshes.length).toBeGreaterThan(0);
-    poolMeshes.forEach((mesh) => {
-      expect(mesh.castShadow).toBe(false);
-      expect(mesh.count).toBe(STREET_LAMPS.length + PARK_LAMPS.length);
-    });
+    expect([...materials].some((material) => material.userData.nightPool)).toBe(false);
+    expect(instances.filter((mesh) => mesh.material === glow).reduce((sum, mesh) => sum + mesh.count, 0))
+      .toBeGreaterThanOrEqual(STREET_LAMPS.length + PARK_LAMPS.length);
+  });
+
+  it('provides paired head/tail lamps, separate amber indicators, brake lamps and unlit vehicle glazing', () => {
+    const world = createScene();
+    expect(world.vehicleLights).toHaveLength(48);
+    for (const rig of world.vehicleLights) {
+      const channels = (channel: string) => rig.lamps.filter((lamp) => lamp.channel === channel);
+      expect(channels('head')).toHaveLength(rig.bicycle ? 1 : 2);
+      expect(channels('tail')).toHaveLength(rig.bicycle ? 1 : 2);
+      for (const lamp of channels('head')) expect(lamp.mount.position.z).toBeGreaterThan(0);
+      for (const lamp of channels('tail')) expect(lamp.mount.position.z).toBeLessThan(0);
+      if (!rig.bicycle) {
+        expect(channels('brake')).toHaveLength(1);
+        for (const channel of ['left', 'right']) {
+          expect(channels(channel)).toHaveLength(3);
+          channels(channel).forEach(({ mount }) => expect(Math.sign(mount.position.x)).toBe(channel === 'left' ? 1 : -1));
+        }
+      }
+      rig.body.traverse((object) => {
+        if (object instanceof THREE.Mesh && object.material instanceof THREE.MeshStandardMaterial) {
+          expect(object.material.userData.window).not.toBe(true);
+        }
+      });
+    }
   });
 
   it('gives building windows per-instance glow with dark and multiple lit tints', () => {
