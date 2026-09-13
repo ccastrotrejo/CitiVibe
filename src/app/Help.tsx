@@ -6,7 +6,7 @@ interface HelpProps {
   onClose: () => void;
 }
 
-const SHORTCUTS = [
+export const SHORTCUTS = [
   ['Arrow keys', 'Pan around the square'],
   ['+ / -', 'Zoom in / out'],
   ['Q / E', 'Rotate left / right'],

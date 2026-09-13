@@ -11,9 +11,11 @@ import { ActorInstances } from './actorInstances';
 import { CourtActivity, type CourtPlayerRig } from './courtActivity';
 import { buildCentralPark } from './park';
 import { buildPavementMarkings } from './pavement';
-import { buildStreetscape } from './streetscape';
+import { MURAL_WALLS, buildStreetscape } from './streetscape';
 import { buildStreetSigns } from './streetSigns';
 import { buildStopSigns } from './stopSigns';
+import { validateFacadeContent } from '../content/facades';
+import { buildMurals } from './murals';
 import { buildStreetFurniture } from './streetFurniture';
 import { buildBikeShare, buildSharedBike } from './bikeShare';
 import { buildSignLettering } from './signLettering';
@@ -44,6 +46,8 @@ interface Batch {
   geometry: THREE.BufferGeometry;
   material: THREE.Material;
   transforms: THREE.Matrix4[];
+  /** Per-instance masonry tints; present only for batches submitted with a colour. */
+  tints: THREE.Color[] | null;
   flexible: boolean;
 }
 
@@ -104,6 +108,7 @@ function patchedWindowMaterial(source: THREE.MeshStandardMaterial): THREE.MeshSt
 /** Original, deterministic Rainlight Square art; the caller owns actor movement. */
 export function buildCityScene(): CityScene {
   validateArtInputs(ART_INPUTS);
+  validateFacadeContent();
   validateLighting();
   const scene = new THREE.Scene();
   scene.name = CITY.name;
@@ -142,6 +147,8 @@ export function buildCityScene(): CityScene {
     bus: paint('#db8b57'),
     rubber: paint('#3b4643'),
     taxi: paint('#e7b94d'),
+    // White so per-instance tints reproduce authored masonry colours exactly.
+    facade: paint('#ffffff'),
   };
   // Tag glazing so the environment layer can light windows warmly after dark.
   palette.glass.userData.window = true;
@@ -157,7 +164,8 @@ export function buildCityScene(): CityScene {
   lampGlow.userData.nightColor = '#ffd68f';
   lampGlow.userData.nightIntensity = 2.2;
   for (const surface of [palette.stone, palette.paving, palette.road, palette.line, palette.cream, palette.clay,
-    palette.teal, palette.roof, palette.copper, palette.copperEdge, palette.wood, palette.leaf, palette.leafLight]) {
+    palette.teal, palette.roof, palette.copper, palette.copperEdge, palette.wood, palette.leaf, palette.leafLight,
+    palette.facade]) {
     surface.userData.weatherSurface = true;
   }
   palette.road.userData.snowRetention = 0.45;
@@ -176,14 +184,18 @@ export function buildCityScene(): CityScene {
         shape: THREE.BufferGeometry, surface: THREE.Material,
         position: readonly [number, number, number], scale: readonly [number, number, number],
         rotation: readonly [number, number, number] = [0, 0, 0],
-        flexible = (shape === crown || shape === cylinder) && (surface === palette.leaf || surface === palette.leafLight),
+        tint?: string,
       ) {
-        const key = `${shape.uuid}:${surface.uuid}:${flexible}`;
+        const flexible = (shape === crown || shape === cylinder) &&
+          (surface === palette.leaf || surface === palette.leafLight);
+        const key = `${shape.uuid}:${surface.uuid}:${flexible}:${tint ? 'tinted' : 'plain'}`;
         let batch = batches.get(key);
         if (!batch) {
-          batch = { geometry: shape, material: surface, transforms: [], flexible };
+          batch = { geometry: shape, material: surface, transforms: [], tints: tint ? [] : null, flexible };
           batches.set(key, batch);
         }
+        if (!batch.tints !== !tint) throw new Error('A batch cannot mix tinted and untinted instances.');
+        if (tint && batch.tints) batch.tints.push(new THREE.Color(tint));
         dummy.position.set(...position);
         dummy.scale.set(...scale);
         dummy.rotation.set(...rotation);
@@ -195,6 +207,11 @@ export function buildCityScene(): CityScene {
           const mesh = new THREE.InstancedMesh(batch.geometry, batch.material, batch.transforms.length);
           batch.transforms.forEach((matrix, index) => mesh.setMatrixAt(index, matrix));
           mesh.instanceMatrix.needsUpdate = true;
+          // Tints multiply the white facade material, so one batch carries every masonry colour.
+          if (batch.tints) {
+            batch.tints.forEach((color, index) => mesh.setColorAt(index, color));
+            if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+          }
           mesh.castShadow = true;
           mesh.receiveShadow = true;
           mesh.computeBoundingSphere();
@@ -213,8 +230,8 @@ export function buildCityScene(): CityScene {
   const district = batcher(scene);
   const block = (
     surface: THREE.Material, x: number, y: number, z: number,
-    width: number, height: number, depth: number, yaw = 0,
-  ) => district.add(box, surface, [x, y, z], [width, height, depth], [0, yaw, 0]);
+    width: number, height: number, depth: number, yaw = 0, tint?: string,
+  ) => district.add(box, surface, [x, y, z], [width, height, depth], [0, yaw, 0], tint);
 
   function mesh(shape: THREE.BufferGeometry, surface: THREE.Material, name: string) {
     const object = new THREE.Mesh(shape, surface);
@@ -318,8 +335,8 @@ export function buildCityScene(): CityScene {
     }
   }
   district.finish();
-  for (const signs of [buildStreetSigns(), buildStopSigns()]) {
-    signs.traverse((object) => {
+  for (const group of [buildStreetSigns(), buildStopSigns(), buildMurals(MURAL_WALLS)]) {
+    group.traverse((object) => {
       if (object instanceof THREE.Mesh) {
         geometry(object.geometry);
         const surfaces = Array.isArray(object.material) ? object.material : [object.material];
@@ -327,7 +344,7 @@ export function buildCityScene(): CityScene {
         if (object instanceof THREE.InstancedMesh) instances.add(object);
       }
     });
-    scene.add(signs);
+    scene.add(group);
   }
   for (const object of scene.children) {
     if (object instanceof THREE.InstancedMesh && object.material === palette.glass) {
@@ -352,7 +369,10 @@ export function buildCityScene(): CityScene {
   const weatherSurface = captureWeatherSurface(scene);
   const snowMeshes: THREE.Mesh[] = [];
   scene.traverse((object) => {
-    if (object instanceof THREE.Mesh && !Array.isArray(object.material) && object.material.userData.weatherSurface === true) {
+    if (object instanceof THREE.Mesh && !Array.isArray(object.material) &&
+      object.material.userData.weatherSurface === true &&
+      // Vertical paint wets in the rain but has no upward face to accumulate on.
+      object.material.userData.snowRetention !== 0) {
       snowMeshes.push(object);
     }
   });
