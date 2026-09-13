@@ -113,6 +113,7 @@ describe('original curbside furniture', () => {
       cream: surface, clay: surface, teal: surface, roof: surface, copper: surface,
       copperEdge: surface, glass: surface, wood: surface, leaf: surface,
       leafLight: surface, water: surface, bus: surface, rubber: surface, taxi: surface,
+      facade: surface,
     };
     const parts: { shape: THREE.BufferGeometry; material: THREE.Material; matrix: THREE.Matrix4 }[] = [];
     const transform = new THREE.Object3D();

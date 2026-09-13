@@ -291,3 +291,46 @@ The research agent retrieved and directly inspected four entrance photographs. T
 - Add repeated short shed runs to selected otherwise complete buildings without requiring an excavation, crane or visible workers. Distinguish a horizontal protective deck from taller facade scaffolding; use the latter sparingly on one face. Keep posts and braces outside the actual walker corridor, avoid solid ground-level green walls, and instance repeated structural parts.
 
 **Rights and verification boundary:** Commons metadata reports [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) or [CC BY-SA 2.0](https://creativecommons.org/licenses/by-sa/2.0/) as listed above; attribution/share-alike conditions apply to redistribution of the respective photographs or adaptations. No photograph, branding, font, model or photo texture is shipped. All six listed images were directly viewed; two inspected interior-station candidates were rejected and are not entrance evidence. Stair scenery remains non-operational, and neither a clear sidewalk nor a decorative elevator establishes an accessible underground station.
+
+## Facade colour, party-wall mural and window air-conditioner study - 2026-09-13
+
+Photo and dataset research for three requested features: randomised and widened facade colours, painted murals on windowless side walls, and window-mounted air conditioners. Reference photographs were read on Wikimedia Commons; no image, texture or font was imported into the app, and nothing below reproduces a real mural, artwork, sign or product.
+
+### Measured facade colours
+
+Dominant colours were extracted by k-means over freely licensed Commons thumbnails, on the whole frame and on facade-only crops. These are `observed` for *those photographs under mixed daylight and shade*; they are not paint specifications and not a survey of real building stock.
+
+| Reference (Commons file) | Licence | Measured dominant hexes |
+| --- | --- | --- |
+| `Row_houses_in_alternating_cream,_yellow,_and_gray_brick,_in_Bushwick,_Brooklyn.jpg` | CC BY-SA 3.0 | `#dcca9c` sunlit buff, `#9b927a` shaded buff |
+| `Harlem,_New_York_brownstones.jpg` | CC BY 4.0 | `#806860`, `#5e544e`, `#9c8886` |
+| `2014_Striver's_Row_235-221_W_138_by_Bruce_Price_&_Clarence_S._Luce.jpg` | CC BY-SA 4.0 | `#eebcaa`, `#c99a8f`, `#997e74` salmon pressed brick |
+| `SoHo_-_Cast_Iron_Facade.jpg` | Public domain | `#74777b`, `#93979b` painted cast iron |
+| `210_Cook_Street,_East_Williamsburg,_Brooklyn,_NY.jpg` | CC BY-SA 4.0 | `#a3663d` sunlit brick, `#e1ac67` warm highlight |
+| West 53rd Street party wall | CC BY-SA 4.0 | `#6d2726` unpainted common brick |
+
+The Bushwick file description states outright that the row houses alternate *cream, yellow, and gray brick*, which is the sourced basis for widening the palette beyond four skins. Remaining tones in `src/content/facades.ts` are labelled `inferred`: the NYC Landmarks Preservation Commission rowhouse manual and nyc.gov both returned HTTP 403, so no official material colours were obtainable.
+
+### Party walls and murals
+
+- `observed` / `inferred`: NYC lots are built wall-to-wall, so the side walls are *designed* to be covered and are built as cheap unpainted common brick with no windows. A wall becomes visible only when the neighbour is lower or the row ends, and that exposure is why murals concentrate there.
+- `observed`: the visible band usually begins at a hard horizontal line at the neighbour's parapet, not at the pavement. Long walls are panelised into separate compositions with abrupt vertical edges, and raw brick margins are commonly left around the art.
+- `observed`: ghost signs read lighter and lower-contrast than the brick around them, and survive as palimpsests of two or three overpainted layers, often inside a surviving rectangular border.
+- `observed` (supplied reference photographs): full-height party-wall portraits, a radiating sunburst filling a corner wall, a vertical rhombus chain, near-black and navy grounds, and tagging confined to reachable height.
+
+### Window air conditioners
+
+Sourced from the EPA ENERGY STAR certified room air conditioner dataset (462 window records) and NYC Environmental Control Board violation records.
+
+- `observed`: 306 of 462 records (66%) fall in the 8,000-13,999 BTU band, and that band clusters at roughly **0.49 x 0.34 x 0.55 m**. One box at that size represents two thirds of the real population.
+- `observed`: 462 of 462 records are classified "with louvered sides", so side louvres are universal.
+- `observed`: 231 of 462 (50%) report a support bracket.
+- `inferred`: about 0.18-0.30 m of the case clears the facade; the masonry reveal and the in-room evaporator absorb the rest. An ECB violation citing a 0.41 m projection as conspicuous corroborates the upper bound.
+- `observed`: NYC Building Code 3202.2.1.2(1) does not permit a projection greater than 0.102 m below 3.05 m above grade over a public right of way. With 2.4 m floors this excludes the ground floor.
+- `inferred`: units are not concentrated on street fronts. If anything they are denser on secondary and rear elevations, where there is no landmark-review or projection pressure.
+
+### Limitations
+
+- Every hex above is a cluster centroid for one photograph under one lighting condition. Treating it as a material colour would be an over-claim.
+- Product dimensions describe currently certified models, not the older units common in walk-ups.
+- No pixel sampling was performed for air-conditioner cabinet or grille colours; those hexes remain `inferred`.
