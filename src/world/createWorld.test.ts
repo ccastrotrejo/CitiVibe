@@ -119,7 +119,7 @@ describe('runtime ownership and suspension', () => {
       });
     };
     const before = snapshot();
-    expect(before[0].count).toBe(558);
+    expect(before[0].count).toBe(582);
     expect(before[1].count).toBeGreaterThan(0);
     expect(gpu.toneMapping).toBe(NeutralToneMapping);
     hidden = true;

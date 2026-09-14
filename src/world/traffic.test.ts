@@ -156,14 +156,14 @@ describe('shared connected street graph', () => {
     expect(new Set(STOP_SIGN_INTERSECTIONS.map(({ x, z }) => `${x > 0 ? 'e' : 'w'}${z > 0 ? 'n' : 's'}`)).size).toBe(4);
     expect(STREET_BLOCKS).toHaveLength(24);
     expect(STREET_BLOCKS.some(({ id }) => id === 'block-2-2')).toBe(false);
-    expect(TRAFFIC_ACTORS).toHaveLength(231);
+    expect(TRAFFIC_ACTORS).toHaveLength(275);
     expect(TRAFFIC_ACTORS.filter(({ kind }) => kind === 'car')).toHaveLength(42);
     expect(TRAFFIC_ACTORS.filter(({ kind }) => kind === 'bus')).toHaveLength(6);
-    expect(TRAFFIC_ACTORS.filter(({ kind }) => kind === 'cyclist')).toHaveLength(15);
-    expect(TRAFFIC_ACTORS.filter(({ kind }) => kind === 'pedestrian')).toHaveLength(168);
-    expect(new Set(TRAFFIC_ACTORS.map(({ id }) => id)).size).toBe(231);
+    expect(TRAFFIC_ACTORS.filter(({ kind }) => kind === 'cyclist')).toHaveLength(27);
+    expect(TRAFFIC_ACTORS.filter(({ kind }) => kind === 'pedestrian')).toHaveLength(200);
+    expect(new Set(TRAFFIC_ACTORS.map(({ id }) => id)).size).toBe(275);
     expect(TRAFFIC_ACTORS.filter(({ kind }) => kind === 'pedestrian').map(({ id }) => id))
-      .toEqual(Array.from({ length: 168 }, (_, index) => `city-walker-${index + 1}`));
+      .toEqual(Array.from({ length: 200 }, (_, index) => `city-walker-${index + 1}`));
     expect(TRAFFIC_ACTORS.filter(({ id }) => id.startsWith('bikeshare-rider-')).map(({ id }) => id))
       .toEqual(['bikeshare-rider-lantern', 'bikeshare-rider-willow', 'bikeshare-rider-juniper']);
     expect(TRAFFIC_ACTORS.filter(({ kind }) => kind === 'bus').map(({ id }) => id))
@@ -377,7 +377,7 @@ describe('shared connected street graph', () => {
 });
 
 describe('CityTraffic', () => {
-  it.each([0, 1, 42, 91, 2401, 0xffffffff])('places seven spaced walkers on every peripheral sidewalk for seed %s', (seed) => {
+  it.each([0, 1, 42, 91, 2401, 0xffffffff])('places evenly spaced walkers on every peripheral sidewalk for seed %s', (seed) => {
     const traffic = new CityTraffic(seed);
     const occupied = new Map<string, number>();
     for (const actor of traffic.actors) {
@@ -391,14 +391,16 @@ describe('CityTraffic', () => {
       occupied.set(block!.id, (occupied.get(block!.id) ?? 0) + 1);
     }
     expect(occupied.size).toBe(STREET_BLOCKS.length);
-    for (const count of occupied.values()) expect(count).toBe(7);
+    let total = 0;
+    for (const count of occupied.values()) { expect([8, 9]).toContain(count); total += count; }
+    expect(total).toBe(200);
     for (let first = MOTION_COUNT; first < traffic.actors.length; first += 1) {
       for (let second = first + 1; second < traffic.actors.length; second += 1) {
         if (actorRoute(first, seed) !== actorRoute(second, seed)) continue;
         const a = traffic.actors[first];
         const b = traffic.actors[second];
         const gap = Math.min(travel(a.distance, b.distance, a.routeLength), travel(b.distance, a.distance, a.routeLength));
-        expect(gap).toBeGreaterThanOrEqual(a.routeLength / 7 - 1);
+        expect(gap).toBeGreaterThanOrEqual(a.routeLength / 9 - 1);
         expect(Math.hypot(a.position.x - b.position.x, a.position.z - b.position.z)).toBeGreaterThan(1.2);
         expect(overlap(a.position.x, a.position.z, a.heading, 0.35, 0.35,
           b.position.x, b.position.z, b.heading, 0.35, 0.35)).toBe(false);

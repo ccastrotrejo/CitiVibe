@@ -9,6 +9,10 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   timeout: 60_000,
+  // Software WebGL (swiftshader) builds the full scene far slower than a GPU, so the
+  // live city can take ~10-15s to reach its running state. Give assertions matching
+  // headroom; the per-test ceiling above still guards against genuine hangs.
+  expect: { timeout: 20_000 },
   reporter: 'list',
   use: {
     baseURL,

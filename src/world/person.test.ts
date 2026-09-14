@@ -80,7 +80,7 @@ describe('varied articulated people', () => {
   });
 
   it('fits clothed bodies and moving limbs inside the shared pedestrian safety envelope', () => {
-    for (const context of ['street', 'runner'] as const) for (let index = 1; index <= 168; index++) {
+    for (const context of ['street', 'runner'] as const) for (let index = 1; index <= 200; index++) {
       const profile = createPersonProfile(`city-walker-${index}`, context);
       const { group, rig } = person(profile);
       for (let phase = 0; phase < 1; phase += 0.1) {

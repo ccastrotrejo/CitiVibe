@@ -83,15 +83,15 @@ describe('connected car-free park', () => {
     expect(simulation.getActor('square-bus')).toBeUndefined();
     expect(simulation.getActor('car-1')).toBeUndefined();
     expect(Object.isFrozen(simulation.actors)).toBe(true);
-    expect(actors).toHaveLength(303);
+    expect(actors).toHaveLength(354);
     expect(actors.filter(({ kind }) => kind === 'car' || kind === 'bus')).toHaveLength(48);
-    expect(actors.filter(({ kind }) => kind === 'cyclist')).toHaveLength(15);
-    expect(actors.filter(({ kind }) => kind === 'pedestrian')).toHaveLength(240);
-    expect(actors.filter(({ gait }) => gait === 'walk')).toHaveLength(48);
+    expect(actors.filter(({ kind }) => kind === 'cyclist')).toHaveLength(27);
+    expect(actors.filter(({ kind }) => kind === 'pedestrian')).toHaveLength(279);
+    expect(actors.filter(({ gait }) => gait === 'walk')).toHaveLength(55);
     expect(actors.filter(({ gait }) => gait === 'run')).toHaveLength(24);
-    expect(new Set(actors.map(({ id }) => id)).size).toBe(303);
+    expect(new Set(actors.map(({ id }) => id)).size).toBe(354);
     expect(PARK_ACTORS.map(({ id }) => id)).toEqual([
-      ...Array.from({ length: 48 }, (_, index) => `walker-${index + 1}`),
+      ...Array.from({ length: 55 }, (_, index) => `walker-${index + 1}`),
       ...Array.from({ length: 24 }, (_, index) => `runner-${index + 1}`),
     ]);
     simulation.step(DT);
@@ -156,7 +156,7 @@ describe('connected car-free park', () => {
     const walkers = simulation.actors.filter(({ gait }) => gait === 'walk');
     const runners = simulation.actors.filter(({ gait }) => gait === 'run');
     const parkActors = [...walkers, ...runners];
-    expect(walkers).toHaveLength(48);
+    expect(walkers).toHaveLength(55);
     expect(runners).toHaveLength(24);
     const transitions = new Uint16Array(walkers.length);
     const gates = Array.from({ length: walkers.length }, () => new Map<string, number>());

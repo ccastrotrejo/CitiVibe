@@ -50,14 +50,14 @@ describe('bounded city lighting renderer', () => {
     expect(localLightWeight(10, 30)).toBe(1);
   });
 
-  it('draws all 60 vehicle rigs in one lens batch and all night road pools in one batch', () => {
+  it('draws all 75 vehicle rigs in one lens batch and all night road pools in one batch', () => {
     const world = fixture();
     world.draw();
     expect(world.batch('Soft ground illumination').count).toBe(0);
-    expect(world.batch('Vehicle lamp lenses').count).toBe(48 * 11 + 15 * 2);
+    expect(world.batch('Vehicle lamp lenses').count).toBe(48 * 11 + 27 * 2);
     world.environment.setTime('night', DATE);
     world.draw();
-    expect(world.batch('Soft ground illumination').count).toBe(STREET_LAMPS.length + PARK_LAMPS.length + COURT_LAMPS.length + 63 * 2);
+    expect(world.batch('Soft ground illumination').count).toBe(STREET_LAMPS.length + PARK_LAMPS.length + COURT_LAMPS.length + 75 * 2);
     expect(world.visual.group.children.filter((object) => object instanceof THREE.InstancedMesh)).toHaveLength(3);
     for (const name of ['Soft lamp halos', 'Soft ground illumination']) {
       const mesh = world.batch(name);

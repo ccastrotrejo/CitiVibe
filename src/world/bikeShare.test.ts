@@ -189,6 +189,24 @@ describe('shared-bike art and retained activity', () => {
     }
   });
 
+  it('keeps docked neighbors subtly in motion so they never read as frozen', () => {
+    const { activity } = createFixture();
+    const personPose = (time: number, reducedMotion: boolean) => {
+      activity.update(time, reducedMotion);
+      const person = activity.rigs[2];
+      person.updateWorldMatrix(true, true);
+      const out: number[][] = [];
+      person.traverse((object) => {
+        if (object instanceof THREE.Mesh) out.push([...object.matrixWorld.elements]);
+      });
+      return out;
+    };
+    // Full motion: the resting neighbor shifts its weight between two docked moments.
+    expect(personPose(3, false)).not.toEqual(personPose(4.2, false));
+    // Reduced motion holds the docked pose perfectly still.
+    expect(personPose(3, true)).toEqual(personPose(4.2, true));
+  });
+
   it('preserves source poses on repeats, pause, reduced motion and reconstruction with snow', () => {
     const { activity } = createFixture();
     activity.update(10.125, false, 0.23);

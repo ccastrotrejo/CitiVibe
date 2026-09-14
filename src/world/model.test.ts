@@ -275,7 +275,7 @@ describe('authored content', () => {
       }
       expect(a.camera.revision).toBeGreaterThan(10);
       expect(a.snapshot().view).toMatchObject({ guided: false, total: CAMERA_ANCHORS.length });
-    }, 20000);
+    }, 60000);
 
     it('preserves the city-wide tour through pause and resumes from its retained pose', () => {
       const model = new WorldModel(false);

@@ -161,7 +161,7 @@ Choose a small original palette by material role: ground/road, sidewalk/curb, ma
 | Plaza and landscape | Fountain or garden feature, benches, planted edges, open pedestrian circulation, meaningful resting spots. |
 | Vegetation | A few reusable tree/shrub silhouettes with scale/hue variation; avoid one mesh/material per tree. |
 | Props | Original lights, seating, cycle racks, civic wayfinding and service details; no ad slots or branded billboards. |
-| Actors | Simple ordinary buses, cars, cyclists and people, authored separately with coherent scale and pivots. The occasional airplane is implemented separately; no drone. |
+| Actors | Simple ordinary buses, cars, cyclists and people, authored separately with coherent scale and pivots. The occasional airplane and the occasional high-altitude balloon bunch are implemented separately as ambient sky decor; no drone. |
 
 A building's roof detail should not cost more than the whole actor system without a visible benefit. Close views need enough geometry to hold up, but the overview composition remains the main use.
 

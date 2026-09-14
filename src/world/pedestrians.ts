@@ -3,7 +3,7 @@ import { INTERSECTIONS, TRAFFIC_ACTORS, type TrafficSignalState } from '../conte
 import type { ActorState } from './actors';
 import { sampleTrafficRoute, SIDEWALK_WALKING_CORNER_INSET, type TrafficRoute } from './traffic';
 
-export const PEDESTRIAN_BEHAVIOR = { maxCrossingWait: 12, maxBlockPopulation: 8, landingClearance: 2, minRest: 1.5, maxRest: 6 } as const;
+export const PEDESTRIAN_BEHAVIOR = { maxCrossingWait: 12, maxBlockPopulation: 11, landingClearance: 2, minRest: 1.5, maxRest: 6 } as const;
 const EPSILON = 1e-7;
 const wrap = (distance: number, length: number) => ((distance % length) + length) % length;
 

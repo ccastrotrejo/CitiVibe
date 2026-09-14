@@ -2,6 +2,8 @@ import { NeutralToneMapping, OrthographicCamera, PCFSoftShadowMap, SRGBColorSpac
 import { CAMERA_ANCHORS, CAMERA_PROJECTION, validateCameraAnchors } from '../content/city';
 import { createAirplaneVisual } from './airplane';
 import type { AirplaneVisual } from './airplane';
+import { createBalloonsVisual } from './balloons';
+import type { BalloonsVisual } from './balloons';
 import { FrameClock } from './clock';
 import { EnvironmentVisual } from './environmentVisual';
 import { bindSceneInput } from './input';
@@ -65,6 +67,7 @@ export function createWorld({ canvas, model, onChange, onLifecycle }: WorldOptio
   let environment: EnvironmentVisual;
   let lighting: LightingVisual;
   let plane: AirplaneVisual;
+  let balloons: BalloonsVisual;
   let statusElapsed = 0;
   let shadowWeatherRevision = -1;
   let shadowReducedMotion = model.reducedMotion;
@@ -74,11 +77,14 @@ export function createWorld({ canvas, model, onChange, onLifecycle }: WorldOptio
     lighting = new LightingVisual(art.scene, art.vehicleLights, model.simulation.actors, art.weatherSurface);
     plane = createAirplaneVisual();
     art.scene.add(plane.group);
+    balloons = createBalloonsVisual();
+    art.scene.add(balloons.group);
   }
   function detachEffects(): void {
     lighting.dispose();
     environment.dispose();
     plane.dispose();
+    balloons.dispose();
   }
   attachEffects();
   const listeners = new AbortController();
@@ -141,6 +147,12 @@ export function createWorld({ canvas, model, onChange, onLifecycle }: WorldOptio
     if (flight.active) {
       plane.group.position.set(flight.position.x, flight.position.y, flight.position.z);
       plane.group.rotation.y = flight.heading;
+    }
+    const drift = model.balloons.state;
+    balloons.group.visible = drift.active;
+    if (drift.active) {
+      balloons.group.position.set(drift.position.x, drift.position.y, drift.position.z);
+      balloons.group.rotation.y = drift.heading;
     }
     renderer.render(art.scene, camera);
   }
