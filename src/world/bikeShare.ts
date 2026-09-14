@@ -221,6 +221,16 @@ export function buildBikeShare(
         person.scale.setScalar(showPerson ? 1 : 0);
         for (const wheel of bike.wheels) wheel.rotation.x = sample.displacement / S.wheelRadius;
         poseWalkerRig(rig, { distance: sample.displacement, speed: Math.max(0.2, sample.speed), blend: 1, reducedMotion });
+        if (showPerson && !reducedMotion) {
+          // Docked neighbors gently shift their weight so they read as resting rather
+          // than frozen. Torso-only (feet stay planted); deterministic and locked to a
+          // whole number of cycles per station loop so the animation still closes seamlessly,
+          // and disabled under reduced motion to keep poses reproducible.
+          const cyclePhase = (elapsedSeconds % L.period) / L.period;
+          const sway = Math.sin(cyclePhase * 2 * Math.PI * 10 + station.x * 0.7 + station.z * 0.3);
+          rig.torso.rotation.z += 0.035 * sway;
+          rig.torso.position.x += 0.015 * sway;
+        }
         person.updateWorldMatrix(true, true);
         rig.arms.forEach((arm, index) => {
           const touch = index === 0 ? sample.latchTouch : 0;
