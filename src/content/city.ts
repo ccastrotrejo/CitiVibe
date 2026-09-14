@@ -29,9 +29,9 @@ export const CAMERA_PROJECTION = {
   far: 850,
   overviewHeight: 270,
   overviewWidth: 430,
-  maxZoom: 10,
+  maxZoom: 30,
   defaultPitch: Math.PI / 6,
-  minPitch: Math.PI / 6,
+  minPitch: Math.PI / 10,
   maxPitch: Math.PI * 5 / 12,
 } as const;
 

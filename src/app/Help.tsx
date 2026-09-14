@@ -37,6 +37,6 @@ export function Help({ reduced, onReducedChange, onClose }: HelpProps) {
     <KeyboardShortcuts />
     <label className="motion-control"><input type="checkbox" checked={reduced} onChange={(event) => onReducedChange(event.target.checked)} /><span>Reduce motion<small>    Starts paused, with manual guided views. You can still choose to resume the city.</small></span></label>
     <p>Start a tour to visit the district's authored viewpoints. Moving the camera or opening a panel stops it. Reduced motion uses explicit Previous and Next views instead.</p>
-    <p className="muted">Sound starts off on every visit. Settings stay on this computer only. No accounts or tracking.</p>
+    <p className="muted">Settings stay on this computer only. No accounts or tracking.</p>
   </Modal>;
 }
