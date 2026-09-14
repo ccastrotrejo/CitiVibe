@@ -4,7 +4,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App';
 import { CAMERA_ANCHORS } from '../content/city';
 import { DEFAULT_PREFERENCES, loadPreferences, PREFERENCE_KEY, WEATHER_LABELS } from '../content/preferences';
-import { CityAudio } from '../world/audio';
 import type { WorldModel } from '../world/model';
 import type { WorldCommand } from '../world/types';
 
@@ -184,24 +183,11 @@ describe('accessible city controls', () => {
     expect(window.localStorage.getItem('livingcity.preferences')).toContain('"motion":"reduced"');
   });
 
-  it('wires sound settings to audio status and saved preferences', async () => {
-    const user = userEvent.setup();
-    render(<App />);
-    await screen.findByText('City is living');
-    expect(screen.getByText('Sound off')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Settings' }));
-    await user.click(screen.getByRole('button', { name: 'Enable sound' }));
-    await screen.findByText('Sound error');
-    expect(screen.getByText(/Web Audio is unavailable/)).toBeInTheDocument();
-    expect(window.localStorage.getItem('livingcity.preferences')).toContain('"muted":false');
-  });
-
   it('keeps the six weather choices in a labeled native select with a fictional-weather explanation', async () => {
     const user = userEvent.setup();
     render(<App />);
     await screen.findByText('City is living');
     expect(screen.getByText(/Afternoon.*Sunny/)).toHaveTextContent('Afternoon / Sunny');
-    expect(screen.getByText('Sound off')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Settings' }));
     expect(screen.getByRole('region', { name: 'City settings' })).toBeInTheDocument();
     const weather = screen.getByRole('combobox', { name: 'Weather' });
@@ -215,10 +201,8 @@ describe('accessible city controls', () => {
     expect(screen.getByRole('checkbox', { name: 'Let the weather drift on its own' })).not.toBeChecked();
   });
 
-  it('dispatches, saves and restores rain intensity including zero without enabling sound', async () => {
-    window.localStorage.setItem(PREFERENCE_KEY, JSON.stringify({ ...DEFAULT_PREFERENCES, weather: 'rain', muted: false }));
-    const enable = vi.spyOn(CityAudio.prototype, 'enable');
-    const setRainIntensity = vi.spyOn(CityAudio.prototype, 'setRainIntensity');
+  it('dispatches, saves and restores rain intensity including zero', async () => {
+    window.localStorage.setItem(PREFERENCE_KEY, JSON.stringify({ ...DEFAULT_PREFERENCES, weather: 'rain' }));
     const user = userEvent.setup();
     const firstVisit = render(<App />);
     await screen.findByText('City is living');
@@ -237,17 +221,13 @@ describe('accessible city controls', () => {
       expect(loadPreferences().value.rainIntensityMmH).toBe(value);
       expect(intensity).toHaveAttribute('aria-valuetext', `${value} millimeters per hour`);
       expect(screen.getByText(`${value} mm/h`)).toBeInTheDocument();
-      expect(setRainIntensity).toHaveBeenLastCalledWith(value);
     }
-    expect(enable).not.toHaveBeenCalled();
-    expect(screen.getByText('Sound off')).toBeInTheDocument();
     firstVisit.unmount();
     render(<App />);
     await screen.findByText('City is living');
     expect(lifecycle.model?.snapshot()).toMatchObject({ weather: 'rain', rainIntensityMmH: 0 });
     await user.click(screen.getByRole('button', { name: 'Settings' }));
     expect(screen.getByRole('slider', { name: 'Rain intensity' })).toHaveValue('0');
-    expect(enable).not.toHaveBeenCalled();
   });
 
   it('shows intensity only for Rain or natural weather without changing another preset', async () => {
@@ -275,10 +255,8 @@ describe('accessible city controls', () => {
     expect(lifecycle.command.mock.calls.filter(([command]) => command.type === 'set-rain-intensity')).toHaveLength(1);
   });
 
-  it('couples sound to published rain intensity rather than silently changing the saved slider choice', async () => {
+  it('publishes rain intensity without silently changing the saved slider choice', async () => {
     window.localStorage.setItem(PREFERENCE_KEY, JSON.stringify({ ...DEFAULT_PREFERENCES, weather: 'rain', natural: true }));
-    const setRainIntensity = vi.spyOn(CityAudio.prototype, 'setRainIntensity');
-    const enable = vi.spyOn(CityAudio.prototype, 'enable');
     const user = userEvent.setup();
     render(<App />);
     await screen.findByText('City is living');
@@ -287,11 +265,8 @@ describe('accessible city controls', () => {
       lifecycle.model!.environment.setRainIntensity(19);
       lifecycle.publish!();
     });
-    expect(setRainIntensity).toHaveBeenLastCalledWith(19);
     expect(screen.getByRole('slider', { name: 'Rain intensity' })).toHaveValue('8');
     expect(loadPreferences().value.rainIntensityMmH).toBe(8);
-    expect(enable).not.toHaveBeenCalled();
-    expect(screen.getByText('Sound off')).toBeInTheDocument();
   });
 
   it('shows the existing invalid-settings notice for an out-of-range saved rain intensity', async () => {
@@ -474,12 +449,10 @@ describe('accessible city controls', () => {
     expect(lifecycle.model?.snapshot()).toMatchObject({ timeMode: 'night', quality: 'lightweight', reducedMotion: false });
   });
 
-  it.each(['snow', 'windy'] as const)('selects and restores %s with natural weather off and no saved audio consent', async (weather) => {
+  it.each(['snow', 'windy'] as const)('selects and restores %s with natural weather off', async (weather) => {
     window.localStorage.setItem(PREFERENCE_KEY, JSON.stringify({
-      ...DEFAULT_PREFERENCES, weather: 'rain', natural: true, muted: false,
+      ...DEFAULT_PREFERENCES, weather: 'rain', natural: true,
     }));
-    const enable = vi.spyOn(CityAudio.prototype, 'enable');
-    const setWeather = vi.spyOn(CityAudio.prototype, 'setWeather');
     const user = userEvent.setup();
     const firstVisit = render(<App />);
     await screen.findByText('City is living');
@@ -489,11 +462,9 @@ describe('accessible city controls', () => {
     await user.selectOptions(screen.getByRole('combobox', { name: 'Weather' }), weather);
     expect(screen.getByRole('checkbox', { name: 'Let the weather drift on its own' })).not.toBeChecked();
     expect(lifecycle.model?.snapshot()).toMatchObject({ weather, natural: false });
-    expect(loadPreferences().value).toMatchObject({ version: 1, weather, natural: false, muted: false });
-    expect(setWeather).toHaveBeenLastCalledWith(weather);
+    expect(loadPreferences().value).toMatchObject({ version: 1, weather, natural: false });
     expect(screen.getByText(new RegExp(`Afternoon.*${WEATHER_LABELS[weather]}`)))
       .toHaveTextContent(`Afternoon / ${WEATHER_LABELS[weather]}`);
-    expect(screen.getByText('Sound off')).toBeInTheDocument();
     firstVisit.unmount();
 
     render(<App />);
@@ -503,17 +474,13 @@ describe('accessible city controls', () => {
     expect(screen.getByRole('combobox', { name: 'Weather' })).toHaveValue(weather);
     const natural = screen.getByRole('checkbox', { name: 'Let the weather drift on its own' });
     expect(natural).not.toBeChecked();
-    expect(screen.getByText('Sound off')).toBeInTheDocument();
-    expect(enable).not.toHaveBeenCalled();
     await user.click(natural);
     expect(natural).toBeChecked();
     expect(lifecycle.model?.snapshot().natural).toBe(true);
     expect(loadPreferences().value.natural).toBe(true);
   });
 
-  it('reflects published natural weather in the badge and audio without changing saved presets or enabling sound', async () => {
-    const enable = vi.spyOn(CityAudio.prototype, 'enable');
-    const setWeather = vi.spyOn(CityAudio.prototype, 'setWeather');
+  it('reflects published natural weather in the badge without changing saved presets', async () => {
     const user = userEvent.setup();
     render(<App />);
     await screen.findByText('City is living');
@@ -528,11 +495,8 @@ describe('accessible city controls', () => {
       });
       expect(screen.getByText(new RegExp(`Afternoon.*${WEATHER_LABELS[weather]}`)))
         .toHaveTextContent(`Afternoon / ${WEATHER_LABELS[weather]}`);
-      expect(setWeather).toHaveBeenLastCalledWith(weather);
       expect(loadPreferences().value).toMatchObject({ weather: 'sunny', natural: true });
     }
-    expect(enable).not.toHaveBeenCalled();
-    expect(screen.getByText('Sound off')).toBeInTheDocument();
   });
 
   it('labels unsupported fullscreen honestly and Escape only exits that layer', async () => {

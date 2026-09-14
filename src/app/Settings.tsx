@@ -1,16 +1,12 @@
 import { useEffect, useRef } from 'react';
 import { MOTION_MODES, QUALITY_MODES, TIME_MODES, WEATHER_MODES, WEATHER_LABELS, optionValue } from '../content/preferences';
 import type { Preferences } from '../content/preferences';
-import type { AudioStatus } from '../world/audio';
 import { Icon } from './Icon';
 import { KeyboardShortcuts } from './Help';
 
 interface SettingsProps {
   preferences: Preferences;
-  audioStatus: AudioStatus;
   onChange: (change: Partial<Preferences>) => void;
-  onEnableSound: () => Promise<void>;
-  onSetMuted: (muted: boolean) => Promise<void>;
   onClose: () => void;
   notice: string;
 }
@@ -22,14 +18,9 @@ const QUALITY_LABELS: Record<Preferences['quality'], string> = {
   automatic: 'Automatic', high: 'High detail', lightweight: 'Lightweight',
 };
 
-export function Settings({ preferences, audioStatus, onChange, onEnableSound, onSetMuted, onClose, notice }: SettingsProps) {
+export function Settings({ preferences, onChange, onClose, notice }: SettingsProps) {
   const closeButton = useRef<HTMLButtonElement>(null);
   useEffect(() => { closeButton.current?.focus({ preventScroll: true }); }, []);
-  const needsEnable = audioStatus.state === 'off' || audioStatus.state === 'blocked' || audioStatus.state === 'error';
-  const setMuted = (muted: boolean) => {
-    void onSetMuted(muted);
-    onChange({ muted });
-  };
 
   return <section id="city-settings" className="settings-dock" aria-labelledby="settings-title" onKeyDown={(event) => {
     if (event.key !== 'Escape' || event.defaultPrevented) return;
@@ -52,15 +43,6 @@ export function Settings({ preferences, audioStatus, onChange, onEnableSound, on
       <label className="setting-field"><span>Time of day</span><select value={preferences.timeMode} onChange={(event) => onChange({ timeMode: optionValue(event.target.value, TIME_MODES) })}>
         {TIME_MODES.map((mode) => <option key={mode} value={mode}>{TIME_LABELS[mode]}</option>)}
       </select></label>
-      <section className="settings-sound" aria-labelledby="sound-settings-title">
-        <div className="settings-sound-heading">
-          <h3 id="sound-settings-title">Sound</h3>
-          {needsEnable ? <button type="button" aria-describedby="sound-status" onClick={() => { void onEnableSound(); onChange({ muted: false }); }}>Enable sound</button> :
-            <label className="motion-control"><input type="checkbox" checked={preferences.muted} onChange={(event) => setMuted(event.target.checked)} /><span>Mute sound</span></label>}
-        </div>
-        {!needsEnable ? <label className="setting-field"><span>Volume</span><input type="range" min="0" max="1" step="0.05" value={preferences.volume} aria-describedby="sound-status" onChange={(event) => onChange({ volume: Number(event.target.value) })} /></label> : null}
-        <p id="sound-status" className="muted">{audioStatus.message}</p>
-      </section>
       <details className="settings-more">
         <summary>More controls</summary>
         <label className="setting-field"><span>Motion</span><select value={preferences.motion} aria-describedby="motion-description" onChange={(event) => onChange({ motion: optionValue(event.target.value, MOTION_MODES) })}>
@@ -71,7 +53,7 @@ export function Settings({ preferences, audioStatus, onChange, onEnableSound, on
           {QUALITY_MODES.map((mode) => <option key={mode} value={mode}>{QUALITY_LABELS[mode]}</option>)}
         </select></label>
         <label className="motion-control"><input type="checkbox" checked={preferences.guide} onChange={(event) => onChange({ guide: event.target.checked })} /><span>Show navigation hint</span></label>
-        <p className="muted">Saved on this computer only. Sound needs a fresh enable action each visit.</p>
+        <p className="muted">Saved on this computer only.</p>
       </details>
       <details className="keyboard-help"><summary>Keyboard shortcuts</summary><KeyboardShortcuts /></details>
       {notice ? <p role="status" className="settings-notice">{notice}</p> : null}
