@@ -269,6 +269,10 @@ interface Memory {
  */
 export class Locomotion {
   private readonly memory = new Map<string, Memory>();
+  private readonly walkerPose: WalkerPose = {
+    distance: 0, speed: 0, blend: 0, reducedMotion: false, running: false, activity: undefined, activityTime: 0,
+  };
+  private readonly vehiclePose: VehiclePose = { distance: 0, pitch: 0, roll: 0, steer: 0, drop: 0 };
 
   reset(): void {
     this.memory.clear();
@@ -309,8 +313,15 @@ export class Locomotion {
       if (rig.kind === 'walker') {
         const moving = actor.state === 'moving' && actor.speed > WALKER.moveThreshold;
         memory.blend += ((moving ? 1 : 0) - memory.blend) * Math.min(1, dt * WALKER.blendRate);
-        poseWalkerRig(rig, { distance: actor.travelDistance ?? actor.distance, speed: actor.speed, blend: memory.blend, reducedMotion,
-          running: actor.gait === 'run', activity: actor.activity, activityTime: actor.activityTime });
+        const pose = this.walkerPose;
+        pose.distance = actor.travelDistance ?? actor.distance;
+        pose.speed = actor.speed;
+        pose.blend = memory.blend;
+        pose.reducedMotion = reducedMotion;
+        pose.running = actor.gait === 'run';
+        pose.activity = actor.activity;
+        pose.activityTime = actor.activityTime;
+        poseWalkerRig(rig, pose);
         continue;
       }
       const acceleration = (actor.speed - memory.speed) / dt;
@@ -324,9 +335,13 @@ export class Locomotion {
       memory.roll += ((reducedMotion ? 0 : rollTarget) - memory.roll) * smoothing;
       memory.steer += ((reducedMotion ? 0 : steerTarget) - memory.steer) * smoothing;
       memory.drop += (dropTarget - memory.drop) * smoothing;
-      poseVehicleRig(rig, {
-        distance: actor.distance, pitch: memory.pitch, roll: memory.roll, steer: memory.steer, drop: memory.drop,
-      });
+      const vehiclePose = this.vehiclePose;
+      vehiclePose.distance = actor.distance;
+      vehiclePose.pitch = memory.pitch;
+      vehiclePose.roll = memory.roll;
+      vehiclePose.steer = memory.steer;
+      vehiclePose.drop = memory.drop;
+      poseVehicleRig(rig, vehiclePose);
       memory.speed = actor.speed;
       memory.heading = actor.heading;
     }
