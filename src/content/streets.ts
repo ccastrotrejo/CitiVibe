@@ -78,7 +78,9 @@ export const STREET_BLOCKS = STREET_Z.slice(0, -1).flatMap((minZ, row) =>
     maxZ: STREET_Z[row + 1],
   }]));
 
-export type TrafficVehicleType = 'sedan' | 'taxi' | 'van' | 'truck' | 'bus' | 'bicycle';
+export type TrafficVehicleType =
+  | 'sedan' | 'taxi' | 'van' | 'truck' | 'bus' | 'bicycle'
+  | 'ambulanceVan' | 'ambulanceBox' | 'firetruck' | 'fireSuv';
 
 export interface TrafficActorDefinition {
   id: string;
@@ -88,16 +90,35 @@ export interface TrafficActorDefinition {
 
 const VEHICLE_TYPES = ['sedan', 'taxi', 'van', 'truck', 'sedan', 'bus'] as const;
 const ADDITIONAL_VEHICLE_TYPES = ['sedan', 'taxi', 'van', 'truck'] as const;
+/**
+ * Two ambulance sizes and two fire-service models join ordinary traffic. Each re-skins an
+ * existing car in place, so the simulation footprint (TRAFFIC_LENGTHS) and every seeded
+ * placement stay identical: emergency vehicles only replace a same-length regular vehicle.
+ */
+const EMERGENCY_OVERRIDES: ReadonlyMap<string, { id: string; vehicleType: TrafficVehicleType }> = new Map([
+  ['city-vehicle-16', { id: 'city-ambulance-1', vehicleType: 'ambulanceBox' }],
+  ['city-vehicle-22', { id: 'city-ambulance-2', vehicleType: 'ambulanceBox' }],
+  ['city-vehicle-39', { id: 'city-ambulance-3', vehicleType: 'ambulanceVan' }],
+  ['city-vehicle-43', { id: 'city-ambulance-4', vehicleType: 'ambulanceVan' }],
+  ['city-vehicle-40', { id: 'city-firetruck-1', vehicleType: 'firetruck' }],
+  ['city-vehicle-44', { id: 'city-firetruck-2', vehicleType: 'firetruck' }],
+  ['city-vehicle-37', { id: 'city-firetruck-3', vehicleType: 'fireSuv' }],
+  ['city-vehicle-41', { id: 'city-firetruck-4', vehicleType: 'fireSuv' }],
+]);
+const emergency = (definition: TrafficActorDefinition): TrafficActorDefinition => {
+  const override = EMERGENCY_OVERRIDES.get(definition.id);
+  return override ? { ...definition, ...override } : definition;
+};
 export const BIKE_SHARE_RIDER_IDS = ['bikeshare-rider-lantern', 'bikeshare-rider-willow', 'bikeshare-rider-juniper'] as const;
 
 /** Fixed semantic population; appearance is independent of simulation internals. */
 export const TRAFFIC_ACTORS: readonly TrafficActorDefinition[] = Object.freeze([
   ...Array.from({ length: 36 }, (_, index): TrafficActorDefinition => {
     const vehicleType = VEHICLE_TYPES[index % VEHICLE_TYPES.length];
-    return { id: `city-vehicle-${index + 1}`, kind: vehicleType === 'bus' ? 'bus' : 'car', vehicleType };
+    return emergency({ id: `city-vehicle-${index + 1}`, kind: vehicleType === 'bus' ? 'bus' : 'car', vehicleType });
   }),
   ...Array.from({ length: 12 }, (_, index): TrafficActorDefinition =>
-    ({ id: `city-vehicle-${index + 37}`, kind: 'car', vehicleType: ADDITIONAL_VEHICLE_TYPES[index % ADDITIONAL_VEHICLE_TYPES.length] })),
+    emergency({ id: `city-vehicle-${index + 37}`, kind: 'car', vehicleType: ADDITIONAL_VEHICLE_TYPES[index % ADDITIONAL_VEHICLE_TYPES.length] })),
   ...Array.from({ length: 12 }, (_, index): TrafficActorDefinition =>
     ({ id: `city-cyclist-${index + 1}`, kind: 'cyclist', vehicleType: 'bicycle' })),
   ...BIKE_SHARE_RIDER_IDS.map((id): TrafficActorDefinition => ({ id, kind: 'cyclist', vehicleType: 'bicycle' })),

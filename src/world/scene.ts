@@ -173,6 +173,12 @@ export function buildCityScene(): CityScene {
   lampGlow.userData.nightLight = true;
   lampGlow.userData.nightColor = '#ffd68f';
   lampGlow.userData.nightIntensity = 2.2;
+  // Emergency beacons read as steady coloured lamps in daylight and after dark alike.
+  const beacon = (color: string) => material(new THREE.MeshStandardMaterial({
+    color, emissive: color, emissiveIntensity: 0.85, roughness: 0.4,
+  }));
+  const beaconRed = beacon('#e5484d');
+  const beaconBlue = beacon('#5a8dff');
   for (const surface of [palette.stone, palette.paving, palette.road, palette.line, palette.cream, palette.clay,
     palette.teal, palette.roof, palette.copper, palette.copperEdge, palette.wood, palette.leaf, palette.leafLight,
     palette.facade]) {
@@ -425,7 +431,7 @@ export function buildCityScene(): CityScene {
   }
 
   const vehicleArt: VehicleArt = {
-    box, cylinder, wheel, personArt, civicBlue, vehicleGlass, lampGlow, palette,
+    box, cylinder, wheel, personArt, civicBlue, vehicleGlass, lampGlow, palette, beaconRed, beaconBlue,
   };
   for (const [index, definition] of TRAFFIC_ACTORS.entries()) {
     const group = actorGroup(definition.id, `Neighborhood ${definition.vehicleType ?? definition.kind}`);

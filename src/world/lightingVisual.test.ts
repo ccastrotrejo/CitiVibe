@@ -54,10 +54,10 @@ describe('bounded city lighting renderer', () => {
     const world = fixture();
     world.draw();
     expect(world.batch('Soft ground illumination').count).toBe(0);
-    expect(world.batch('Vehicle lamp lenses').count).toBe(48 * 11 + 12 * 2);
+    expect(world.batch('Vehicle lamp lenses').count).toBe(48 * 11 + 15 * 2);
     world.environment.setTime('night', DATE);
     world.draw();
-    expect(world.batch('Soft ground illumination').count).toBe(STREET_LAMPS.length + PARK_LAMPS.length + COURT_LAMPS.length + 60 * 2);
+    expect(world.batch('Soft ground illumination').count).toBe(STREET_LAMPS.length + PARK_LAMPS.length + COURT_LAMPS.length + 63 * 2);
     expect(world.visual.group.children.filter((object) => object instanceof THREE.InstancedMesh)).toHaveLength(3);
     for (const name of ['Soft lamp halos', 'Soft ground illumination']) {
       const mesh = world.batch(name);
@@ -100,6 +100,9 @@ describe('bounded city lighting renderer', () => {
     const position = new THREE.Vector3();
     world.art.vehicleLights.forEach((rig, index) => {
       const actor = world.simulation.getActor(rig.id)!;
+      // Parked shared bikes are collapsed to zero scale and cast no road beam; skip them.
+      rig.body.updateWorldMatrix(true, true);
+      if (new THREE.Vector3().setFromMatrixScale(rig.body.matrixWorld).x < 0.01) return;
       pools.getMatrixAt(STREET_LAMPS.length + PARK_LAMPS.length + COURT_LAMPS.length + index * 2, matrix);
       position.setFromMatrixPosition(matrix).sub(new THREE.Vector3(actor.position.x, 0, actor.position.z));
       const forward = new THREE.Vector3(Math.sin(actor.heading), 0, Math.cos(actor.heading));

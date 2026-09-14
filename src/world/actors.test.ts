@@ -83,13 +83,13 @@ describe('connected car-free park', () => {
     expect(simulation.getActor('square-bus')).toBeUndefined();
     expect(simulation.getActor('car-1')).toBeUndefined();
     expect(Object.isFrozen(simulation.actors)).toBe(true);
-    expect(actors).toHaveLength(300);
+    expect(actors).toHaveLength(303);
     expect(actors.filter(({ kind }) => kind === 'car' || kind === 'bus')).toHaveLength(48);
-    expect(actors.filter(({ kind }) => kind === 'cyclist')).toHaveLength(12);
+    expect(actors.filter(({ kind }) => kind === 'cyclist')).toHaveLength(15);
     expect(actors.filter(({ kind }) => kind === 'pedestrian')).toHaveLength(240);
     expect(actors.filter(({ gait }) => gait === 'walk')).toHaveLength(48);
     expect(actors.filter(({ gait }) => gait === 'run')).toHaveLength(24);
-    expect(new Set(actors.map(({ id }) => id)).size).toBe(300);
+    expect(new Set(actors.map(({ id }) => id)).size).toBe(303);
     expect(PARK_ACTORS.map(({ id }) => id)).toEqual([
       ...Array.from({ length: 48 }, (_, index) => `walker-${index + 1}`),
       ...Array.from({ length: 24 }, (_, index) => `runner-${index + 1}`),
