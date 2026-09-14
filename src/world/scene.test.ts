@@ -80,14 +80,14 @@ describe('original car-free park district', () => {
     });
   });
 
-  it('has 300 traveling actors, forty-eight park walkers and twenty-four runner rigs', () => {
+  it('has 303 traveling actors, forty-eight park walkers and twenty-four runner rigs', () => {
     const { actors, bus } = createScene();
     expect([...actors.keys()]).toEqual([
       ...PARK_ACTORS.map(({ id }) => id),
       ...TRAFFIC_ACTORS.map(({ id }) => id),
     ]);
     expect(bus).toBe(actors.get(CITY.busId));
-    expect(actors.size).toBe(300);
+    expect(actors.size).toBe(303);
     expect(PARK_ACTORS.filter(({ gait }) => gait === 'walk')).toHaveLength(48);
     expect(PARK_ACTORS.filter(({ gait }) => gait === 'run')).toHaveLength(24);
     expect(actors.has('square-bus')).toBe(false);
@@ -485,7 +485,9 @@ describe('original car-free park district', () => {
     });
     expect(calls).toBeLessThanOrEqual(110);
     expect(triangles).toBeLessThan(600_000);
-    expect(resources(scene).materials.size).toBeLessThanOrEqual(36);
+    // 37 allows the two emissive emergency-beacon materials (red/blue) shared by every
+    // ambulance and fire vehicle; all other emergency livery reuses existing palette surfaces.
+    expect(resources(scene).materials.size).toBeLessThanOrEqual(37);
   });
 
   it('disposes unique resources once and leaves another world intact', () => {
@@ -571,7 +573,7 @@ describe('public street and park lighting fixtures', () => {
 
   it('provides paired head/tail lamps, separate amber indicators, brake lamps and unlit vehicle glazing', () => {
     const world = createScene();
-    expect(world.vehicleLights).toHaveLength(60);
+    expect(world.vehicleLights).toHaveLength(63);
     for (const rig of world.vehicleLights) {
       const channels = (channel: string) => rig.lamps.filter((lamp) => lamp.channel === channel);
       expect(channels('head')).toHaveLength(rig.bicycle ? 1 : 2);
