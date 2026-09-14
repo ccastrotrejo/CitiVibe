@@ -119,9 +119,11 @@ export const TRAFFIC_ACTORS: readonly TrafficActorDefinition[] = Object.freeze([
   }),
   ...Array.from({ length: 12 }, (_, index): TrafficActorDefinition =>
     emergency({ id: `city-vehicle-${index + 37}`, kind: 'car', vehicleType: ADDITIONAL_VEHICLE_TYPES[index % ADDITIONAL_VEHICLE_TYPES.length] })),
-  ...Array.from({ length: 12 }, (_, index): TrafficActorDefinition =>
+  ...Array.from({ length: 15 }, (_, index): TrafficActorDefinition =>
     ({ id: `city-cyclist-${index + 1}`, kind: 'cyclist', vehicleType: 'bicycle' })),
   ...BIKE_SHARE_RIDER_IDS.map((id): TrafficActorDefinition => ({ id, kind: 'cyclist', vehicleType: 'bicycle' })),
-  ...Array.from({ length: STREET_BLOCKS.length * 7 }, (_, index): TrafficActorDefinition =>
+  ...Array.from({ length: 9 }, (_, index): TrafficActorDefinition =>
+    ({ id: `shared-cyclist-${index + 1}`, kind: 'cyclist', vehicleType: 'bicycle' })),
+  ...Array.from({ length: 200 }, (_, index): TrafficActorDefinition =>
     ({ id: `city-walker-${index + 1}`, kind: 'pedestrian' })),
 ]);

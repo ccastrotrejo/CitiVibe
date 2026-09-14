@@ -10,10 +10,10 @@ const people = [...street, ...park];
 
 describe('original diverse population', () => {
   it('retains the bounded street and park walking/running population', () => {
-    expect(street).toHaveLength(168);
-    expect(park.filter(({ context }) => context === 'park')).toHaveLength(48);
+    expect(street).toHaveLength(200);
+    expect(park.filter(({ context }) => context === 'park')).toHaveLength(55);
     expect(park.filter(({ context }) => context === 'runner')).toHaveLength(24);
-    expect(new Set(people.map(({ id }) => id)).size).toBe(240);
+    expect(new Set(people.map(({ id }) => id)).size).toBe(279);
   });
 
   it('actually casts all thirteen work roles in recognizable on-duty outfits', () => {
@@ -80,7 +80,7 @@ describe('original diverse population', () => {
       }
       expect(athletes.some(({ age }) => age >= 60)).toBe(true);
     }
-    for (let index = 1; index <= 12; index++) expect(createPersonProfile(`city-cyclist-${index}`, 'cyclist').hat).toBe('cycle-helmet');
+    for (let index = 1; index <= 15; index++) expect(createPersonProfile(`city-cyclist-${index}`, 'cyclist').hat).toBe('cycle-helmet');
   });
 
   it('makes desired commuter pace faster on average without removing individual variation', () => {
@@ -89,7 +89,7 @@ describe('original diverse population', () => {
       return group.reduce((sum, person) => sum + person.pace, 0) / group.length;
     };
     expect(average('commute') - average('tour')).toBeGreaterThan(0.3);
-    expect(new Set(street.map(({ pace }) => pace)).size).toBe(168);
+    expect(new Set(street.map(({ pace }) => pace)).size).toBe(200);
     for (const person of street) expect(person.pace).toBeGreaterThanOrEqual(0.86);
     for (const person of street) expect(person.pace).toBeLessThanOrEqual(1.56);
   });

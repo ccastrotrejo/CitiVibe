@@ -80,15 +80,15 @@ describe('original car-free park district', () => {
     });
   });
 
-  it('has 303 traveling actors, forty-eight park walkers and twenty-four runner rigs', () => {
+  it('has 354 traveling actors, fifty-five park walkers and twenty-four runner rigs', () => {
     const { actors, bus } = createScene();
     expect([...actors.keys()]).toEqual([
       ...PARK_ACTORS.map(({ id }) => id),
       ...TRAFFIC_ACTORS.map(({ id }) => id),
     ]);
     expect(bus).toBe(actors.get(CITY.busId));
-    expect(actors.size).toBe(303);
-    expect(PARK_ACTORS.filter(({ gait }) => gait === 'walk')).toHaveLength(48);
+    expect(actors.size).toBe(354);
+    expect(PARK_ACTORS.filter(({ gait }) => gait === 'walk')).toHaveLength(55);
     expect(PARK_ACTORS.filter(({ gait }) => gait === 'run')).toHaveLength(24);
     expect(actors.has('square-bus')).toBe(false);
     actors.forEach((actor) => {
@@ -105,7 +105,7 @@ describe('original car-free park district', () => {
     scene.traverse((object) => {
       if (object.userData.person) people.push(object.userData.person);
     });
-    expect(people).toHaveLength(277);
+    expect(people).toHaveLength(328);
     expect(people.filter(({ context }) => context === 'resting')).toHaveLength(8);
     expect(people.filter(({ context }) => context === 'play-child')).toHaveLength(6);
     expect(people.filter(({ context }) => context === 'play-guardian')).toHaveLength(2);
@@ -484,7 +484,7 @@ describe('original car-free park district', () => {
         (object instanceof THREE.InstancedMesh ? object.count : 1);
     });
     expect(calls).toBeLessThanOrEqual(110);
-    expect(triangles).toBeLessThan(600_000);
+    expect(triangles).toBeLessThan(640_000);
     // 37 allows the two emissive emergency-beacon materials (red/blue) shared by every
     // ambulance and fire vehicle; all other emergency livery reuses existing palette surfaces.
     expect(resources(scene).materials.size).toBeLessThanOrEqual(37);
@@ -573,7 +573,7 @@ describe('public street and park lighting fixtures', () => {
 
   it('provides paired head/tail lamps, separate amber indicators, brake lamps and unlit vehicle glazing', () => {
     const world = createScene();
-    expect(world.vehicleLights).toHaveLength(63);
+    expect(world.vehicleLights).toHaveLength(75);
     for (const rig of world.vehicleLights) {
       const channels = (channel: string) => rig.lamps.filter((lamp) => lamp.channel === channel);
       expect(channels('head')).toHaveLength(rig.bicycle ? 1 : 2);
