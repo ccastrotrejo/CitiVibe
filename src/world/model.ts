@@ -1,6 +1,7 @@
 import { CAMERA_ANCHORS } from '../content/city';
 import { ActorSimulation } from './actors';
 import { AirplaneSimulation } from './airplane';
+import { BalloonDrift } from './balloons';
 import { CameraController, OVERVIEW } from './camera';
 import { EnvironmentController } from './environment';
 import type { Weather, TimeMode } from './environment';
@@ -30,6 +31,7 @@ export class WorldModel {
   readonly simulation = new ActorSimulation();
   readonly environment = new EnvironmentController();
   readonly airplane = new AirplaneSimulation();
+  readonly balloons = new BalloonDrift();
   private readonly snowLifts = new Float64Array(this.simulation.actors.length);
   paused: boolean;
   reducedMotion: boolean;
@@ -49,6 +51,7 @@ export class WorldModel {
     if (options.natural) this.environment.setNatural(true);
     if (reducedMotion) {
       this.airplane.setReducedMotion(true);
+      this.balloons.setReducedMotion(true);
       this.message = 'Reduced motion: city starts paused. Explore at your own pace.';
     }
   }
@@ -97,6 +100,7 @@ export class WorldModel {
       case 'set-reduced-motion':
         this.reducedMotion = command.reduced;
         this.airplane.setReducedMotion(command.reduced);
+        this.balloons.setReducedMotion(command.reduced);
         if (command.reduced) {
           this.paused = true;
           this.camera.stop();
@@ -181,6 +185,7 @@ export class WorldModel {
       position.y = this.snowLifts[index];
     }
     this.airplane.step(dt);
+    this.balloons.step(dt);
     if (!this.modalOpen) {
       const revision = this.camera.revision;
       this.camera.step(dt);
