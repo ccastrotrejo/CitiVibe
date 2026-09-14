@@ -14,6 +14,7 @@ const HEAD = new THREE.Color('#fff1db');
 const RED = new THREE.Color('#ff2310');
 const AMBER = new THREE.Color('#ff950d');
 const UP = new THREE.Vector3(0, 1, 0);
+const SIDES = [-1, 1] as const;
 const { armLength, armHeight, headDrop, headSize, parkHeight, parkGlobeRadius, streetPoolRadius, parkPoolRadius } = LAMP_GEOMETRY;
 const FIXTURES = [
   ...STREET_LAMPS.map(({ x, z, arm }) => ({
@@ -199,7 +200,7 @@ export class LightingVisual {
         mount.getWorldPosition(this.position);
         mount.getWorldQuaternion(this.transform.quaternion);
         this.transform.position.copy(this.position);
-        this.transform.scale.set(...size);
+        this.transform.scale.set(size[0], size[1], size[2]);
         this.transform.updateMatrix();
         const tint = channel === 'head' ? HEAD : channel === 'left' || channel === 'right' ? AMBER : RED;
         const level = channel === 'tail' ? Math.max(levels.tail, levels.brake) : levels[channel];
@@ -217,17 +218,15 @@ export class LightingVisual {
       const beamLength = rig.bicycle ? 3.6 : 6.5;
       const beamWidth = rig.bicycle ? 0.65 : 1.5;
       // A paired downward road footprint, not a luminous cone floating in clear air.
-      for (const side of [-1, 1]) {
+      for (const side of SIDES) {
         this.position.set(rig.bicycle ? 0 : side * 0.4, 0, rig.length / 2 + beamLength * 0.62).applyMatrix4(rig.body.matrixWorld);
         this.pool(this.position.x, this.position.z, actor.heading, beamWidth, beamLength, HEAD,
           levels.head * (rig.bicycle ? 0.035 : 0.14));
       }
     }
-    for (const [mesh, count] of [[this.lenses, this.lensCount], [this.halos, this.haloCount], [this.pools, this.poolCount]] as const) {
-      mesh.count = count;
-      mesh.instanceMatrix.needsUpdate = true;
-      mesh.instanceColor!.needsUpdate = true;
-    }
+    this.commit(this.lenses, this.lensCount);
+    this.commit(this.halos, this.haloCount);
+    this.commit(this.pools, this.poolCount);
     const detail = options.lightweight ? 0 : THREE.MathUtils.smoothstep(focus.zoom, 1.2, 2.8);
     this.rankedFixtures.sort((a, b) => a.distance - b.distance);
     const publicBoundary = Math.min(45, this.rankedFixtures[LOCAL_LIGHT_BUDGET.public]?.distance ?? 45);
@@ -251,6 +250,12 @@ export class LightingVisual {
       light.penumbra = 0.7;
       light.intensity = 38 * drivingLightLevel(frame) * detail * localLightWeight(entry.distance, vehicleBoundary);
     });
+  }
+
+  private commit(mesh: THREE.InstancedMesh, count: number): void {
+    mesh.count = count;
+    mesh.instanceMatrix.needsUpdate = true;
+    mesh.instanceColor!.needsUpdate = true;
   }
 
   private pool(x: number, z: number, yaw: number, width: number, length: number, color: THREE.Color, intensity: number): void {
