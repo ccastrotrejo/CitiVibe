@@ -34,7 +34,7 @@ export function CityStage({ canvas, attempt, live, guide, status, send, settings
     {guide && live ? <aside className="first-guide"><p><strong>Explore every angle.</strong><span>Drag to pan. Cmd/Ctrl-drag to orbit.</span></p><button className="icon-button" aria-label="Dismiss navigation hint" onClick={onDismissGuide}><Icon name="close" /></button></aside> : null}
     <div className="scene-bottom">
       <div className="control-dock">
-        <span className="control-weather"><Icon name="sun" /><span>{status.daylight}<span className="badge-divider"> / </span>{WEATHER_LABELS[status.weather]}</span></span>
+        <span className="control-weather"><Icon name="sun" /><span className="environment-badge">{status.daylight}<span className="badge-divider"> / </span>{WEATHER_LABELS[status.weather]}</span></span>
         <span className="control-divider" aria-hidden="true" />
         <PrimaryControls status={status} live={live} send={send} fullscreenLabel={fullscreenLabel} onFullscreen={onFullscreen} />
         <div className="settings-anchor">
