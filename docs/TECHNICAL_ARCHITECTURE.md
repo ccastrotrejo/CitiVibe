@@ -4,6 +4,10 @@
 
 ## Current implementation
 
+### Lakeside scenery refinement
+
+`PARK_LAKESIDE` in the existing park content module shares the lake outline and bridge/fountain/pergola placement contract with art and regression tests. `world/park.ts` builds the continuous bridge profile, merged rails, hollow lathed fountain and shaded seating within the existing static-art lifecycle. The pond uses one vertex-colored material; sharing the original lawn/meadow colors on another vertex-colored material offsets that allocation. No simulation, camera, React state, runtime dependency or population changes are introduced. Named direct meshes join the same weather capture and snow-target collection as other static scenery; the existing scene disposal tests cover their ownership.
+
 ### Street-life expansion
 
 `streetFurniture.ts` submits twelve stationary cars, four sidewalk food carts, rounded mailboxes and extra street/park seating into the existing district batches before weather-surface capture. The shared content manifest chooses only the spare, non-cycling curb bands for parked cars; cabless carts occupy separate corner pockets with clear sidewalk approaches. Twelve painted parking bays and four pole signs remain after removal of the four truck bays. It adds no traffic obstacles in a live driving/cycling lane, timers, React state or new camera targets. Glazing uses the existing non-emissive material. The parent scene owns the shared civic-blue material, lettering, instance buffers and borrowed geometry.

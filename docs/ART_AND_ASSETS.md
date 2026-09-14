@@ -1,5 +1,15 @@
 # Art and assets
 
+## Lakeside refinement - 2026-09-14
+
+The user's park screenshot exposed a bridge that continued across the fountain and terrace, a stepped-looking deck/railing profile, sparse parallel reed sticks and incomplete pergola frames. This local refinement preserves the lake outline, terrace footprint, path network, trees, existing benches, reservoir and remaining city.
+
+The shared `PARK_LAKESIDE` dimensions describe a **23 x 2.8 m bridge** with a 1.15 m shallow rise and near-level approaches. A continuous extruded stone deck and matching dark rails replace overlapping flat slabs. Stone end posts, abutments and a paved west approach connect it to the existing lake walk and terrace. The east end stops at X=-9, leaving 3.5 m before the fountain's western edge rather than intersecting its basin. The bridge remains decorative scenery; no new visitor route or structural/accessibility certification is claimed.
+
+The **5 m-wide fountain** has an actual hollow basin, raised coping, shaped pedestal and upper bowl. Two compact timber pergolas, each with four posts, paired beams and nine roof slats, shelter the existing seats without obstructing the east walking route or bridge entrance. Five irregular reed/rock clusters and six lily pads replace the sparse rows. Reed stems retain the existing wind mechanism. Three vertex-colored water bands suggest deeper teal water and lighter shallows without a texture, reflection pass, new animation clock or external asset.
+
+Bridge rails and fountain stonework are merged into one mesh per material. Lawn and meadow surfaces share a vertex-colored material while retaining their exact original colors, leaving room for the dedicated pond material without increasing the whole-scene material ceiling. The park owns and disposes its generated geometry/materials; borrowed primitives remain scene-owned. Stone, wood and lawns retain weather/snow capture; open pond water does not collect snow shells. The unchanged companion SVG remains a simplified overview rather than a detailed rendering of these props.
+
 ## Street-life props - 2026-09-13
 
 The new [furniture manifest](../src/content/streetFurniture.ts) places **twelve parked cars** along the non-cycling curbs of Orchard and Juniper Streets. The existing protected two-way tracks remain on the opposite, park-facing sides. Cars stay inside the spare curb band, clear of moving vehicle bodies and more than twelve metres from adjacent intersection centers; no parking is inserted into a cycling lane or the car-free park.

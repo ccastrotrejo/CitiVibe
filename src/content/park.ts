@@ -2,6 +2,13 @@ import { CatmullRomCurve3, Vector3 } from 'three';
 
 export const PARK_BOUNDS = { x: 39, z: 88 } as const;
 export const PARK_RESERVOIR = { x: 0, z: -49.5, radiusX: 24.3, radiusZ: 22.5 } as const;
+export const PARK_LAKESIDE = {
+  shore: [[-30.6, 25.2], [-27, 18], [-16.2, 16.2], [-6.3, 21.6], [-4.5, 27.9], [-1.8, 34.2],
+    [-7.2, 44.1], [-18.9, 48.6], [-28.8, 40.5]],
+  bridge: { startX: -32, endX: -9, z: 31.5, width: 2.8, rise: 1.15, landingY: 0.04 },
+  fountain: { x: -3, z: 34.2, radius: 2.5 },
+  pergolas: [{ x: -6.3, z: 37.8 }, { x: 6.5, z: 37.8 }],
+} as const;
 export const PARK_ACTORS = [
   ...Array.from({ length: 48 }, (_, index) => ({ id: `walker-${index + 1}`, gait: 'walk' as const })),
   ...Array.from({ length: 24 }, (_, index) => ({ id: `runner-${index + 1}`, gait: 'run' as const })),
