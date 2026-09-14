@@ -4,6 +4,25 @@
 
 Use this matrix when implementing each [roadmap](ROADMAP.md) milestone. Numerical budgets are working targets; name the reference devices and record actual results before declaring them met. The [experience spec](EXPERIENCE_SPEC.md) is authoritative for pause/camera behavior.
 
+## Lakeside refinement - 2026-09-14
+
+This local art-only slice replaces the stepped bridge slabs and fountain overlap with a continuous shallow arch ending at the terrace, complete curved railings and stone landings. It adds a hollow fountain, two slatted timber pergolas and richer pond/shore planting without changing paths, trees, population, traffic, controls or the simulation clock. The original lawn colors are retained on a shared material to stay within the existing resource limits.
+
+**Executed source checks:** TypeScript, whole-project ESLint, the production build and the single-worker unit suite pass: **497 passed, 14 existing skips across 32 files** in 172.30 seconds. Five new park cases check the actual raycast deck profile and railing clearance, separated fountain/bridge bounds, all-path clearance for new direct meshes, hollow basin/rim heights, complete pergola supports/slats, water normals/color bands, retained lawn colors and weather/snow participation. The existing scene cases retain low-prop clearance, resource ownership, deterministic construction and budgets. No limits or assertions were relaxed in repository files.
+
+| Base source-scene accounting | Measured | Existing ceiling |
+| --- | ---: | ---: |
+| Triangles | 586,659 | <600,000 |
+| Visible mesh submissions | 109 | 110 |
+| Materials | 37 | 37 |
+| Visible geometries | 48 | No separate ceiling |
+
+These CPU counts exclude extra weather/shadow passes and are not FPS measurements. The existing emergency-vehicle baseline already allows 37 materials; this slice does not raise it. The renderer bundle is 498.25 kB / 137.55 kB gzip; the entry is 538.09 kB / 162.33 kB gzip, retaining the existing chunk-size warning.
+
+**Browser evidence and limits:** the unmodified production live-navigation/tour/help/pause scenario passes. The standard reduced-motion scenario exceeds its existing five-second readiness assertion; an isolated, untouched `a474f1b` archive reproduces the same failure. A session-only diagnostic with an explicitly longer 20-second assertion wait passes the guided-view/DPR/accessibility, real WebGL recovery, and deterministic paused-render/no-external-resource scenarios. The night/rain scenario reaches its weather controls but fails on the stale `.environment-badge` selector, which is already absent from baseline application code. The repository browser tests/configuration remain unchanged; these diagnostic results do not constitute a green standard browser suite.
+
+Served development captures were generated at 1440x900 (day), 1920x1080 (rotated view), and 1024x768 (night/rain), with no captured page or console errors. The session's image-viewing limit prevented inspection of those captures, so final aesthetic/all-angle approval is **not claimed**. Physical-device performance and broader weather/long-session sign-off remain open. This verification record precedes publication; the user subsequently approved a commit, push and pull request. Deployment remains excluded.
+
 ## Cross-input command parity - 2026-09-13
 
 This slice closes the outstanding M4 parity item. `src/app/commands.ts` is now the single source for every world command a person can invoke directly: the eleven camera actions plus pause and automatic views, each with its label, icon, shortcut keys, live-graphics requirement and held-key repeat rule. `Controls.tsx` renders its buttons from that table and `App.tsx` resolves shortcuts through it, so a button and its shortcut cannot drift apart. Behavior is unchanged: the same keys, command values, disabled states and repeat handling as before, including reset staying available on the static fallback.

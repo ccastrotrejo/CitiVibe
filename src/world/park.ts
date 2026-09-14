@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { PARK_BOUNDS, PARK_PATHS, PARK_PICNICS, PARK_RESERVOIR } from '../content/park';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { PARK_BOUNDS, PARK_LAKESIDE, PARK_PATHS, PARK_PICNICS, PARK_RESERVOIR } from '../content/park';
 import type { StreetscapeBuilder } from './streetscape';
 import { GROUND_PUDDLES } from './groundWater';
 
@@ -10,11 +11,12 @@ export function buildCentralPark({ block, add, box, cylinder, crown, palette: p 
   const group = new THREE.Group();
   group.name = 'Central park landscape';
   const geometries: THREE.BufferGeometry[] = [];
-  const grass = new THREE.MeshStandardMaterial({ color: '#849b70', roughness: 1 });
-  const meadow = new THREE.MeshStandardMaterial({ color: '#a0b782', roughness: 1 });
+  const grass = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 });
   const gravel = new THREE.MeshStandardMaterial({ color: '#cdbd9e', roughness: 1 });
   const track = new THREE.MeshStandardMaterial({ color: '#bc9b79', roughness: 1 });
-  for (const material of [grass, meadow, gravel, track]) material.userData.weatherSurface = true;
+  const pondWater = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.38, metalness: 0.08 });
+  pondWater.name = 'Lakeside depth-colored water';
+  for (const material of [grass, gravel, track]) material.userData.weatherSurface = true;
   gravel.name = 'Park gravel paths';
   track.name = 'Reservoir running surface';
   const mesh = (name: string, geometry: THREE.BufferGeometry, material: THREE.Material, y = 0) => {
@@ -26,12 +28,20 @@ export function buildCentralPark({ block, add, box, cylinder, crown, palette: p 
     group.add(result);
     return result;
   };
+  const joinedMesh = (name: string, parts: THREE.BufferGeometry[], material: THREE.Material) => {
+    const geometry = mergeGeometries(parts);
+    parts.forEach((part) => part.dispose());
+    if (!geometry) throw new Error(`Unable to merge park geometry: ${name}.`);
+    const result = mesh(name, geometry, material);
+    result.castShadow = true;
+    return result;
+  };
   const ellipse = (x: number, z: number, rx: number, rz: number): Point[] =>
     Array.from({ length: 80 }, (_, index) => {
       const angle = index * Math.PI / 40;
       return [x + Math.cos(angle) * rx, z + Math.sin(angle) * rz];
     });
-  const surface = (name: string, points: readonly Point[], y: number, material: THREE.Material, smooth = false) => {
+  const surface = (name: string, points: readonly Point[], y: number, material: THREE.Material, smooth = false, tint?: string) => {
     const outline = smooth
       ? new THREE.CatmullRomCurve3(points.map(([x, z]) => new THREE.Vector3(x, 0, z)), true, 'centripetal')
         .getPoints(100).map(({ x, z }) => [x, z] as const)
@@ -44,7 +54,14 @@ export function buildCentralPark({ block, add, box, cylinder, crown, palette: p 
         shape.holes.push(hole);
       }
     }
-    return mesh(name, new THREE.ShapeGeometry(shape).rotateX(-Math.PI / 2), material, y);
+    const geometry = new THREE.ShapeGeometry(shape).rotateX(-Math.PI / 2);
+    if (tint) {
+      const color = new THREE.Color(tint);
+      const colors = new THREE.Float32BufferAttribute(geometry.getAttribute('position').count * 3, 3);
+      for (let index = 0; index < colors.count; index++) colors.setXYZ(index, color.r, color.g, color.b);
+      geometry.setAttribute('color', colors);
+    }
+    return mesh(name, geometry, material, y);
   };
   const rod = (material: THREE.Material, from: THREE.Vector3, to: THREE.Vector3, width: number) => {
     const direction = to.clone().sub(from);
@@ -56,10 +73,10 @@ export function buildCentralPark({ block, add, box, cylinder, crown, palette: p 
   };
 
   surface('Park lawn', [[-PARK_BOUNDS.x, -PARK_BOUNDS.z], [PARK_BOUNDS.x, -PARK_BOUNDS.z],
-    [PARK_BOUNDS.x, PARK_BOUNDS.z], [-PARK_BOUNDS.x, PARK_BOUNDS.z]], -0.07, grass);
-  surface('Great lawn', ellipse(8.1, -2.7, 20.7, 18), -0.035, meadow);
-  surface('South meadow', ellipse(17.1, 59.4, 13.5, 16.2), -0.035, meadow);
-  surface('North grove', [[-36, -86.4], [-6.3, -85.5], [-8.1, -79.2], [-30.6, -77.4], [-35.1, -57.6]], -0.035, meadow, true);
+    [PARK_BOUNDS.x, PARK_BOUNDS.z], [-PARK_BOUNDS.x, PARK_BOUNDS.z]], -0.07, grass, false, '#849b70');
+  surface('Great lawn', ellipse(8.1, -2.7, 20.7, 18), -0.035, grass, false, '#a0b782');
+  surface('South meadow', ellipse(17.1, 59.4, 13.5, 16.2), -0.035, grass, false, '#a0b782');
+  surface('North grove', [[-36, -86.4], [-6.3, -85.5], [-8.1, -79.2], [-30.6, -77.4], [-35.1, -57.6]], -0.035, grass, true, '#a0b782');
   for (const path of PARK_PATHS) {
     const vertices: number[] = [];
     const indices: number[] = [];
@@ -98,38 +115,123 @@ export function buildCentralPark({ block, add, box, cylinder, crown, palette: p 
     }
   }
 
-  const lake: readonly Point[] = [[-30.6, 25.2], [-27, 18], [-16.2, 16.2], [-6.3, 21.6], [-4.5, 27.9], [-1.8, 34.2],
-    [-7.2, 44.1], [-18.9, 48.6], [-28.8, 40.5]];
+  const lake = PARK_LAKESIDE.shore;
   surface('Pond stone bank', lake.map(([x, z]) => [-16.2 + (x + 16.2) * 1.07, 31.5 + (z - 31.5) * 1.07]),
     -0.004, p.stone, true);
-  surface('Reed pond', lake, 0.012, p.water, true);
-  for (const [x, z] of [[-27.9, 23.4], [-26.1, 38.7], [-19.8, 46.8], [-9.9, 42.3], [-5.4, 26.1]]) {
-    for (let stem = 0; stem < 5; stem++) {
-      add(cylinder, p.leaf, [x + stem * 0.2, 0.6, z], [0.035, 1.2 + stem * 0.05, 0.035]);
+  const shoreline = new THREE.CatmullRomCurve3(lake.map(([x, z]) => new THREE.Vector3(x, 0, z)),
+    true, 'centripetal').getPoints(80).slice(0, -1);
+  const waterPositions = [-16.2, 0.012, 31.5];
+  const waterColors = new THREE.Color('#477d7c').toArray();
+  const waterIndices: number[] = [];
+  for (const [ring, radius] of [0.55, 0.86, 1].entries()) {
+    const color = new THREE.Color(['#477d7c', '#65958d', '#93b3a0'][ring]);
+    for (const [index, point] of shoreline.entries()) {
+      waterPositions.push(-16.2 + (point.x + 16.2) * radius, 0.012, 31.5 + (point.z - 31.5) * radius);
+      waterColors.push(color.r, color.g, color.b);
+      const current = 1 + ring * shoreline.length + index;
+      const next = 1 + ring * shoreline.length + (index + 1) % shoreline.length;
+      if (ring === 0) waterIndices.push(0, next, current);
+      else waterIndices.push(current - shoreline.length, next, current, current - shoreline.length, next - shoreline.length, next);
     }
   }
-  // A pale arched bridge is scenery; runners never leave their level reservoir loop.
-  for (let segment = 0; segment < 24; segment++) {
-    const t = segment / 23;
-    const x = -31.5 + 32.4 * t;
-    const y = 0.12 + Math.sin(t * Math.PI) * 1.35;
-    block(p.stone, x, y, 31.5, 1.46, 0.18, 2.5);
-    for (const side of [-1, 1]) {
-      block(p.paving, x, y + 1.02, 31.5 + side * 1.25, 1.46, 0.1, 0.09);
-      block(p.rubber, x, y + 0.5, 31.5 + side * 1.25, 0.055, 1, 0.055);
+  const waterGeometry = new THREE.BufferGeometry();
+  waterGeometry.setAttribute('position', new THREE.Float32BufferAttribute(waterPositions, 3));
+  waterGeometry.setAttribute('color', new THREE.Float32BufferAttribute(waterColors, 3));
+  waterGeometry.setIndex(waterIndices);
+  waterGeometry.computeVertexNormals();
+  mesh('Reed pond', waterGeometry, pondWater);
+
+  for (const [index, [x, z]] of [
+    [-28.5, 23.8], [-27.2, 39.2], [-20.8, 46.8], [-11.8, 46], [-6.2, 24.4],
+  ].entries()) {
+    add(crown, p.stone, [x, 0.13, z], [0.7, 0.28, 0.48], [0, index * 0.9, 0.1]);
+    for (let stem = 0; stem < 7; stem++) {
+      const angle = stem * 2.4 + index;
+      const height = 0.5 + (stem % 4) * 0.16;
+      const sx = x + Math.cos(angle) * 0.48;
+      const sz = z + Math.sin(angle) * 0.42;
+      add(cylinder, stem % 3 ? p.leaf : p.leafLight, [sx, height / 2, sz], [0.028, height, 0.028],
+        [Math.cos(angle) * 0.22, angle, Math.sin(angle) * 0.22]);
+      if (stem % 3 === 0) block(p.wood, sx, height, sz, 0.075, 0.2, 0.075);
     }
+  }
+  for (const [x, z] of [[-25, 24], [-24.3, 24.5], [-25.1, 25.1], [-17.5, 43.6], [-18.3, 44], [-17.1, 44.4]]) {
+    add(cylinder, p.leaf, [x, 0.035, z], [0.3, 0.025, 0.24]);
   }
 
+  // One continuous profile, ending at the terrace rather than crossing the fountain.
+  const bridge = PARK_LAKESIDE.bridge;
+  const deckY = (t: number) => bridge.landingY + Math.sin(t * Math.PI) ** 2 * bridge.rise;
+  const archProfile = (width: number, thickness: number, lift: number, z: number) => {
+    const shape = new THREE.Shape();
+    for (let index = 0; index <= 32; index++) {
+      const t = index / 32;
+      const x = THREE.MathUtils.lerp(bridge.startX, bridge.endX, t);
+      if (index === 0) shape.moveTo(x, deckY(t) + lift);
+      else shape.lineTo(x, deckY(t) + lift);
+    }
+    for (let index = 32; index >= 0; index--) {
+      const t = index / 32;
+      shape.lineTo(THREE.MathUtils.lerp(bridge.startX, bridge.endX, t), deckY(t) + lift - thickness);
+    }
+    shape.closePath();
+    const geometry = new THREE.ExtrudeGeometry(shape, { depth: width, bevelEnabled: false, steps: 1 });
+    geometry.translate(0, 0, z - width / 2);
+    return geometry;
+  };
+  mesh('Lake bridge continuous deck', archProfile(bridge.width, 0.24, 0, bridge.z), p.stone).castShadow = true;
+  const rails: THREE.BufferGeometry[] = [];
+  for (const side of [-1, 1]) {
+    const z = bridge.z + side * (bridge.width / 2 - 0.08);
+    rails.push(archProfile(0.09, 0.075, 1.12, z), archProfile(0.055, 0.045, 0.32, z));
+  }
+  joinedMesh('Lake bridge curved railings', rails, p.rubber);
+  for (let index = 0; index <= 20; index++) {
+    const t = index / 20;
+    const x = THREE.MathUtils.lerp(bridge.startX, bridge.endX, t);
+    const y = deckY(t);
+    for (const side of [-1, 1]) {
+      block(p.rubber, x, y + 0.56, bridge.z + side * 1.32, 0.065, 1.12, 0.065);
+    }
+    if (index > 0 && index < 20) {
+      const slope = Math.sin(t * 2 * Math.PI) * Math.PI * bridge.rise / (bridge.endX - bridge.startX);
+      add(box, p.paving, [x, y + 0.007, bridge.z], [0.035, 0.012, 2.5], [0, 0, Math.atan(slope)]);
+    }
+  }
+  for (const x of [bridge.startX, bridge.endX]) {
+    block(p.stone, x, -0.14, bridge.z, 1.2, 0.35, 3.4);
+    for (const side of [-1, 1]) {
+      block(p.stone, x, 0.58, bridge.z + side * 1.57, 0.42, 1.16, 0.42);
+      block(p.paving, x, 1.19, bridge.z + side * 1.57, 0.52, 0.1, 0.52);
+    }
+  }
+  block(p.paving, bridge.startX - 1.05, -0.015, bridge.z, 2.2, 0.08, 3.4);
+
   surface('Lakeside terrace', [[-9, 26.1], [9, 26.1], [9.9, 32.4], [9, 40.5], [-9, 40.5], [-9.9, 32.4]], 0.025, p.paving);
-  add(cylinder, p.stone, [-1.8, 0.25, 33.3], [3, 0.45, 3]);
-  add(cylinder, p.water, [-1.8, 0.49, 33.3], [2.55, 0.05, 2.55]);
-  add(cylinder, p.stone, [-1.8, 1.2, 33.3], [0.35, 1.5, 0.35]);
-  add(cylinder, p.stone, [-1.8, 1.98, 33.3], [1.25, 0.16, 1.25]);
-  add(cylinder, p.water, [-1.8, 2.08, 33.3], [1.08, 0.04, 1.08]);
-  add(crown, p.stone, [-1.8, 2.5, 33.3], [0.25, 0.44, 0.25]);
-  for (const x of [-8.1, 8.1]) {
-    for (const z of [27, 30.6, 34.2]) block(p.cream, x, 1.9, z, 0.45, 3.6, 0.45);
-    block(p.stone, x, 3.8, 30.6, 0.7, 0.24, 8.1);
+  const fountain = PARK_LAKESIDE.fountain;
+  const turnedStone = (profile: readonly Point[]) => {
+    const geometry = new THREE.LatheGeometry(profile.map(([radius, y]) => new THREE.Vector2(radius, y)), 20);
+    geometry.translate(fountain.x, 0, fountain.z);
+    return geometry;
+  };
+  joinedMesh('Lakeside fountain', [
+    turnedStone([[0, 0.06], [fountain.radius, 0.06], [fountain.radius, 0.22], [2.38, 0.22],
+      [2.38, 0.55], [fountain.radius, 0.55], [fountain.radius, 0.68], [2.12, 0.68], [2.12, 0.2], [0, 0.2]]),
+    turnedStone([[0, 0.18], [0.62, 0.18], [0.62, 0.4], [0.35, 0.52],
+      [0.24, 1.45], [0.7, 1.6], [1.05, 1.92], [1.05, 2.06], [0.88, 2.06], [0.65, 1.82], [0, 1.82]]),
+  ], p.stone);
+  add(cylinder, p.water, [fountain.x, 0.49, fountain.z], [2.12, 0.035, 2.12]);
+  add(cylinder, p.water, [fountain.x, 1.96, fountain.z], [0.91, 0.035, 0.91]);
+  add(cylinder, p.copperEdge, [fountain.x, 2.05, fountain.z], [0.07, 0.2, 0.07]);
+  for (const { x, z } of PARK_LAKESIDE.pergolas) {
+    for (const side of [-1, 1]) for (const end of [-1, 1]) {
+      block(p.stone, x + side * 1.35, 0.18, z + end * 1.15, 0.42, 0.3, 0.42);
+      block(p.wood, x + side * 1.35, 1.47, z + end * 1.15, 0.18, 2.62, 0.18);
+    }
+    for (const side of [-1, 1]) block(p.wood, x + side * 1.35, 2.82, z, 0.16, 0.26, 3.15);
+    for (let slat = 0; slat < 9; slat++) {
+      block(p.wood, x, 3.01, z - 1.45 + slat * 0.36, 3.5, 0.16, 0.12);
+    }
   }
   for (let step = 0; step < 5; step++) {
     block(p.stone, 10.8, 0.09 + step * 0.1, 16.92 + step * 0.45, 8.1, 0.18 + step * 0.2, 0.48);
@@ -217,7 +319,7 @@ export function buildCentralPark({ block, add, box, cylinder, crown, palette: p 
       if (disposed) return;
       disposed = true;
       geometries.forEach((geometry) => geometry.dispose());
-      [grass, meadow, gravel, track].forEach((material) => material.dispose());
+      [grass, gravel, track, pondWater].forEach((material) => material.dispose());
       group.removeFromParent();
       group.clear();
     },
