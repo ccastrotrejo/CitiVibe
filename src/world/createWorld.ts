@@ -90,6 +90,8 @@ export function createWorld({ canvas, model, onChange, onLifecycle }: WorldOptio
   let pageHidden = document.hidden;
   let restoreTimeout: ReturnType<typeof setTimeout> | undefined;
   let viewHeight: number = CAMERA_PROJECTION.overviewHeight;
+  let lastProjectionZoom = NaN;
+  let projectionDirty = true;
 
   const visible = () => !pageHidden && !document.hidden;
   const available = () => !disposed && !lost && !failed && visible();
@@ -110,15 +112,22 @@ export function createWorld({ canvas, model, onChange, onLifecycle }: WorldOptio
       mesh.position.set(actor.position.x, actor.position.y, actor.position.z);
       mesh.rotation.y = actor.heading;
     }
-    art.setTrafficSignals?.(model.simulation.traffic.signals);
-    art.updateCourtActivity?.(model.simulation.elapsed, model.reducedMotion,
-      model.environment.physics.snowDepth, model.simulation.actors);
-    art.updateActors?.();
+    art.frame({
+      signals: model.simulation.traffic.signals,
+      elapsedSeconds: model.simulation.elapsed,
+      reducedMotion: model.reducedMotion,
+      groundLift: model.environment.physics.snowDepth,
+      actors: model.simulation.actors,
+    });
     const radius = CAMERA_PROJECTION.distance * Math.cos(pose.pitch);
     camera.position.set(pose.x + Math.sin(pose.yaw) * radius, CAMERA_PROJECTION.distance * Math.sin(pose.pitch), pose.z + Math.cos(pose.yaw) * radius);
     camera.lookAt(pose.x, 0, pose.z);
     camera.zoom = pose.zoom;
-    camera.updateProjectionMatrix();
+    if (pose.zoom !== lastProjectionZoom || projectionDirty) {
+      camera.updateProjectionMatrix();
+      lastProjectionZoom = pose.zoom;
+      projectionDirty = false;
+    }
     environment.update(model.environment.frame, { reducedMotion: model.reducedMotion, lightweight }, model.environment.physics);
     lighting.update(model.environment.frame, model.environment.physics, model.simulation.elapsed, camera, pose,
       { reducedMotion: model.reducedMotion, lightweight });
@@ -211,6 +220,7 @@ export function createWorld({ canvas, model, onChange, onLifecycle }: WorldOptio
     camera.right = viewHeight * aspect / 2;
     camera.top = viewHeight / 2;
     camera.bottom = -viewHeight / 2;
+    projectionDirty = true;
     renderer.setSize(width, height, false);
     if (available()) {
       try { draw(); } catch (error) { reportFailure(error); }
