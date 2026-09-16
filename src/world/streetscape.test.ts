@@ -1301,6 +1301,31 @@ describe('original connected-city streetscape', () => {
     }
   });
 
+  it('frames vehicle and pedestrian signals in yellow with recessed dark faces in every orientation', () => {
+    const { parts, builder } = createArt();
+    const housings = parts.filter(({ surface, scale }) => surface === builder.palette.taxi &&
+      scale[2] === 0.3 && ((scale[0] === 0.65 && scale[1] === 1.42) ||
+        (scale[0] === 0.53 && scale[1] === 0.8)));
+    expect(housings).toHaveLength(approachCount * 2);
+    for (const housing of housings) {
+      const [x, y, z] = housing.position;
+      const nearby = parts.filter(({ position }) => Math.hypot(position[0] - x, position[2] - z) < 0.5 &&
+        Math.abs(position[1] - y) < 0.8);
+      const face = nearby.find(({ surface, scale }) => surface === builder.palette.rubber && scale[2] === 0.035)!;
+      expect(face).toBeDefined();
+      expect(face.scale[0]).toBeCloseTo(housing.scale[0] - 0.1);
+      expect(face.scale[1]).toBeCloseTo(housing.scale[1] - 0.1);
+      const offset = new THREE.Vector3(...face.position).sub(new THREE.Vector3(...housing.position))
+        .applyAxisAngle(new THREE.Vector3(0, 1, 0), -housing.rotation[1]);
+      expect(offset.x).toBeCloseTo(0);
+      expect(offset.z).toBeCloseTo(0.16);
+      const rims = nearby.filter(({ surface, scale }) => surface === builder.palette.taxi &&
+        scale[2] === 0.085 && (scale[0] === 0.055 || scale[1] === 0.055));
+      expect(rims).toHaveLength(4);
+      expect(rims.every(({ scale }) => scale[2] > face.scale[2])).toBe(true);
+    }
+  });
+
   it('leaves posted all-way stops without signal masts while their painted bars remain', () => {
     const { parts, builder } = createArt();
     const masts = parts.filter(({ shape, surface, scale }) => shape === builder.cylinder &&

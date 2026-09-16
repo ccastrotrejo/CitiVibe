@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { BIKE_SHARE_STATIONS } from '../content/bikeShare';
+import { BIKE_SHARE_STATIONS, sharedBikeKind } from '../content/bikeShare';
 import { createPersonProfile } from '../content/people';
 import type { TrafficActorDefinition } from '../content/streets';
 import { buildSharedBike } from './bikeShare';
@@ -81,7 +81,9 @@ export function buildVehicleRig(
     if (!stationRider) group.userData.person = person;
     const riderPart = (name: string, color: string, p: Triple, size: Triple, rounded = false) =>
       personPart(personArt, body, name, color, p, size, rounded);
-    const bicycle = buildSharedBike(personArt, civicBlue);
+    const bikeKind = sharedBikeKind(definition.id);
+    const bicycle = buildSharedBike(personArt, civicBlue, bikeKind);
+    group.userData.bikeKind = bikeKind;
     body.add(bicycle.group);
     for (const wheelRig of bicycle.wheelRigs) group.add(wheelRig.steer);
     wheels.push(...bicycle.wheelRigs);
@@ -114,7 +116,8 @@ export function buildVehicleRig(
       return { joints: { hip, knee, ankle }, crank, pedal };
     });
     const rig: VehicleRig = { kind: 'vehicle', body, wheels, wheelRadius: 0.32, pedals: bicycle.pedals, cyclingLegs };
-    lamp('head', 0, 1.04, 0.79, [0.12, 0.1, 0.09]);
+    lamp('head', 0, 1.04, bikeKind === 'electric' ? 0.88 : 0.79,
+      bikeKind === 'electric' ? [0.16, 0.095, 0.09] : [0.12, 0.1, 0.09]);
     lamp('tail', 0, 0.93, -0.76, [0.1, 0.1, 0.07]);
     group.userData.rig = rig;
     poseNeutral(rig);

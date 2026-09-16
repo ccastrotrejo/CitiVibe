@@ -1,4 +1,5 @@
 import { createPersonProfile, PERSON_SPACE, type PersonProfile } from '../content/people';
+import { bikeAccessStopDistance, type BikeAccessBarrier } from '../content/bikeShare';
 import { INTERSECTIONS, TRAFFIC_ACTORS, type TrafficSignalState } from '../content/streets';
 import type { ActorState } from './actors';
 import { sampleTrafficRoute, SIDEWALK_WALKING_CORNER_INSET, type TrafficRoute } from './traffic';
@@ -155,7 +156,7 @@ export class StreetPedestrians {
       corridorDistance(crossing, other.actor.position) >= PERSON_SPACE.headway);
   }
 
-  step(dt: number, signals: readonly TrafficSignalState[]): void {
+  step(dt: number, signals: readonly TrafficSignalState[], bikeAccess?: BikeAccessBarrier): void {
     for (const walker of this.walkers) {
       const { actor } = walker;
       walker.advance = 0;
@@ -219,6 +220,8 @@ export class StreetPedestrians {
           }
         }
       }
+      if (bikeAccess) available = Math.min(available, bikeAccessStopDistance(bikeAccess,
+        actor.position.x, actor.position.z, actor.heading, PERSON_SPACE.headway / 2));
       walker.advance = available;
       this.sampleNext(walker, available);
     }
