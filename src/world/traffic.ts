@@ -4,7 +4,8 @@ import {
   type TrafficSignalState, type TrafficVehicleType,
 } from '../content/streets';
 import {
-  BIKE_SHARE_LAYOUT, BIKE_SHARE_STATIONS, type BikeSharePhase, type BikeShareStation, type BikeShareTripState,
+  BIKE_SHARE_LAYOUT, BIKE_SHARE_STATIONS, JUNIPER_ACCESS_CROSSING, bikeAccessStopDistance,
+  type BikeSharePhase, type BikeShareStation, type BikeShareTripState,
 } from '../content/bikeShare';
 import { PERSON_SPACE } from '../content/people';
 import type { ActorState } from './actors';
@@ -75,8 +76,7 @@ export interface TrafficRoute {
 
 type SharedBikeGate =
   | { type: 'pedestrian'; stationId: string; crossingX: number; crossingZ: number; horizontal: boolean; length: number; spanLength?: number }
-  | { type: 'merge'; stationId: string; targetLane: string; targetCoord: number }
-  | { type: 'roadway'; stationId: string; crossingX: number; crossingZ: number; length: number };
+  | { type: 'merge'; stationId: string; targetLane: string; targetCoord: number };
 
 interface Motion {
   actor: ActorState;
@@ -101,6 +101,8 @@ interface SharedBikeMotion {
   spurEnd: number;
   dockRemaining: number;
   dockDuration: number;
+  crossings: readonly { start: number; end: number }[];
+  travelDistance: number;
 }
 
 interface SharedBikeRoute {
@@ -110,6 +112,7 @@ interface SharedBikeRoute {
   spurStart: number;
   spurEnd: number;
   initialDwell: number;
+  crossings: readonly { start: number; end: number }[];
 }
 
 interface Junction extends TrafficSignalState {
@@ -366,6 +369,7 @@ function spliceBikeShareRoute(
   return {
     station, route, dockDistance, spurStart, spurEnd,
     initialDwell: 1 + (station.phase % BIKE_SHARE_LAYOUT.dockSeconds),
+    crossings: [],
   };
 }
 
@@ -438,18 +442,13 @@ function makeJuniperTrip(station: BikeShareStation, base: TrafficRoute, laneInde
   const northArcEnd = endOfTurn(northArcStart, { x: 1, z: 0 }, -1, r);
   const mergeArcStart = { x: northArcEnd.x, z: link.z + r };
   const mergeArcEnd = endOfTurn(mergeArcStart, { x: 0, z: -1 }, 1, r);
-  const roadGateOut: SharedBikeGate = { type: 'roadway', stationId: station.id, crossingX: northArcEnd.x,
-    crossingZ: (northArcEnd.z + mergeArcStart.z) / 2, length: Math.abs(northArcEnd.z - mergeArcStart.z) + 8 };
-  const pedGateOut: SharedBikeGate = { type: 'pedestrian', stationId: station.id, crossingX: northArcEnd.x,
-    crossingZ: 101.7, horizontal: false, length: Math.abs(northArcEnd.z - mergeArcStart.z), spanLength: 3.8 };
-  const juniperOutGates: SharedBikeGate[] = [roadGateOut, pedGateOut, bikeShareLaneGate(station.id, link, entryAlong)];
   const spur = [
     turnSegment(exit, { x: 1, z: 0 }, 1, r, `${station.id}:exit-arc`),
     straightSegment(exitArcEnd, crossInEnd, `${station.id}:roadway-in`),
     turnSegment(crossInEnd, { x: 0, z: 1 }, 1, r, `${station.id}:apron-in-arc`),
     straightSegment(westArcEnd, dockTurnStart, `${station.id}:apron-in`),
     turnSegment(dockTurnStart, { x: -1, z: 0 }, -1, r, `${station.id}:dock-approach`),
-    straightSegment(dock, postDock, `${station.id}:dock-departure`, SHARED_BIKE_SPUR_SPEED, juniperOutGates),
+    straightSegment(dock, postDock, `${station.id}:dock-departure`),
     turnSegment(postDock, { x: 0, z: 1 }, -1, r, `${station.id}:apron-out-arc`),
     straightSegment(departArcEnd, northArcStart, `${station.id}:apron-out`),
     turnSegment(northArcStart, { x: 1, z: 0 }, -1, r, `${station.id}:roadway-out-arc`),
@@ -457,7 +456,16 @@ function makeJuniperTrip(station: BikeShareStation, base: TrafficRoute, laneInde
     turnSegment(mergeArcStart, { x: 0, z: -1 }, 1, r, `${station.id}:merge-arc`),
   ];
   if (Math.hypot(mergeArcEnd.x - entryX, mergeArcEnd.z - link.z) > 1e-6) throw new Error('Bad Juniper shared-bike merge.');
-  return spliceBikeShareRoute(base, laneIndex, exitAlong, entryAlong, station, spur, 4);
+  const trip = spliceBikeShareRoute(base, laneIndex, exitAlong, entryAlong, station, spur, 4);
+  const at = (name: string) => {
+    const segment = trip.route.segments.find((segment) => segment.lane === `${station.id}:${name}`);
+    if (!segment) throw new Error(`Missing Juniper crossing segment: ${name}.`);
+    return segment.start;
+  };
+  return { ...trip, crossings: [
+    { start: trip.spurStart, end: at('dock-approach') },
+    { start: at('roadway-out-arc'), end: trip.spurEnd + TRAFFIC_LENGTHS.bicycle },
+  ] };
 }
 
 export const SHARED_BIKE_ROUTES: readonly SharedBikeRoute[] = Object.freeze((() => {
@@ -596,6 +604,7 @@ export class CityTraffic {
   private readonly junctions: Junction[];
   private readonly motions: Motion[];
   readonly pedestrians: StreetPedestrians;
+  private bikeCrossing: { motion: Motion; start: number; end: number; granted: boolean } | null = null;
 
   constructor(seed = 2401) {
     if (!Number.isInteger(seed) || seed < 0 || seed > 0xffffffff) throw new RangeError('Traffic seed must be an unsigned 32-bit integer.');
@@ -671,6 +680,8 @@ export class CityTraffic {
           station: bikeShare.station, dockDistance: bikeShare.dockDistance,
           spurStart: bikeShare.spurStart, spurEnd: bikeShare.spurEnd,
           dockRemaining: bikeShare.initialDwell, dockDuration: BIKE_SHARE_LAYOUT.dockSeconds,
+          crossings: bikeShare.crossings,
+          travelDistance: 0,
         };
         actor.state = 'dwelling';
         actor.sharedBike = this.sharedBikeState(motion);
@@ -694,12 +705,14 @@ export class CityTraffic {
     // Wet-road stopping space anticipates worsening grip; dry spacing stays unchanged.
     const reserveBraking = traction === 1 ? braking : TRAFFIC.braking * 0.3;
     this.elapsed += seconds;
+    this.reserveBikeCrossing(seconds, reserveBraking);
     this.advanceSignals(seconds);
     this.reserveIntersections(seconds, reserveBraking, speedFactor);
     this.planMovement(seconds, acceleration, braking, reserveBraking, speedFactor);
     for (const motion of this.motions) {
       this.move(motion);
       if (motion.bikeShare) {
+        motion.bikeShare.travelDistance += motion.advance;
         const dockError = Math.min(
           ahead(motion.actor.distance, motion.bikeShare.dockDistance, motion.route.length),
           ahead(motion.bikeShare.dockDistance, motion.actor.distance, motion.route.length),
@@ -723,7 +736,42 @@ export class CityTraffic {
       }
     }
     this.publishWalkSignals();
-    this.pedestrians.step(seconds, this.signals);
+    this.pedestrians.step(seconds, this.signals, this.bikeCrossing ? JUNIPER_ACCESS_CROSSING : undefined);
+  }
+
+  private reserveBikeCrossing(dt: number, braking: number): void {
+    if (this.bikeCrossing?.granted &&
+      this.bikeCrossing.motion.actor.distance >= this.bikeCrossing.end) this.bikeCrossing = null;
+    if (!this.bikeCrossing) {
+      for (const motion of this.motions) {
+        for (const crossing of motion.bikeShare?.crossings ?? []) {
+          const toStart = ahead(motion.actor.distance, crossing.start, motion.route.length);
+          const requestDistance = motion.length / 2 + 0.3 + motion.actor.speed ** 2 / (2 * braking) +
+            motion.actor.speed * dt + 1;
+          if (toStart <= requestDistance) {
+            this.bikeCrossing = { motion, ...crossing, granted: false };
+            break;
+          }
+        }
+        if (this.bikeCrossing) break;
+      }
+    }
+    const crossing = this.bikeCrossing;
+    if (!crossing || crossing.granted) return;
+    const box = JUNIPER_ACCESS_CROSSING;
+    const occupies = (actor: ActorState, radius: number) =>
+      actor.position.x > box.minX - radius + EPSILON && actor.position.x < box.maxX + radius - EPSILON &&
+      actor.position.z > box.minZ - radius + EPSILON && actor.position.z < box.maxZ + radius - EPSILON;
+    for (const other of this.motions) {
+      if (other === crossing.motion) continue;
+      const radius = other.length / 2 + 0.4;
+      const stop = bikeAccessStopDistance(box, other.actor.position.x, other.actor.position.z, other.actor.heading, radius);
+      // Let traffic already too close to brake clear before granting; never force an abrupt stop.
+      if (occupies(other.actor, radius) ||
+        stop < other.actor.speed ** 2 / (2 * braking) + other.actor.speed * dt) return;
+    }
+    if (this.pedestrians.actors.some((actor) => occupies(actor, PERSON_SPACE.headway / 2))) return;
+    crossing.granted = true;
   }
 
   /** Published after movement so walkers only ever see this tick's occupancy. */
@@ -866,34 +914,16 @@ export class CityTraffic {
     return true;
   }
 
-  private roadwayGateOpen(gate: Extract<SharedBikeGate, { type: 'roadway' }>, reserveBraking: number, speedFactor: number): boolean {
-    const crossingTime = gate.length / SHARED_BIKE_SPUR_SPEED;
-    for (const other of this.motions) {
-      if (other.bicycle) continue;
-      const segment = other.route.segments[other.segment];
-      if (segment.kind !== 'link' || segment.dx === 0 || Math.abs(other.actor.position.z - 95) > 4) continue;
-      const approach = Math.abs(other.actor.position.x - gate.crossingX);
-      const speed = Math.max(other.actor.speed, other.desiredSpeed * speedFactor);
-      const needed = other.length / 2 + TRAFFIC_LENGTHS.bicycle / 2 + TRAFFIC.vehicleGap +
-        speed * crossingTime + speed ** 2 / (2 * reserveBraking);
-      if (approach < needed) return false;
-    }
-    return true;
-  }
-
   private gatesOpen(motion: Motion, gates: readonly SharedBikeGate[], dt: number, reserveBraking: number, speedFactor: number): boolean {
-    return gates.every((gate) => {
-      if (gate.type === 'pedestrian') return this.pedestrianGateOpen(gate);
-      if (gate.type === 'merge') return this.mergeGateOpen(motion, gate, dt, reserveBraking, speedFactor);
-      return this.roadwayGateOpen(gate, reserveBraking, speedFactor);
-    });
+    return gates.every((gate) => gate.type === 'pedestrian' ? this.pedestrianGateOpen(gate) :
+      this.mergeGateOpen(motion, gate, dt, reserveBraking, speedFactor));
   }
 
   private gateAlong(segment: TrafficSegment, gate: SharedBikeGate): number {
     if (segment.kind !== 'link') return 0;
     if (gate.type === 'merge') return segment.length;
     const center = (gate.crossingX - segment.x) * segment.dx + (gate.crossingZ - segment.z) * segment.dz;
-    const halfSpan = (gate.type === 'pedestrian' ? gate.spanLength ?? gate.length : gate.length) / 2;
+    const halfSpan = (gate.spanLength ?? gate.length) / 2;
     return Math.max(0, Math.min(segment.length, center - halfSpan));
   }
 
@@ -911,11 +941,24 @@ export class CityTraffic {
       }
       const segment = motion.route.segments[motion.segment];
       let available = motion.route.length;
+      const crossing = this.bikeCrossing;
+      if (crossing) {
+        if (crossing.motion === motion) {
+          if (!crossing.granted) available = Math.max(0,
+            ahead(actor.distance, crossing.start, motion.route.length) - motion.length / 2 - 0.3);
+        } else {
+          const stop = bikeAccessStopDistance(JUNIPER_ACCESS_CROSSING,
+            actor.position.x, actor.position.z, actor.heading, motion.length / 2 + 0.4);
+          if (crossing.granted || stop >= actor.speed ** 2 / (2 * reserveBraking) + actor.speed * dt) {
+            available = Math.min(available, stop);
+          }
+        }
+      }
       if (segment.kind === 'link') {
         const along = actor.distance - segment.start;
         const laneCoord = this.laneCoordinate(actor, segment);
         if (segment.intersection >= 0 && motion.permit !== segment.intersection) {
-          available = Math.max(0, segment.length - along - motion.length / 2 - STOP_APPROACH_BUFFER);
+          available = Math.min(available, Math.max(0, segment.length - along - motion.length / 2 - STOP_APPROACH_BUFFER));
         }
         for (const leader of this.motions) {
           if (leader === motion) continue;
@@ -1004,6 +1047,7 @@ export class CityTraffic {
       heading: actor.heading,
       speed: actor.speed,
       distanceFromDock: ahead(trip.dockDistance, actor.distance, motion.route.length),
+      travelDistance: trip.travelDistance,
       docked,
       lockConfirmed: docked && trip.dockRemaining < trip.dockDuration - 2,
     };
