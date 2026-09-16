@@ -20,6 +20,9 @@ import {
 } from './streetscape';
 import { sampleTrafficRoute, SIDEWALK_WALKING_CLEARANCE, SIDEWALK_WALKING_OFFSETS, SIDEWALK_WALKING_ROUTES } from './traffic';
 import { FoliageWind } from './weatherArt';
+import {
+  buildingFrontPoint, buildingFrontSpan, faceName, PARTY_WALL_JOINT, STREET_WALL_OPENINGS,
+} from './buildingFabric';
 
 interface Part {
   shape: THREE.BufferGeometry;
@@ -117,7 +120,7 @@ function buildingParts(parts: Part[], building: StreetBuilding) {
   const isBase = ({ position, scale }: Part, candidate: StreetBuilding) =>
     position[0] === candidate.x && position[2] === candidate.z &&
     position[1] === (candidate.brownstone ? 0.4 : 0.17) &&
-    scale[0] === candidate.width + 0.3 && scale[2] === candidate.depth + 0.3;
+    scale[0] === candidate.width && scale[2] === candidate.depth;
   const start = parts.findIndex((part) => isBase(part, building));
   expect(start).toBeGreaterThanOrEqual(0);
   const next = STREET_BUILDINGS[STREET_BUILDINGS.indexOf(building) + 1];
@@ -209,7 +212,7 @@ describe('original connected-city streetscape', () => {
     }
   });
 
-  it('retains all relocated IDs and court clearances while varying dimensions inside their original envelopes', () => {
+  it('retains relocated IDs and court clearances while joining the horizontal blockfronts', () => {
     expect(STREET_BUILDINGS.map(({ id }) => id)).toEqual(
       Array.from({ length: 94 }, (_, index) => `street-building-${index + 1}`));
     const destinations = [
@@ -220,7 +223,7 @@ describe('original connected-city streetscape', () => {
       const building = STREET_BUILDINGS[10 + column];
       const brownstone = column === 0 || column === 4;
       expect(building.blockId).toBe(destinations[column]);
-      expect(building.width).toBeLessThanOrEqual(column % 2 ? 6.6 : 6.3);
+      expect(building.width).toBeLessThanOrEqual(9);
       expect(building.width).toBeGreaterThanOrEqual((column % 2 ? 6.6 : 6.3) * 0.75);
       expect(building.depth).toBeLessThanOrEqual(7.6 + column % 3 * 0.6);
       expect(building.depth).toBeGreaterThanOrEqual((7.6 + column % 3 * 0.6) * 0.9);
@@ -229,18 +232,18 @@ describe('original connected-city streetscape', () => {
       if (brownstone) expect(building.facadeFamily).toBe('brownstone');
       expect(tonesOf(building.facadeFamily).map(({ hex }) => hex)).toContain(building.tone);
       expect(building.brownstone).toBe(brownstone);
-      expect(building.stoop).toBe(column % 2 === 0);
-      expect(building.fireEscape).toBe((10 + column) % 3 === 0);
+      expect(building.stoop).toBe(building.use === 'residential' && column % 2 === 0);
+      expect(building.fireEscape).toBe(building.use !== 'office' && (10 + column) % 3 === 0);
       expect(building.setbackFloors).toBe(column === 5 ? 2 : 0);
     }
     for (const row of [0, 4]) {
       const wall = STREET_BUILDINGS.filter(({ blockId }) => blockId === `block-2-${row}`).sort((a, b) => a.x - b.x);
       expect(wall).toHaveLength(6);
-      expect(wall[0].width).toBeLessThanOrEqual(6.3);
-      expect(wall[5].width).toBeLessThanOrEqual(6.3);
+      expect(wall[0].width).toBeLessThanOrEqual(9);
+      expect(wall[5].width).toBeLessThanOrEqual(9);
       for (let index = 1; index < wall.length; index++) {
         expect(wall[index].x - wall[index].width / 2 - wall[index - 1].x - wall[index - 1].width / 2)
-          .toBeGreaterThanOrEqual(0.8);
+          .toBeCloseTo(PARTY_WALL_JOINT, 8);
       }
     }
   });
@@ -261,6 +264,10 @@ describe('original connected-city streetscape', () => {
       [{ ...first, architecture: { ...first.architecture, baySpacing: 0.5 } }],
       [{ ...first, architecture: { ...first.architecture, parapetHeight: 1 } }],
       [{ ...first, architecture: { ...first.architecture, family: 'loft' as const } }],
+      [{ ...first, use: 'office' as const }],
+      [{ ...first, use: 'mixed-use' as const, storefront: null }],
+      [{ ...first, attached: ['south' as const] }],
+      [{ ...first, front: { axis: 'z' as const, side: -1 as const } }],
       [{ ...first, blockId: 'not-a-parcel' }],
       [{ ...first, z: -33, stoop: true }],
       [{ ...first, x: -39 + first.width / 2 + 0.4 - 0.0001 }],
@@ -268,11 +275,11 @@ describe('original connected-city streetscape', () => {
     ]) expect(() => validateStreetscape(buildings)).toThrow();
   });
 
-  it('seeds dimensions, facade families and rooflines independently without moving the authored city', () => {
+  it('seeds dimensions, uses and rooflines inside the same city parcels', () => {
     expect(createStreetBuildings()).toEqual(STREET_BUILDINGS);
     const another = createStreetBuildings(173);
     expect(another).not.toEqual(STREET_BUILDINGS);
-    const footprint = (building: StreetBuilding) => [building.id, building.blockId, building.x, building.z];
+    const footprint = (building: StreetBuilding) => [building.id, building.blockId, building.plantingFootprint];
     expect(another.map(footprint)).toEqual(STREET_BUILDINGS.map(footprint));
     expect(new Set(STREET_BUILDINGS.map(({ width, depth }) => `${width}:${depth}`)).size).toBe(94);
     expect(new Set(STREET_BUILDINGS.map(({ architecture }) => architecture.family)).size).toBe(4);
@@ -290,7 +297,92 @@ describe('original connected-city streetscape', () => {
     }
   });
 
-  it('draws glazing at every authored floor on all four facades, including setbacks', () => {
+  it('replaces incidental alleys with paired lot lines while keeping civic openings and avenue fronts aligned', () => {
+    let joints = 0;
+    for (const building of STREET_BUILDINGS) {
+      for (const face of building.attached) {
+        const axis = face === 'west' || face === 'east' ? 'x' : 'z';
+        const size = axis === 'x' ? 'width' : 'depth';
+        const side = face === 'west' || face === 'north' ? -1 : 1;
+        const end = building[axis] + side * building[size] / 2;
+        const neighbor = STREET_BUILDINGS.find((other) => other !== building && other.blockId === building.blockId &&
+          Math.abs(side * (other[axis] - side * other[size] / 2 - end) - PARTY_WALL_JOINT) < 1e-8);
+        expect(neighbor, `${building.id} ${face}`).toBeDefined();
+        expect(neighbor!.attached).toContain(faceName(axis, -side));
+        joints++;
+      }
+      if (building.front.axis === 'x') {
+        const parcel = STREET_BLOCKS.find(({ id }) => id === building.blockId)!;
+        const edge = building.front.side > 0 ? parcel.maxX : parcel.minX;
+        expect(Math.abs(buildingFrontPoint(building, 0, 0).x - edge))
+          .toBeCloseTo(BUILDING_SIDEWALK_INSET - SIDEWALK_HALF_WIDTH + 1.25, 8);
+      }
+      for (const opening of STREET_WALL_OPENINGS) {
+        expect(building.x - building.width / 2 < opening.maxX &&
+          building.x + building.width / 2 > opening.minX &&
+          building.z - building.depth / 2 < opening.maxZ &&
+          building.z + building.depth / 2 > opening.minZ, `${building.id} civic opening`).toBe(false);
+      }
+    }
+    expect(joints / 2).toBeGreaterThanOrEqual(45);
+    expect(STREET_BUILDINGS.filter(({ attached }) => attached.length > 0).length).toBeGreaterThanOrEqual(65);
+  });
+
+  it('builds recognizable offices and shopfronts, not just new use labels', () => {
+    const { parts, builder } = createArt();
+    const offices = STREET_BUILDINGS.filter(({ use }) => use === 'office');
+    const shops = STREET_BUILDINGS.filter(({ use }) => use === 'mixed-use');
+    expect(offices.length).toBeGreaterThanOrEqual(10);
+    expect(shops.length).toBeGreaterThanOrEqual(20);
+    expect(new Set(offices.map(({ officeStyle }) => officeStyle)).size).toBe(2);
+    expect(new Set(shops.map(({ storefront }) => storefront)).size).toBe(3);
+    for (const building of [...offices, ...shops]) {
+      const art = buildingParts(parts, building);
+      const span = buildingFrontSpan(building);
+      expect(building.stoop).toBe(false);
+      const display = art.filter(({ surface, scale }) => surface === builder.palette.glass && scale[1] === 1.9);
+      expect(display).toHaveLength(2);
+      const canopy = art.find(({ position, scale }) => position[1] === 2.68 && scale[0] === span - 0.15);
+      expect(canopy).toBeDefined();
+      expect(canopy!.bounds.min.y).toBeGreaterThan(2.6);
+      if (building.use === 'office') {
+        expect(building.windowUnits).toBe(false);
+        expect(building.fireEscape).toBe(false);
+        expect(building.roof).toBe('plant');
+        expect(art.filter(({ surface, scale }) => surface === builder.palette.glass &&
+          scale[1] === building.architecture.floorHeight - 0.45).length).toBeGreaterThan(8);
+      } else {
+        const upstairs = buildingFrontPoint(building, -span / 2 + 0.55, 0.05);
+        expect(art.some(({ surface, position, scale }) => surface === builder.palette.glass &&
+          position[0] === upstairs.x && position[2] === upstairs.z &&
+          scale[0] === 0.65 && scale[1] === 1.85)).toBe(true);
+        expect(art.filter(({ surface, position, scale }) => surface === builder.palette.wood &&
+          position[1] === 0.72 && scale[2] === 0.24)).toHaveLength(2);
+        expect(art.filter(({ surface, position }) => surface === builder.palette.cream &&
+          position[1] === 2.746).length).toBeGreaterThan(3);
+      }
+    }
+  });
+
+  it('keeps rendered cornices, entries, escape stairs and shop displays out of neighboring solids', () => {
+    const { parts } = createArt();
+    for (const building of STREET_BUILDINGS) {
+      const art = buildingParts(parts, building);
+      for (const other of STREET_BUILDINGS.filter((candidate) =>
+        candidate !== building && candidate.blockId === building.blockId)) {
+        const solid = new THREE.Box3(
+          new THREE.Vector3(other.x - other.width / 2, 0.3, other.z - other.depth / 2),
+          new THREE.Vector3(other.x + other.width / 2, 0.3 + other.floors * other.architecture.floorHeight,
+            other.z + other.depth / 2),
+        ).expandByScalar(-0.001);
+        expect(art.filter(({ bounds }) => bounds.intersectsBox(solid))
+          .map(({ surface, position }) => `${surface.name} ${position}`),
+        `${building.id} into ${other.id}`).toEqual([]);
+      }
+    }
+  });
+
+  it('glazes exposed elevations but never the attached lot lines or replacement shopfronts', () => {
     const { parts, builder } = createArt();
     const windows = parts.filter(({ surface }) => surface === builder.palette.glass);
     for (const building of STREET_BUILDINGS) {
@@ -304,14 +396,16 @@ describe('original connected-city streetscape', () => {
         for (const side of [-1, 1]) {
           // A lot-line wall is blank masonry, so only setbacks above it are glazed.
           const party = inset ? null : building.partyWall;
-          const front = party?.axis === 'z' && party.side === side ? 'blank' : 'glazed';
-          const flank = party?.axis === 'x' && party.side === side ? 'blank' : 'glazed';
+          const blank = (axis: 'x' | 'z') => (party?.axis === axis && party.side === side) ||
+            (!inset && building.attached.includes(faceName(axis, side))) ||
+            (floor === 0 && building.use !== 'residential' &&
+              building.front.axis === axis && building.front.side === side);
           expect(windows.some(({ position: [x, wy, z] }) =>
             Math.abs(wy - y) < 0.001 && Math.abs(x - building.x) < width / 2 &&
-            Math.abs(z - building.z - side * (depth / 2 + 0.025)) < 0.001)).toBe(front === 'glazed');
+            Math.abs(z - building.z - side * (depth / 2 + 0.025)) < 0.001)).toBe(!blank('z'));
           expect(windows.some(({ position: [x, wy, z] }) =>
             Math.abs(wy - y) < 0.001 && Math.abs(z - building.z) < depth / 2 &&
-            Math.abs(x - building.x - side * (width / 2 + 0.025)) < 0.001)).toBe(flank === 'glazed');
+            Math.abs(x - building.x - side * (width / 2 + 0.025)) < 0.001)).toBe(!blank('x'));
         }
       }
     }
@@ -320,7 +414,7 @@ describe('original connected-city streetscape', () => {
   it('renders coherent window proportions and sash, divided or picture glazing, not metadata-only variants', () => {
     const { parts, builder } = createArt();
     const renderedWidths = new Set<number>();
-    for (const building of STREET_BUILDINGS) {
+    for (const building of STREET_BUILDINGS.filter(({ use }) => use !== 'office')) {
       const art = buildingParts(parts, building);
       const { windowWidth, windowHeight, floorHeight, mullions, parapetHeight } = building.architecture;
       const windows = art.filter(({ surface, scale }) => surface === builder.palette.glass &&
@@ -356,7 +450,7 @@ describe('original connected-city streetscape', () => {
         scale[1] === parapetHeight && position[1] >
         (building.floors + building.setbackFloors) * floorHeight)).toBe(true);
     }
-    expect(renderedWidths.size).toBeGreaterThan(80);
+    expect(renderedWidths.size).toBeGreaterThan(65);
   });
 
   it('keeps actual building details inside their retained clearance envelopes with shared borrowed resources', () => {
@@ -366,10 +460,15 @@ describe('original connected-city streetscape', () => {
       const parcel = STREET_BLOCKS.find(({ id }) => id === building.blockId)!;
       const inset = BUILDING_SIDEWALK_INSET - SIDEWALK_HALF_WIDTH;
       const envelope = new THREE.Box3(
-        new THREE.Vector3(building.x - building.reservedWidth / 2 - 0.4, -0.01,
+        new THREE.Vector3(building.x - building.reservedWidth / 2 -
+          (building.front.axis === 'x' && building.front.side < 0 ? 1.2 : 0.4), -0.01,
           building.z - building.reservedDepth / 2 - 0.35),
-        new THREE.Vector3(building.x + building.reservedWidth / 2 + 0.4, 24,
-          building.z + building.reservedDepth / 2 + (building.stoop ? 1.2 : 0.35)),
+        new THREE.Vector3(building.x + building.reservedWidth / 2 +
+          (building.front.axis === 'x' && building.front.side > 0 ? 1.2 : 0.4), 24,
+          building.z + building.reservedDepth / 2 +
+          (building.front.axis === 'z'
+            ? building.stoop || building.use !== 'residential' ? 1.2 : 0.45
+            : 0.35)),
       ).intersect(new THREE.Box3(
         new THREE.Vector3(parcel.minX + inset, -0.01, parcel.minZ + inset),
         new THREE.Vector3(parcel.maxX - inset, 24, parcel.maxZ - inset),
@@ -393,38 +492,47 @@ describe('original connected-city streetscape', () => {
     const brownstones = STREET_BUILDINGS.filter(({ brownstone }) => brownstone);
     expect(brownstones).toHaveLength(6);
     for (const building of brownstones) {
-      const entryX = building.x - building.width * 0.26;
-      const front = building.z + building.depth / 2;
-      const door = parts.find(({ surface, position, scale }) => surface === builder.palette.glass &&
-        position[0] === entryX && position[2] === front + 0.05 && scale[0] === 0.95)!;
+      const span = buildingFrontSpan(building);
+      const entry = buildingFrontPoint(building, -span * 0.26, 0.05);
+      const art = buildingParts(parts, building);
+      const local = (position: readonly number[]) => {
+        const point = buildingFrontPoint(building, 0, 0);
+        return building.front.axis === 'x'
+          ? { along: -building.front.side * (position[2] - point.z), out: building.front.side * (position[0] - point.x) }
+          : { along: position[0] - point.x, out: position[2] - point.z };
+      };
+      const door = art.find(({ surface, position, scale }) => surface === builder.palette.glass &&
+        position[0] === entry.x && position[2] === entry.z && scale[0] === 0.95)!;
       expect(door.bounds.min.y).toBeCloseTo(0.84);
-      const steps = parts.filter(({ surface, position, scale }) => surface === builder.palette.copperEdge &&
-        position[0] === entryX && position[2] > front && position[2] < front + 1.2 &&
+      const steps = art.filter(({ surface, position, scale }) => surface === builder.palette.copperEdge &&
+        Math.abs(local(position).along + span * 0.26) < 1e-8 &&
+        local(position).out > 0 && local(position).out < 1.2 &&
         position[1] < 0.6 && scale[0] === 1.45);
       expect(steps).toHaveLength(4);
       expect(Math.max(...steps.map(({ bounds }) => bounds.max.y))).toBeCloseTo(door.bounds.min.y);
-      const principalWindows = parts.filter(({ surface, position, scale }) =>
-        surface === builder.palette.glass && Math.abs(position[0] - building.x) < building.width / 2 &&
-        Math.abs(position[2] - front - 0.025) < 0.001 &&
+      const principalWindows = art.filter(({ surface, position, scale }) =>
+        surface === builder.palette.glass && Math.abs(local(position).along) < span / 2 &&
+        Math.abs(local(position).out - 0.025) < 0.001 &&
         scale[1] === building.architecture.windowHeight + 0.25);
       expect(principalWindows.length).toBeGreaterThanOrEqual(1);
-      expect(principalWindows.length).toBeLessThan(Math.floor((building.width - 0.5) / building.architecture.baySpacing));
+      expect(principalWindows.length).toBeLessThan(Math.floor((span - 0.5) / building.architecture.baySpacing));
       principalWindows.forEach(({ position }) => {
-        expect(parts.some(({ surface, position: lintel, scale }) =>
-          surface === builder.palette.copperEdge && lintel[0] === position[0] &&
+        expect(art.some(({ surface, position: lintel, scale }) =>
+          surface === builder.palette.copperEdge && Math.abs(local(lintel).along - local(position).along) < 1e-8 &&
           Math.abs(lintel[1] - position[1] - (building.architecture.windowHeight + 0.25) / 2 - 0.1) < 0.001 &&
-          scale[0] === building.architecture.windowWidth + 0.27)).toBe(true);
+          scale[building.front.axis === 'z' ? 0 : 2] === building.architecture.windowWidth + 0.27)).toBe(true);
       });
-      const rails = parts.filter(({ surface, position, scale }) => surface === builder.palette.rubber &&
-        Math.abs(Math.abs(position[0] - entryX) - 0.72) < 0.001 &&
-        position[2] > front && position[2] < front + 1.1 && scale[0] === 0.045);
+      const rails = art.filter(({ surface, position, scale }) => surface === builder.palette.rubber &&
+        Math.abs(Math.abs(local(position).along + span * 0.26) - 0.72) < 0.001 &&
+        local(position).out > 0 && local(position).out < 1.1 && scale[0] === 0.045);
       expect(rails).toHaveLength(6);
       const corniceY = building.floors * building.architecture.floorHeight + 0.3;
-      expect(parts.some(({ surface, position, scale }) => surface === builder.palette.copperEdge &&
+      expect(art.some(({ surface, position, scale }) => surface === builder.palette.copperEdge &&
         position[0] === building.x && Math.abs(position[1] - corniceY - 0.03) < 0.001 &&
-        scale[0] === building.width + 0.65 && scale[1] === 0.26)).toBe(true);
-      expect(parts.filter(({ surface, position, scale }) => surface === builder.palette.copperEdge &&
-        Math.abs(position[0] - building.x) < building.width / 2 && position[2] === front + 0.16 &&
+        scale[0] === building.width + (building.attached.some((face) => face === 'east' || face === 'west') ? 0 : 0.65) &&
+        scale[1] === 0.26)).toBe(true);
+      expect(art.filter(({ surface, position, scale }) => surface === builder.palette.copperEdge &&
+        Math.abs(local(position).along) < span / 2 && Math.abs(local(position).out - 0.16) < 1e-8 &&
         Math.abs(position[1] - corniceY + 0.22) < 0.001 && scale[0] === 0.18)).toHaveLength(4);
     }
   });
@@ -1403,9 +1511,7 @@ describe('original connected-city streetscape', () => {
     expect(walls.length).toBeGreaterThan(MURAL_WALLS.length);
     for (const building of walls) {
       const { axis, side } = building.partyWall!;
-      // The stoop and door always face +Z, and fire escapes hang off the +X flank.
-      expect(axis === 'z' && side === 1).toBe(false);
-      expect(axis === 'x' && side === 1 && building.fireEscape).toBe(false);
+      expect(axis === building.front.axis && side === building.front.side).toBe(false);
       const neighbours = STREET_BUILDINGS.filter((other) => other !== building &&
         Math.abs((axis === 'x' ? other.z : other.x) - (axis === 'x' ? building.z : building.x)) <
           Math.min(axis === 'x' ? other.depth : other.width, axis === 'x' ? building.depth : building.width) / 2);

@@ -1,5 +1,17 @@
 # Art and assets
 
+## NYC building fabric - 2026-09-15
+
+NYC remains the standing art direction for subsequent development. The [building-fabric study](NYC_BUILDING_FABRIC_RESEARCH.md) draws on contextual street-wall/yard guidance, storefront preservation guidance, sidewalk-clear-path guidance and attributed real NYC photographs. It does not prescribe a universal NYC gap, building-use ratio or code-compliant miniature.
+
+The original 94 buildings now include 43 residential buildings, 32 mixed-use buildings and 19 offices. A deterministic lot-joining pass closes **57 incidental gaps** to **0.06 m construction joints**, connecting **75 buildings** without adding a street or building. Avenue-facing elevations align to a common frontage plane; seeded dimensions extend rearward instead of staggering the street edge. Horizontal groups also join at their lot lines. This supersedes the older blanket footprint-reduction rule described in the historical street-life record below.
+
+Both sides of attached lot lines remain windowless, with cornices and plinths contained rather than overlapping neighbors. Entries, residential stoops and fire escapes face the public frontage, not a closed alley. Existing brownstone stoops, raised doors and cornices remain. Height differences expose blank masonry for original murals above the lower neighbor's parapet; murals retain their original procedural motifs rather than copying photographed art.
+
+Office buildings have larger repetitive glazing, fine vertical divisions and either masonry piers or cooler curtain-wall treatments, glazed ground-floor lobbies and roof mechanical plant. They do not inherit apartment window air conditioners, stoops or fire escapes. Stores have broad display bays above solid lower panels, transoms, colored fascias, modest striped canopies, and original books, produce or cafe-counter details. A separate narrow door provides visual access to the upper floors. These are unbranded scenery, not enterable interiors, real businesses, retail listings or a shopping interface.
+
+The layout preserves planted plaza breaks and subway mouths, both outer bike-station pockets and their access, the courtside station, and a diagonal view into the east-south stairwell. Original tree sites and seven occupied-building sheds keep separate pre-joining reservations. All public sidewalks, crossings, park gates, court runoffs and the shared passage remain outside building details. All geometry uses existing scene-owned primitives/materials and static batches, participates in weather capture, and reconstructs from the same seed. No new runtime assets, dependencies, camera controls, population changes or scene-budget increases are introduced. The existing companion SVG remains a simplified overview, not an exact export of these facades.
+
 ## Lakeside refinement - 2026-09-14
 
 The user's park screenshot exposed a bridge that continued across the fountain and terrace, a stepped-looking deck/railing profile, sparse parallel reed sticks and incomplete pergola frames. This local refinement preserves the lake outline, terrace footprint, path network, trees, existing benches, reservoir and remaining city.

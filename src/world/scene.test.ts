@@ -13,7 +13,7 @@ import { STOP_LINE_OFFSET, STREET_X, STREET_Z, TRAFFIC_ACTORS } from '../content
 import { EXTRA_PARK_BENCHES, FOOD_CARTS, propBounds } from '../content/streetFurniture';
 import { BIKE_MARKINGS, WALK_MARKINGS } from './pavement';
 import { ART_INPUTS, buildCityScene, validateArtInputs, type CityScene } from './scene';
-import { SIDEWALK_SHEDS } from './streetscape';
+import { SIDEWALK_SHEDS, STREET_BUILDINGS } from './streetscape';
 
 const worlds: CityScene[] = [];
 function createScene() { const world = buildCityScene(); worlds.push(world); return world; }
@@ -218,6 +218,32 @@ describe('original car-free park district', () => {
       expect(tread.point.y).toBeLessThan(-0.96);
       expect(weatherSurface.heightAt(x, z)).toBeCloseTo(tread.point.y, 4);
     }
+  });
+
+  it('captures roofs over former building gaps for precipitation and retained snow support', () => {
+    const { scene, weatherSurface } = createScene();
+    const ray = new THREE.Raycaster();
+    let checked = 0;
+    for (const building of STREET_BUILDINGS.filter(({ attached, setbackFloors }) => attached.length && !setbackFloors)) {
+      const size = weatherSurface.cellSize;
+      for (let z = Math.ceil((building.z - building.depth / 2 + 0.8) / size) * size + size / 2;
+        z < building.z + building.depth / 2 - 0.8; z += size) {
+        for (let x = Math.ceil((building.x - building.width / 2 + 0.8) / size) * size + size / 2;
+          x < building.x + building.width / 2 - 0.8; x += size) {
+          if (STREET_BUILDINGS.some(({ plantingFootprint: old }) =>
+            Math.abs(x - old.x) < old.width / 2 && Math.abs(z - old.z) < old.depth / 2)) continue;
+          ray.set(new THREE.Vector3(x, 30, z), new THREE.Vector3(0, -1, 0));
+          const roof = ray.intersectObjects(scene.children, true)[0];
+          expect(roof.point.y).toBeGreaterThanOrEqual(0.3 + building.floors * building.architecture.floorHeight);
+          expect(weatherSurface.heightAt(x, z)).toBeCloseTo(roof.point.y, 4);
+          checked++;
+          break;
+        }
+        if (checked >= 12) break;
+      }
+      if (checked >= 12) break;
+    }
+    expect(checked).toBe(12);
   });
 
   it('removes the asphalt circuit, stop and signals and fills the center with a park', () => {
