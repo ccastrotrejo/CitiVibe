@@ -4,6 +4,12 @@
 
 ## Current implementation
 
+### NYC building fabric
+
+`buildingFabric.ts` joins adjacent lots within the existing streetscape, leaving the authored planted and bicycle/subway access openings intact. The final envelope and attached faces are separate from the original planting/shed reservation. `streetscape.ts` derives blank party walls and mural heights only after this pass. Public-facing coordinates are shared by doors, stoops, fire escapes, storefronts and office lobbies, so closing a former gap cannot strand a front door inside it.
+
+Building use is an ID-keyed seeded choice independent of traffic/people. Mixed-use display fronts and two office treatments replace relevant facade geometry rather than overlaying apartment windows. Both joined walls are windowless; main-volume trims stop at the lot line, while upper setbacks retain their glazing. `buildCommercialFront` reuses the parent builder and palette, owning no timers, geometries or materials. Existing instancing, night-window variation, weather/snow capture and resource disposal apply unchanged. See [art decisions](ART_AND_ASSETS.md#nyc-building-fabric---2026-09-15) and [research](NYC_BUILDING_FABRIC_RESEARCH.md).
+
 ### Lakeside scenery refinement
 
 `PARK_LAKESIDE` in the existing park content module shares the lake outline and bridge/fountain/pergola placement contract with art and regression tests. `world/park.ts` builds the continuous bridge profile, merged rails, hollow lathed fountain and shaded seating within the existing static-art lifecycle. The pond uses one vertex-colored material; sharing the original lawn/meadow colors on another vertex-colored material offsets that allocation. No simulation, camera, React state, runtime dependency or population changes are introduced. Named direct meshes join the same weather capture and snow-target collection as other static scenery; the existing scene disposal tests cover their ownership.

@@ -4,6 +4,8 @@
 
 ## Purpose
 
+**Standing visual direction, confirmed 2026-09-15:** future visual development must reinforce a recognizable, original NYC-inspired neighborhood. Attached building groups and aligned avenue frontages, varied residential and office architecture, and stores at sidewalk level are core art requirements, not an optional cosmetic theme. Intentional yards, planted spaces and public passages remain part of that fabric; NYC does not mean every building touches or every block is filled. The [building-fabric study](NYC_BUILDING_FABRIC_RESEARCH.md) records source guidance and attributed real-life photographs. Fictional store interiors and generic storefront scenery do not authorize listings, branded placements, shopping or any other commercial feature.
+
 LivingCity is an original miniature city that rewards both attention and inattention. A viewer can explore for a few minutes, watch a bus go by, watch the light change, or leave it open beside their work. It is a small animated place, not a directory, ad platform, game economy, or conventional scrolling landing page.
 
 The user's central request is "everything else" from the reference's world experience, excluding its directory and marketing side: dynamic activity, many useful controls, and a city that feels alive. "Everything else" does not imply copying every implementation detail or adding systems the reference does not establish.

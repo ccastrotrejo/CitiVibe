@@ -4,6 +4,22 @@
 
 Use this matrix when implementing each [roadmap](ROADMAP.md) milestone. Numerical budgets are working targets; name the reference devices and record actual results before declaring them met. The [experience spec](EXPERIENCE_SPEC.md) is authoritative for pause/camera behavior.
 
+## NYC building fabric - 2026-09-15
+
+The current local slice keeps all 94 building IDs, closes 57 incidental gaps to 0.06 m party-wall joints across 75 buildings, and creates 19 offices, 32 mixed-use storefront buildings and 43 residential buildings. Avenue fronts align; doors, stoops and fire escapes face public frontages instead of the closed gaps. Existing planted openings, trees, subway access/sightlines, bike bays, courts, sidewalks, people, traffic, controls and simulation state are retained. The NYC visual direction is now explicit in the root instructions, product brief, README and roadmap.
+
+**Executed checks:** strict TypeScript, whole-project ESLint and production build pass. The final complete single-worker suite passed **522 tests with 14 existing skips across 33 files** in 196.49 seconds. New coverage checks actual joined spacing and paired lot lines, retained civic openings, aligned avenue fronts, rendered office/storefront geometry, separate upper-floor entrances, blank attached walls, detail/neighbor nonintersection, oriented brownstone doors/stoops, precipitation capture over expanded roofs and unchanged budgets. Existing all-sidewalk, shed, subway, court, tree, station, deterministic construction and disposal checks remain.
+
+| Final base source-scene accounting | Measured | Existing code ceiling |
+| --- | ---: | ---: |
+| Triangles | 574,731 | <640,000 |
+| Visible mesh submissions | 109 | 110 |
+| Visible materials | 37 | 37 |
+
+These are CPU source-scene counts, not GPU draw calls, frame rates or weather/shadow-pass costs. No ceiling was changed in this slice. The current repository already uses the 640,000 triangle allowance, superseding historical 600,000-triangle records below. Production retains its existing large-chunk warning: renderer 503.19 kB / 139.46 kB gzip; entry 541.17 kB / 162.93 kB gzip.
+
+**Fresh served-browser evidence:** all four selected, unmodified production Playwright scenarios pass: live navigation/tour/help/pause, reduced-motion guided views and accessibility scan, real WebGL context restoration, and reproducible paused rendering with no external requests. This does not claim the entire browser suite is green. A separate development capture run produced 1440x900 overview, 1920x1080 street detail and 1024x768 night/rain images without page or console errors. The session's image-viewing limit prevented inspecting the resulting pixels, so aesthetic/all-angle approval remains unverified. Real-device FPS, broader weather combinations and long-session sign-off remain open. Changes remain local; no commit, push, PR or deployment was performed.
+
 ## Lakeside refinement - 2026-09-14
 
 This local art-only slice replaces the stepped bridge slabs and fountain overlap with a continuous shallow arch ending at the terrace, complete curved railings and stone landings. It adds a hollow fountain, two slatted timber pergolas and richer pond/shore planting without changing paths, trees, population, traffic, controls or the simulation clock. The original lawn colors are retained on a shared material to stay within the existing resource limits.
