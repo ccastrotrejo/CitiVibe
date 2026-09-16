@@ -33,6 +33,28 @@ describe('bounded simulation clock', () => {
 });
 
 describe('single camera owner', () => {
+  it('holds weather reactions and park transitions while paused, but applies explicit static attire', () => {
+    const model = new WorldModel(false);
+    model.command({ type: 'set-weather', weather: 'rain' });
+    for (let tick = 0; tick < 8 * 30; tick++) model.step(STEP);
+    const people = model.simulation.actors.filter((actor) => actor.kind === 'pedestrian');
+    expect(new Set(people.map((actor) => actor.weather?.equipment))).toEqual(new Set(['raincoat', 'umbrella']));
+    model.command({ type: 'set-paused', paused: true });
+    const states = JSON.stringify(model.simulation.resting);
+    const before = JSON.stringify(model.simulation.weather);
+    for (let tick = 0; tick < 90 * 30; tick++) model.step(STEP);
+    expect(JSON.stringify(model.simulation.weather)).toBe(before);
+    expect(JSON.stringify(model.simulation.resting)).toBe(states);
+    const poses = people.map((actor) => ({ position: { ...actor.position }, sitting: actor.sitting }));
+    model.command({ type: 'set-weather', weather: 'snow' });
+    expect(people.every((actor) => actor.weather?.equipment === 'winter')).toBe(true);
+    expect(people.map((actor) => ({ position: actor.position, sitting: actor.sitting }))).toEqual(poses);
+    model.command({ type: 'set-weather', weather: 'rain' });
+    model.command({ type: 'set-rain-intensity', millimetersPerHour: 0 });
+    expect(people.every((actor) => actor.weather?.equipment === 'dry')).toBe(true);
+    expect(people.map((actor) => ({ position: actor.position, sitting: actor.sitting }))).toEqual(poses);
+  });
+
   it('keeps all walkers and vehicles on accumulated snow without accumulating their vertical offset', () => {
     const model = new WorldModel(false, { weather: 'snow', rainIntensityMmH: 20 });
     model.environment.physics.bindSurface(() => 0, () => 1);

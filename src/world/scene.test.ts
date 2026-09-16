@@ -7,6 +7,8 @@ import { BASKETBALL_COURT, COURT_PLAYERS, PICKLEBALL_COURT } from '../content/co
 import { METRO_ENTRANCES, METRO_GEOMETRY } from '../content/metro';
 import { PARK_LAMPS, STREET_LAMPS } from '../content/lighting';
 import { PARK_ACTORS, PARK_BOUNDS, PARK_PATHS } from '../content/park';
+import { PARK_OUTSIDE_WALK, PARK_RESTING_VISITORS } from '../content/parkVisitors';
+import { GROUND_PUDDLES } from './groundWater';
 import { PLAY_AREA, PLAY_PEOPLE } from '../content/play';
 import type { PersonProfile } from '../content/people';
 import { STOP_LINE_OFFSET, STREET_X, STREET_Z, TRAFFIC_ACTORS } from '../content/streets';
@@ -48,6 +50,69 @@ function expectClearScenery(scene: THREE.Scene, area: THREE.Box3, label: string)
 afterEach(() => { worlds.splice(0).forEach((world) => world.dispose()); });
 
 describe('original car-free park district', () => {
+  it('keeps complete weather-departure routes clear of solid scenery, pools and meadow play', () => {
+    const { scene } = createScene();
+    const obstacles: THREE.Box3[] = [];
+    const matrix = new THREE.Matrix4();
+    scene.updateMatrixWorld(true);
+    scene.traverseVisible((object) => {
+      if (!(object instanceof THREE.Mesh) || !object.castShadow) return;
+      object.geometry.computeBoundingBox();
+      for (let index = 0; index < (object instanceof THREE.InstancedMesh ? object.count : 1); index++) {
+        if (object instanceof THREE.InstancedMesh) {
+          object.getMatrixAt(index, matrix);
+          matrix.premultiply(object.matrixWorld);
+        } else matrix.copy(object.matrixWorld);
+        const bounds = object.geometry.boundingBox!.clone().applyMatrix4(matrix);
+        if (bounds.max.y > 0.18 && bounds.min.y < 2.5 && bounds.max.x > -41 && bounds.min.x < 41 &&
+          bounds.max.z > -90 && bounds.min.z < 90) obstacles.push(bounds);
+      }
+    });
+    const paths = [PARK_OUTSIDE_WALK, ...PARK_RESTING_VISITORS.flatMap((visitor) => [visitor.outward, visitor.homeward])];
+    const blocked: string[] = [];
+    const point = new THREE.Vector3();
+    const ahead = new THREE.Vector3();
+    for (const [index, curve] of paths.entries()) {
+      const length = curve.getLength();
+      for (let distance = 0; distance < length; distance += 0.3) {
+        curve.getPoint(distance / length, point);
+        curve.getPoint(Math.min(1, (distance + 0.1) / length), ahead);
+        const heading = Math.atan2(ahead.x - point.x, ahead.z - point.z);
+        const hx = Math.abs(Math.cos(heading)) * 0.4 + Math.abs(Math.sin(heading)) * 0.6;
+        const hz = Math.abs(Math.sin(heading)) * 0.4 + Math.abs(Math.cos(heading)) * 0.6;
+        const box = new THREE.Box3(new THREE.Vector3(point.x - hx, 0.18, point.z - hz),
+          new THREE.Vector3(point.x + hx, 2.5, point.z + hz));
+        const fx = Math.sin(heading), fz = Math.cos(heading);
+        const obstacle = obstacles.find((bounds) => {
+          if (!bounds.intersectsBox(box)) return false;
+          const dx = (bounds.min.x + bounds.max.x) / 2 - point.x;
+          const dz = (bounds.min.z + bounds.max.z) / 2 - point.z;
+          const ox = (bounds.max.x - bounds.min.x) / 2;
+          const oz = (bounds.max.z - bounds.min.z) / 2;
+          return [[1, 0], [0, 1], [fx, fz], [fz, -fx]].every(([ax, az]) =>
+            Math.abs(dx * ax + dz * az) <
+              Math.abs(ax) * ox + Math.abs(az) * oz +
+              0.6 * Math.abs(fx * ax + fz * az) + 0.4 * Math.abs(fz * ax - fx * az));
+        });
+        if (obstacle) {
+          blocked.push(`path ${index} at ${point.toArray()}: solid ${obstacle.min.toArray()} / ${obstacle.max.toArray()}`);
+          break;
+        }
+        if (GROUND_PUDDLES.some((pool) =>
+          ((point.x - pool.x) / (pool.radiusX + hx)) ** 2 + ((point.z - pool.z) / (pool.radiusZ + hz)) ** 2 < 1)) {
+          blocked.push(`path ${index} enters a pool at ${point.toArray()}`);
+          break;
+        }
+        if (box.max.x > PLAY_AREA.minX && box.min.x < PLAY_AREA.maxX &&
+          box.max.z > PLAY_AREA.minZ && box.min.z < PLAY_AREA.maxZ) {
+          blocked.push(`path ${index} enters the meadow play area at ${point.toArray()}`);
+          break;
+        }
+      }
+    }
+    expect(blocked).toEqual([]);
+  });
+
   it('keeps the counterflow sidewalk beside the west court fence clear without shrinking the court', () => {
     const { scene } = createScene();
     expectClearScenery(scene, new THREE.Box3(
@@ -80,14 +145,15 @@ describe('original car-free park district', () => {
     });
   });
 
-  it('has 354 traveling actors, fifty-five park walkers and twenty-four runner rigs', () => {
+  it('retains 354 traveling actors and promotes eight existing picnic neighbors to posable travelers', () => {
     const { actors, bus } = createScene();
     expect([...actors.keys()]).toEqual([
       ...PARK_ACTORS.map(({ id }) => id),
       ...TRAFFIC_ACTORS.map(({ id }) => id),
+      ...PARK_RESTING_VISITORS.map(({ id }) => id),
     ]);
     expect(bus).toBe(actors.get(CITY.busId));
-    expect(actors.size).toBe(354);
+    expect(actors.size).toBe(362);
     expect(PARK_ACTORS.filter(({ gait }) => gait === 'walk')).toHaveLength(55);
     expect(PARK_ACTORS.filter(({ gait }) => gait === 'run')).toHaveLength(24);
     expect(actors.has('square-bus')).toBe(false);

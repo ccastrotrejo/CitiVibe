@@ -4,6 +4,14 @@
 
 ## Current implementation
 
+### Weather-aware people
+
+`peopleWeather.ts` is a retained CPU controller within `ActorSimulation`. It consumes blended precipitation, temperature, wind, wetness and ground-snow cover from `WorldModel`, using independent ID-keyed `createWeatherTraits` samples rather than adding draws to the traffic streams. Each pedestrian carries one stable equipment/umbrella/pace/caution state. Weather modifies desired pace before existing safety constraints; it cannot release a crossing reservation or override headway. Paused explicit selections apply static equipment without progressing any actor.
+
+`content/parkVisitors.ts` owns the eight existing picnic IDs, seats, clear lawn approaches, east-gate departures, public perimeter circuit and south-gate returns. `world/parkVisitors.ts` retains activity phase, posture, distance, readiness and the departure merge owner. Full oriented body checks allow existing park visitors and these neighbors to share routes. Eight previously static figures join the actor map and retained simulation; total human count stays 328 and the simulation collection becomes 362 rigs. Snow support and locomotion restoration now apply to these figures through the same paths as other pedestrians.
+
+The renderer builds optional original clothing once into the existing shared actor batches. Weather changes alter transforms, not resource ownership. `Locomotion.restore` applies initial clothing/posture, explicit static weather changes and exact graphics recovery. The [research record](PEOPLE_WEATHER_RESEARCH.md) distinguishes source findings, authored thresholds and unsupported claims.
+
 ### NYC building fabric
 
 `buildingFabric.ts` joins adjacent lots within the existing streetscape, leaving the authored planted and bicycle/subway access openings intact. The final envelope and attached faces are separate from the original planting/shed reservation. `streetscape.ts` derives blank party walls and mural heights only after this pass. Public-facing coordinates are shared by doors, stoops, fire escapes, storefronts and office lobbies, so closing a former gap cannot strand a front door inside it.

@@ -198,6 +198,9 @@ export function createWorld({ canvas, model, onChange, onLifecycle }: WorldOptio
     if (disposed) return;
     const wasPaused = model.paused;
     model.command(command);
+    if (command.type === 'set-weather' || command.type === 'set-rain-intensity' || command.type === 'set-reduced-motion') {
+      locomotion.restore(model.simulation.actors, art.actors, model.reducedMotion);
+    }
     if (command.type === 'set-quality') { applyQuality(); resize(); }
     if (command.type === 'open-panel' || command.type === 'set-reduced-motion') input.clear();
     if ((model.paused && command.type !== 'navigate') || wasPaused !== model.paused) halt();
@@ -317,6 +320,7 @@ export function createWorld({ canvas, model, onChange, onLifecycle }: WorldOptio
   }
 
   try {
+    locomotion.restore(model.simulation.actors, art.actors, model.reducedMotion);
     resize();
     if (!failed) {
       onLifecycle('ready', 'Live city ready.');

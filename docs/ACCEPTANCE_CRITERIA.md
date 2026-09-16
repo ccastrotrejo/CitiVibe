@@ -4,6 +4,32 @@
 
 Use this matrix when implementing each [roadmap](ROADMAP.md) milestone. Numerical budgets are working targets; name the reference devices and record actual results before declaring them met. The [experience spec](EXPERIENCE_SPEC.md) is authoritative for pause/camera behavior.
 
+## Weather and shared-bike integration - 2026-09-16
+
+Latest main `fa19f02` is combined with weather checkpoint `a85206b`. The three textual conflicts preserve both feature histories and both runtime recovery tests. Shared-bike crossing reservations still constrain weather-adjusted pedestrian pace; additional rain-hurry and snow-pace scenarios retain full body clearance and completed Juniper round trips. Classic/electric bikes, tapered docks, yellow signal frames, weather clothing and visible park departures/returns remain.
+
+The first combined scene measured **646,475 triangles**, exceeding the unchanged 640,000 ceiling. Omitting unreachable umbrella meshes for runners and raincoat-only profiles removes **13,632 triangles** without changing visible outfits, six-panel canopies or population. Final CPU source-scene accounting is **632,843 triangles, 109 visible mesh submissions and 37 materials**, with 362 retained actor rigs. No budget or safety assertion was relaxed.
+
+**Executed merge checks:** strict TypeScript and whole-project ESLint pass. The broad 13-file merge run passed 287 tests with 14 existing skips; its sole failure was the scene-budget overrun above. After that correction, all 117 tests across the seven final person/instance/scene/locomotion/model/runtime files pass, including budget, disposal and exact recovery. The complete repository suite was not rerun for this merge.
+
+The final production build passes with the existing large-chunk warning: renderer 508.15 kB / 141.21 kB gzip; entry 550.97 kB / 166.23 kB gzip. Removing the now-unreachable runner-only umbrella grip branches also passes all eleven weather-art tests. Both selected production Chromium scenarios pass: real WebGL restoration preserving the paused manual camera, and persistent snow/wind settings through recovery. Physical-device FPS, all-angle visual approval and complete browser-suite sign-off remain open; no new pixel-inspection claim is made. Earlier records below describe their individual pre-merge checkpoints.
+
+## Weather-aware people - 2026-09-16
+
+Street/park walkers, runners and the eight existing picnic neighbors now respond to precipitation, temperature, wind and retained snow. Individual rainwear choices and reaction times remain seeded; weather-dependent desired pace remains subordinate to existing crossing and clearance rules. Picnic neighbors stand, leave through the east gate, walk outside, and return through the south gate after sustained suitable conditions. The same 328 people remain; the eight formerly static neighbors bring the retained simulation to 362 rigs. Court, meadow and cycling choreography is unchanged. The [research study](PEOPLE_WEATHER_RESEARCH.md) separates eleven inspected references from authored thresholds and seven retrieval gaps.
+
+**Executed source checks:** strict TypeScript, whole-project ESLint and the production build pass. The final single-worker suite passed **550 tests with 14 existing skips across 36 files** in 259.59 seconds, including the final shared-helper cautious-runner correction and additional posture cases. Coverage exercises the exact previously airborne runner regression, restoration equivalence, interrupted sitting, reduced-motion posture, full-population departure/return cycles with seeds 2401 and 42, actual route/scenery clearance, zero-intensity rain, cold after sunshine, wind hysteresis, paused state and exact restored instance matrices.
+
+| Base source-scene accounting | Measured | Unchanged ceiling |
+| --- | ---: | ---: |
+| Triangles, including allocated optional clothing | 633,143 | <640,000 |
+| Visible mesh submissions | 109 | 110 |
+| Visible materials | 37 | 37 |
+
+These are CPU source-scene counts, not GPU draw calls, frame rates or extra weather/shadow-pass costs. Clothing retains the two shared person batches and existing scene ownership. The final production build retains the existing large-chunk warning: renderer 506.85 kB / 140.73 kB gzip; entry 549.38 kB / 165.62 kB gzip.
+
+**Served-browser evidence:** two selected, unmodified production Chromium scenarios pass: real WebGL restoration preserving the paused manual camera, and persistent snow/wind settings through graphics recovery. A separate development capture exercised Sunny, Rain and Snow without page or console errors. Only the Sunny image was inspected; the image-view limit prevented Rain/Snow pixel inspection. Those browser checks preceded the final cautious-gait correction. All-angle weather-clothing appearance, physical-device FPS, long-session behavior and the complete browser suite remain open gates. The user subsequently authorized commit, push and a pull request; deployment is not authorized.
+
 ## Dock and signal appearance follow-up - 2026-09-16
 
 The approved original dock design has silver tapered cheeks, capped heads, dark inset faces and open wheel channels; all three station layouts, bikes, contacts and rider motion remain intact. Existing vehicle/pedestrian signals now have yellow frames around dark recessed faces. There are no new bicycle-specific signals or changes to signal meanings, timing or controllers. The [reference record](NYC_CITY_RESEARCH.md#dock-and-signal-reference-refinement---2026-09-16) explains the visible signal illustration and the user's approval of an original station design after its image could not be inspected.

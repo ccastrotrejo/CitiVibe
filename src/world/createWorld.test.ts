@@ -67,6 +67,43 @@ function mount(model: WorldModel) {
 }
 
 describe('runtime ownership and suspension', () => {
+  it('rebuilds the same weather clothing, seated transitions and departing visitor instance matrices', () => {
+    const model = new WorldModel(false, { weather: 'rain' });
+    for (let tick = 0; tick < 20 * 30; tick++) model.step(1 / 30);
+    model.command({ type: 'set-paused', paused: true });
+    const { canvas, world } = mount(model);
+    onTestFinished(() => world.dispose());
+    const matrices = () => {
+      const scene: unknown = gpu.render.mock.lastCall?.[0];
+      if (!(scene instanceof Scene)) throw new Error('Missing rendered weather scene.');
+      const activity = scene.getObjectByName('Instanced neighborhood activity');
+      if (!activity) throw new Error('Missing instanced weather-aware people.');
+      return activity.children.map((part) => {
+        if (!(part instanceof InstancedMesh)) throw new Error('Unexpected person submission.');
+        return Array.from(part.instanceMatrix.array);
+      });
+    };
+    expect(model.simulation.resting.states.some((visit) => visit.phase === 'departing')).toBe(true);
+    const retained = JSON.stringify(model.simulation);
+    const before = matrices();
+    hidden = true;
+    document.dispatchEvent(new Event('visibilitychange'));
+    tick(300000);
+    hidden = false;
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(matrices()).toEqual(before);
+    canvas.dispatchEvent(new Event('webglcontextlost', { cancelable: true }));
+    canvas.dispatchEvent(new Event('webglcontextrestored'));
+    expect(matrices()).toEqual(before);
+    expect(JSON.stringify(model.simulation)).toBe(retained);
+    world.command({ type: 'set-weather', weather: 'snow' });
+    expect(matrices()).not.toEqual(before);
+    const snow = matrices();
+    canvas.dispatchEvent(new Event('webglcontextlost', { cancelable: true }));
+    canvas.dispatchEvent(new Event('webglcontextrestored'));
+    expect(matrices()).toEqual(snow);
+  });
+
   it('retains shared-bike users, an active crossing and mixed inventory through paused graphics restoration', () => {
     const model = new WorldModel(false);
     for (let tick = 0; tick < 20 * 30; tick += 1) model.simulation.step(1 / 30);

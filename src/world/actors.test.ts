@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { PARK_ACTORS, PARK_BOUNDS, PARK_PATHS, PARK_ROUTES, PARK_RUNNING_ROUTE, sampleParkRoute } from '../content/park';
 import { STREET_X, STREET_Z, TRAFFIC_ACTORS } from '../content/streets';
 import { PERSON_SPACE } from '../content/people';
+import { PARK_RESTING_VISITORS } from '../content/parkVisitors';
 import { LAMP_GEOMETRY, STREET_LAMPS } from '../content/lighting';
 import { ActorSimulation, type ActorState } from './actors';
 
@@ -79,17 +80,18 @@ describe('connected car-free park', () => {
     expect(actors.map(({ id }) => id)).toEqual([
       ...PARK_ACTORS.map(({ id }) => id),
       ...TRAFFIC_ACTORS.map(({ id }) => id),
+      ...PARK_RESTING_VISITORS.map(({ id }) => id),
     ]);
     expect(simulation.getActor('square-bus')).toBeUndefined();
     expect(simulation.getActor('car-1')).toBeUndefined();
     expect(Object.isFrozen(simulation.actors)).toBe(true);
-    expect(actors).toHaveLength(354);
+    expect(actors).toHaveLength(362);
     expect(actors.filter(({ kind }) => kind === 'car' || kind === 'bus')).toHaveLength(48);
     expect(actors.filter(({ kind }) => kind === 'cyclist')).toHaveLength(27);
-    expect(actors.filter(({ kind }) => kind === 'pedestrian')).toHaveLength(279);
+    expect(actors.filter(({ kind }) => kind === 'pedestrian')).toHaveLength(287);
     expect(actors.filter(({ gait }) => gait === 'walk')).toHaveLength(55);
     expect(actors.filter(({ gait }) => gait === 'run')).toHaveLength(24);
-    expect(new Set(actors.map(({ id }) => id)).size).toBe(354);
+    expect(new Set(actors.map(({ id }) => id)).size).toBe(362);
     expect(PARK_ACTORS.map(({ id }) => id)).toEqual([
       ...Array.from({ length: 55 }, (_, index) => `walker-${index + 1}`),
       ...Array.from({ length: 24 }, (_, index) => `runner-${index + 1}`),

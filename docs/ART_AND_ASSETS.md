@@ -1,5 +1,13 @@
 # Art and assets
 
+## Weather-aware people - 2026-09-16
+
+Original weather clothing extends the existing procedural pedestrian rigs rather than replacing their identity: compact faceted umbrella canopies and shafts, hooded rainwear, winter coats, head coverings and scarves. Optional parts share the existing primitives and neutral per-instance-color material. They are built once and activated through submitted transforms, since source-mesh visibility alone does not hide an `ActorInstances` slot. No photographs, clothing brands, downloaded models or extra material owners are introduced.
+
+Umbrella meshes are allocated only for umbrella-preferring walkers, not runners or raincoat-only profiles. Those excluded profiles never select an umbrella in the retained weather policy. This removes unreachable geometry while preserving every visible outfit and the original six-panel canopy.
+
+The eight existing picnic rigs now use grounded stand/sit transitions and actual travel rather than remaining static. Their original IDs, palettes, picnic pads and population remain. New walking paths are simulation content, not additional paving, buildings or shelters; they pass through existing gates and share existing park/perimeter paths. The [weather study](PEOPLE_WEATHER_RESEARCH.md) records provenance, design rules and verification boundaries.
+
 ## NYC building fabric - 2026-09-15
 
 NYC remains the standing art direction for subsequent development. The [building-fabric study](NYC_BUILDING_FABRIC_RESEARCH.md) draws on contextual street-wall/yard guidance, storefront preservation guidance, sidewalk-clear-path guidance and attributed real NYC photographs. It does not prescribe a universal NYC gap, building-use ratio or code-compliant miniature.

@@ -24,6 +24,25 @@ function ankle(group: THREE.Group, rig: WalkerRig, index: 0 | 1) {
 }
 
 describe('varied articulated people', () => {
+  it('lowers picnic hips and leans through sit/stand while both soles stay planted', () => {
+    for (let index = 0; index < 30; index++) {
+      const { group, rig } = person(createPersonProfile(`picnic-${index}`, 'resting'));
+      group.position.set(5, 0.35, -9);
+      group.rotation.y = 0.73;
+      const feet = [ankle(group, rig, 0), ankle(group, rig, 1)];
+      for (const sitting of [0, 0.1, 0.35, 0.5, 0.8, 1, 0.8, 0.5, 0.1, 0]) {
+        poseWalkerRig(rig, { distance: 7.2, speed: 0, blend: 0.8, reducedMotion: false, sitting });
+        expect(rig.pelvis.position.y).toBeCloseTo(0.8 - 0.36 * sitting * sitting * (3 - 2 * sitting), 8);
+        for (const leg of [0, 1] as const) {
+          expect(ankle(group, rig, leg).distanceTo(feet[leg])).toBeLessThan(1e-7);
+          const up = new THREE.Vector3(0, 1, 0).transformDirection(rig.legs[leg].ankle.matrixWorld);
+          expect(up.distanceTo(new THREE.Vector3(0, 1, 0))).toBeLessThan(1e-7);
+        }
+        if (sitting === 0.5) expect(rig.torso.rotation.x).toBeGreaterThan(0.2);
+      }
+    }
+  });
+
   it('renders adult, teen and child silhouettes instead of metadata-only differences', () => {
     const profiles = Array.from({ length: 150 }, (_, index) => createPersonProfile(`neighbor-${index}`, 'street'));
     const ranges = new Map<string, number[]>();

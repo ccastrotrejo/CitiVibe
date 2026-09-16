@@ -96,12 +96,17 @@ function overlap(
 
 describe('shared connected street graph', () => {
   it.each([
-    ...[0, 1, 4, 14, 42, 91, 2401, 0xffffffff].map((seed) => ({ seed, traction: 1 })),
-    ...[0, 2401].map((seed) => ({ seed, traction: 0.3 })),
+    ...[0, 1, 4, 14, 42, 91, 2401, 0xffffffff].map((seed) => ({ seed, traction: 1, pace: 1 })),
+    ...[0, 2401].map((seed) => ({ seed, traction: 0.3, pace: 1 })),
+    { seed: 2401, traction: 1, pace: 1.12 },
+    { seed: 2401, traction: 0.3, pace: 0.72 },
   ])(
-    'completes Juniper bike trips without crossing other bodies (seed $seed, grip $traction)',
-    ({ seed, traction }) => {
+    'completes Juniper bike trips without crossing other bodies (seed $seed, grip $traction, walking pace $pace)',
+    ({ seed, traction, pace }) => {
       const traffic = new CityTraffic(seed);
+      if (pace !== 1) for (const actor of traffic.pedestrians.actors) {
+        actor.weather = { equipment: traction === 1 ? 'raincoat' : 'winter', umbrellaOpen: 0, pace, cautious: traction < 1 };
+      }
       const index = traffic.actors.findIndex((actor) => actor.id === 'bikeshare-rider-juniper');
       const rider = traffic.actors[index];
       const phases = new Set<string>();
@@ -458,7 +463,9 @@ describe('CityTraffic', () => {
     const heads = [...signals];
     expect(traffic.actors.map(({ id }) => id)).toEqual(TRAFFIC_ACTORS.map(({ id }) => id));
     expect(signals.map(({ id }) => id)).toEqual(INTERSECTIONS.map(({ id }) => id));
-    expect(simulation.actors.slice(simulation.actors.length - actors.length)).toEqual(actors);
+    const trafficStart = simulation.actors.indexOf(actors[0]);
+    expect(trafficStart).toBeGreaterThanOrEqual(0);
+    expect(simulation.actors.slice(trafficStart, trafficStart + actors.length)).toEqual(actors);
     expect(Object.isFrozen(traffic.actors)).toBe(true);
     expect(Object.isFrozen(signals)).toBe(true);
     for (let tick = 0; tick < 300; tick += 1) simulation.step(DT);
