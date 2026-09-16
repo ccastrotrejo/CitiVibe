@@ -4,6 +4,22 @@
 
 Use this matrix when implementing each [roadmap](ROADMAP.md) milestone. Numerical budgets are working targets; name the reference devices and record actual results before declaring them met. The [experience spec](EXPERIENCE_SPEC.md) is authoritative for pause/camera behavior.
 
+## Weather-aware people - 2026-09-16
+
+Street/park walkers, runners and the eight existing picnic neighbors now respond to precipitation, temperature, wind and retained snow. Individual rainwear choices and reaction times remain seeded; weather-dependent desired pace remains subordinate to existing crossing and clearance rules. Picnic neighbors stand, leave through the east gate, walk outside, and return through the south gate after sustained suitable conditions. The same 328 people remain; the eight formerly static neighbors bring the retained simulation to 362 rigs. Court, meadow and cycling choreography is unchanged. The [research study](PEOPLE_WEATHER_RESEARCH.md) separates eleven inspected references from authored thresholds and seven retrieval gaps.
+
+**Executed source checks:** strict TypeScript and whole-project ESLint pass. The completed single-worker suite passed **546 tests with 14 existing skips across 36 files** in 268.97 seconds. That run preceded the final shared-helper cautious-runner correction and two additional park-posture cases. Subsequent focused checks passed **39 person/locomotion/weather-art tests**, including the exact previously airborne runner regression and restoration equivalence, plus **two park tests** for interrupted sitting and reduced-motion posture. Coverage also exercises full-population departure/return cycles with seeds 2401 and 42, actual route/scenery clearance, zero-intensity rain, cold after sunshine, wind hysteresis, paused state and exact restored instance matrices. The final full rerun was started separately; no unobserved outcome is claimed here.
+
+| Base source-scene accounting | Measured | Unchanged ceiling |
+| --- | ---: | ---: |
+| Triangles, including allocated optional clothing | 633,143 | <640,000 |
+| Visible mesh submissions | 109 | 110 |
+| Visible materials | 37 | 37 |
+
+These are CPU source-scene counts, not GPU draw calls, frame rates or extra weather/shadow-pass costs. Clothing retains the two shared person batches and existing scene ownership. The production build passed before the final gait-helper correction, retaining the existing large-chunk warning.
+
+**Served-browser evidence:** two selected, unmodified production Chromium scenarios pass: real WebGL restoration preserving the paused manual camera, and persistent snow/wind settings through graphics recovery. A separate development capture exercised Sunny, Rain and Snow without page or console errors. Only the Sunny image was inspected; the image-view limit prevented Rain/Snow pixel inspection. Those browser checks preceded the final cautious-gait correction. All-angle weather-clothing appearance, physical-device FPS, long-session behavior and the complete browser suite remain open gates. The user subsequently authorized commit, push and a pull request; deployment is not authorized.
+
 ## NYC building fabric - 2026-09-15
 
 The current local slice keeps all 94 building IDs, closes 57 incidental gaps to 0.06 m party-wall joints across 75 buildings, and creates 19 offices, 32 mixed-use storefront buildings and 43 residential buildings. Avenue fronts align; doors, stoops and fire escapes face public frontages instead of the closed gaps. Existing planted openings, trees, subway access/sightlines, bike bays, courts, sidewalks, people, traffic, controls and simulation state are retained. The NYC visual direction is now explicit in the root instructions, product brief, README and roadmap.

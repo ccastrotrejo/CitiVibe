@@ -49,6 +49,7 @@ export class WorldModel {
     if (options.rainIntensityMmH !== undefined) this.environment.setRainIntensity(options.rainIntensityMmH);
     if (options.timeMode) this.environment.setTime(options.timeMode, now);
     if (options.natural) this.environment.setNatural(true);
+    this.simulation.weather.applyImmediate(this.peopleWeatherInput());
     if (reducedMotion) {
       this.airplane.setReducedMotion(true);
       this.balloons.setReducedMotion(true);
@@ -109,10 +110,12 @@ export class WorldModel {
         break;
       case 'set-weather':
         this.environment.setWeather(command.weather, this.paused || this.reducedMotion);
+        if (immediate) this.simulation.weather.applyImmediate(this.peopleWeatherInput());
         this.message = `Weather set to ${command.weather}.`;
         break;
       case 'set-rain-intensity':
         this.environment.setRainIntensity(command.millimetersPerHour);
+        if (immediate) this.simulation.weather.applyImmediate(this.peopleWeatherInput());
         this.message = `Rain intensity set to ${command.millimetersPerHour} millimeters per hour.`;
         break;
       case 'set-time':
@@ -177,7 +180,7 @@ export class WorldModel {
     this.environment.step(dt, new Date(), !this.reducedMotion);
     const snowCover = this.environment.physics.snowCover;
     const traction = Math.max(0.3, 1 - this.environment.frame.wetness * 0.25 - snowCover * 0.5);
-    this.simulation.step(dt, traction);
+    this.simulation.step(dt, traction, this.peopleWeatherInput(), this.reducedMotion);
     for (let index = 0; index < this.simulation.actors.length; index++) {
       const position = this.simulation.actors[index].position;
       const support = this.environment.physics.snowSupportAt(position.x, position.z, 0);
@@ -196,5 +199,11 @@ export class WorldModel {
   /** Call once when the tab becomes visible again, so local time re-syncs without catch-up. */
   resync(): void {
     this.environment.resyncLocal(new Date());
+  }
+
+  private peopleWeatherInput() {
+    return { frame: this.environment.frame, snowCover: this.environment.physics.snowCover,
+      sunny: this.environment.weather === 'sunny' && this.environment.frame.rain < 0.02 &&
+        this.environment.frame.snow < 0.02 };
   }
 }

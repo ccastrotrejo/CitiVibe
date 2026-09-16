@@ -57,6 +57,19 @@ function sample(id: string, feature: string): number {
   return ((hash ^ (hash >>> 16)) >>> 0) / 0x100000000;
 }
 
+/** Independent weather preferences; these authored choices are not demographic estimates. */
+export function createWeatherTraits(id: string) {
+  if (!id.trim()) throw new Error('Weather preferences need a stable nonempty person ID.');
+  return Object.freeze({
+    rainProtection: sample(id, 'weather:protection') < 0.58 ? 'umbrella' as const : 'raincoat' as const,
+    reactionSeconds: 0.8 + sample(id, 'weather:reaction') * 3.2,
+    returnSeconds: 5 + sample(id, 'weather:return') * 20,
+    hurry: sample(id, 'weather:hurry'),
+    coldThreshold: 3 + sample(id, 'weather:cold') * 4,
+    winterHat: sample(id, 'weather:hat') < 0.65 ? 'beanie' as const : 'hood' as const,
+  });
+}
+
 /** Original miniature casting, not demographic data or a real occupation dress-code model. */
 export function createPersonProfile(id: string, context: PersonContext): PersonProfile {
   if (!id.trim()) throw new Error('A person needs a stable nonempty ID.');

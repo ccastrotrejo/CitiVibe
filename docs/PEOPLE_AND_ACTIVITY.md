@@ -1,5 +1,13 @@
 # People and activity
 
+## Weather-aware walking and park visits - 2026-09-16
+
+The [weather behavior study](PEOPLE_WEATHER_RESEARCH.md) records eleven directly inspected references and seven retrieval gaps, separating research evidence from authored miniature tuning. Rain uses effective precipitation intensity, individual umbrella/raincoat preference and a modest personal hurry factor. Winter layers respond to snow and temperature; retained snow cover constrains pace and changes runners to grounded, conservative walking. Existing crossing priorities, landing reservations, route choices and headway remain authoritative.
+
+The existing eight picnic neighbors now have retained seated/rising/departing/outside/returning/sitting states. They leave through the east gate and circulate clockwise on the park's outside sidewalks, then enter through the south gate and follow the existing mall/east walking paths back to their original seats. Clear lawn branches avoid scenery, pools and meadow play. Distinct entry/exit gates, a departure-merge reservation and full oriented body clearance prevent conflicting flows from trapping each other. A short sunny interruption does not recall them; snowy or wet seats must become usable first.
+
+**Population stays at 328.** The original 354 traveling rigs plus the eight formerly static picnic figures form 362 retained simulation actors. The court, meadow and bicycle activity populations are unchanged. Pause freezes posture, route, weather-reaction and return clocks; graphics recovery reconstructs the same attire and pose. Explicit paused weather choices update clothing without moving anybody. There is no new indoor/shelter simulation, weather control or scene budget. The user subsequently authorized commit, push and a pull request, not deployment.
+
 ## Street-life population and bicycle activity - 2026-09-13
 
 The bounded population increases from 232 to **328 people**, including eight unchanged picnic neighbors. There are 200 street walkers, 55 park walkers, 24 runners, fifteen road cyclists, nine additional roaming shared-bike riders, six court players, eight meadow family figures and three station users. Moving motor vehicles hold at **48**, preserving the six original buses. The older 464-person doubling target remains planned; the current increase is smaller.

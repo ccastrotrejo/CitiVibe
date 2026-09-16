@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { CITY, CONTENT } from '../content/city';
-import { PARK_ACTORS, PARK_PICNICS } from '../content/park';
+import { PARK_ACTORS } from '../content/park';
+import { PARK_RESTING_VISITORS } from '../content/parkVisitors';
 import { createPersonProfile } from '../content/people';
 import { PLAY_PEOPLE } from '../content/play';
 import { METRO_OPENINGS } from '../content/metro';
@@ -478,22 +479,12 @@ export function buildCityScene(): CityScene {
     neighborhoodActors.push(group);
     return { definition, group, rig };
   }));
-  const restingPeople: THREE.Group[] = [];
-  for (const [index, [x, z]] of PARK_PICNICS.entries()) for (const side of [-1, 1]) {
-    const group = new THREE.Group();
-    group.name = `picnic-neighbor-${index}-${side}`;
+  for (const definition of PARK_RESTING_VISITORS) {
+    const group = actorGroup(definition.id, definition.id);
     const rig = buildPersonRig(group, createPersonProfile(group.name, 'resting'), personArt);
+    group.userData.rig = rig;
     poseNeutral(rig);
-    rig.pelvis.position.y = 0.44;
-    for (const leg of rig.legs) {
-      leg.hip.rotation.x = -Math.PI / 2;
-      leg.knee.rotation.x = Math.PI / 2;
-      leg.ankle.rotation.x = 0;
-    }
-    group.position.set(x + side * 0.7, 0.025, z);
-    scene.add(group);
     neighborhoodActors.push(group);
-    restingPeople.push(group);
   }
   const actorInstances = new ActorInstances(neighborhoodActors);
   scene.add(actorInstances.group);
@@ -539,7 +530,6 @@ export function buildCityScene(): CityScene {
         const phase = riderStates[index]?.sharedBike?.phase;
         stationRiders[index]?.scale.setScalar(!reducedMotion && phase === 'riding' ? 1 : 0);
       }
-      for (const person of restingPeople) person.position.y = 0.025 + groundLift;
       actorInstances.update();
     },
     dispose() {

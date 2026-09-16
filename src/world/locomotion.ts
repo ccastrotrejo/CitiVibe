@@ -1,5 +1,7 @@
 import type { Group, Object3D } from 'three';
 import type { ActorState } from './actors';
+import type { PersonWeatherState } from './peopleWeather';
+import { applyPersonWeather, type PersonWeatherRig } from './personWeatherArt';
 
 /**
  * Deterministic procedural locomotion.
@@ -84,6 +86,7 @@ export interface WalkerRig {
   torso: Object3D;
   legs: [LegRig, LegRig];
   arms: [Object3D, Object3D];
+  weatherArt?: PersonWeatherRig;
 }
 
 export interface WheelRig {
@@ -157,7 +160,7 @@ export function solveLeg(h: number, drop: number): { hip: number; knee: number }
   return { hip: legDir + gamma, knee: Math.PI - interior };
 }
 
-interface WalkerPose {
+export interface WalkerPose {
   distance: number;
   speed: number;
   blend: number;
@@ -165,24 +168,32 @@ interface WalkerPose {
   running?: boolean;
   activity?: ActorState['activity'];
   activityTime?: number;
+  /** 1 seated, 0 standing; the simulation holds translation during intermediate values. */
+  sitting?: number;
+  weather?: PersonWeatherState;
 }
 
 /** Pose an articulated pedestrian rig from its travelled distance. */
 export function poseWalkerRig(rig: WalkerRig, pose: WalkerPose): void {
-  const { blend, reducedMotion } = pose;
+  const { reducedMotion } = pose;
+  const sitting = smoothstep(clamp(pose.sitting ?? 0, 0, 1));
+  const blend = sitting > 0 || (pose.sitting !== undefined && pose.speed === 0) ? 0 : pose.blend;
   // Solve in rig-local metres so shorter legs take shorter steps, without skating.
   const distance = pose.distance / (rig.scale ?? 1);
   const speed = pose.speed / (rig.scale ?? 1);
-  const running = pose.running && !reducedMotion;
+  const running = pose.running && !reducedMotion && !pose.weather?.cautious;
   const stride = running ? RUNNER.stride : strideLength(speed);
   const cyclePhase = gaitPhase(distance, stride);
   const bob = reducedMotion ? 0 : running
     ? RUNNER.bobAmp * Math.cos(2 * TAU * (cyclePhase - 0.45))
     : WALKER.bobAmp * -Math.cos(2 * TAU * cyclePhase);
-  const pelvisY = WALKER.hipY + ((running ? RUNNER.hipY - WALKER.hipY : 0) + bob) * blend;
+  const pelvisY = WALKER.hipY - 0.36 * sitting + ((running ? RUNNER.hipY - WALKER.hipY : 0) + bob) * blend;
   rig.pelvis.position.y = pelvisY;
+  // Shift the hips over planted feet, rather than dragging the feet forward to sit.
+  rig.pelvis.position.z = -0.2 * sitting;
 
-  rig.torso.rotation.x = (running ? RUNNER.trunkLean : WALKER.trunkLean) * blend * (reducedMotion ? 0.4 : 1);
+  rig.torso.rotation.x = (running ? RUNNER.trunkLean : WALKER.trunkLean) * blend * (reducedMotion ? 0.4 : 1)
+    + 0.08 * sitting + 0.96 * sitting * (1 - sitting);
   rig.torso.rotation.z = reducedMotion || blend === 0 ? 0 : WALKER.listAmp * Math.sin(TAU * cyclePhase) * blend;
   rig.torso.position.x = reducedMotion || blend === 0 ? 0 : WALKER.swayAmp * Math.sin(TAU * cyclePhase) * blend;
   rig.torso.rotation.y = !reducedMotion && pose.activity === 'looking-around'
@@ -191,7 +202,7 @@ export function poseWalkerRig(rig: WalkerRig, pose: WalkerPose): void {
   for (let leg = 0; leg < 2; leg += 1) {
     const phase = gaitPhase(distance, stride, leg === 1 ? 0.5 : 0);
     const foot = running ? runningFootTrajectory(phase) : footTrajectory(phase, stride);
-    const footZ = foot.z * blend;
+    const footZ = foot.z * blend - rig.pelvis.position.z;
     const footY = foot.y * blend;
     const { hip, knee } = solveLeg(footZ, pelvisY - footY);
     rig.legs[leg].hip.rotation.x = -hip;
@@ -202,8 +213,10 @@ export function poseWalkerRig(rig: WalkerRig, pose: WalkerPose): void {
   }
 
   const swing = (reducedMotion ? 0.4 : 1) * (running ? RUNNER.armSwing : WALKER.armSwing) * blend;
-  rig.arms[0].rotation.x = swing * Math.cos(TAU * cyclePhase);
-  rig.arms[1].rotation.x = swing * Math.cos(TAU * gaitPhase(distance, stride, 0.5));
+  rig.arms[0].rotation.x = swing * Math.cos(TAU * cyclePhase) - 0.45 * sitting;
+  rig.arms[1].rotation.x = swing * Math.cos(TAU * gaitPhase(distance, stride, 0.5)) - 0.45 * sitting;
+  if (rig.weatherArt) rig.weatherArt.armSwing = rig.arms[1].rotation.x;
+  applyPersonWeather(rig, pose.weather);
 }
 
 interface VehiclePose {
@@ -286,7 +299,8 @@ export class Locomotion {
       const memory = this.remember(actor);
       if (rig.kind === 'walker') {
         poseWalkerRig(rig, { distance: actor.travelDistance ?? actor.distance, speed: actor.speed, blend: memory.blend, reducedMotion,
-          running: actor.gait === 'run', activity: actor.activity, activityTime: actor.activityTime });
+          running: actor.gait === 'run', activity: actor.activity, activityTime: actor.activityTime,
+          sitting: actor.sitting, weather: actor.weather });
       } else {
         poseVehicleRig(rig, { distance: actor.distance, pitch: memory.pitch, roll: memory.roll,
           steer: memory.steer, drop: memory.drop });
@@ -321,6 +335,8 @@ export class Locomotion {
         pose.running = actor.gait === 'run';
         pose.activity = actor.activity;
         pose.activityTime = actor.activityTime;
+        pose.sitting = actor.sitting;
+        pose.weather = actor.weather;
         poseWalkerRig(rig, pose);
         continue;
       }

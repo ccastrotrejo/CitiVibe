@@ -417,7 +417,9 @@ describe('CityTraffic', () => {
     const heads = [...signals];
     expect(traffic.actors.map(({ id }) => id)).toEqual(TRAFFIC_ACTORS.map(({ id }) => id));
     expect(signals.map(({ id }) => id)).toEqual(INTERSECTIONS.map(({ id }) => id));
-    expect(simulation.actors.slice(simulation.actors.length - actors.length)).toEqual(actors);
+    const trafficStart = simulation.actors.indexOf(actors[0]);
+    expect(trafficStart).toBeGreaterThanOrEqual(0);
+    expect(simulation.actors.slice(trafficStart, trafficStart + actors.length)).toEqual(actors);
     expect(Object.isFrozen(traffic.actors)).toBe(true);
     expect(Object.isFrozen(signals)).toBe(true);
     for (let tick = 0; tick < 300; tick += 1) simulation.step(DT);

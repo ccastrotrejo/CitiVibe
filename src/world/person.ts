@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { PersonProfile } from '../content/people';
 import { WALKER, type LegRig, type WalkerRig } from './locomotion';
+import { buildPersonWeather } from './personWeatherArt';
 
 export interface PersonArt {
   box: THREE.BufferGeometry;
@@ -147,5 +148,7 @@ export function buildPersonRig(group: THREE.Group, profile: PersonProfile, art: 
     add(torso, profile.bag, profile.accent, [0.12, -0.12, -0.17], [0.24, 0.29, 0.12]);
     add(torso, 'Bag strap', profile.accent, [0.07, 0.24, -0.142], [0.035, 0.48, 0.025]);
   }
-  return { kind: 'walker', pelvis, torso, legs, arms, scale };
+  const rig: WalkerRig = { kind: 'walker', pelvis, torso, legs, arms, scale };
+  rig.weatherArt = buildPersonWeather(rig, profile, head, add);
+  return rig;
 }

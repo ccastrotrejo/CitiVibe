@@ -4,6 +4,8 @@ import type { Position } from '../content/city';
 import { createPersonProfile, PERSON_SPACE } from '../content/people';
 import type { BikeShareTripState } from '../content/bikeShare';
 import { CityTraffic } from './traffic';
+import { PeopleWeather, type PeopleWeatherInput, type PersonWeatherState } from './peopleWeather';
+import { canWalkTo, ParkVisitors } from './parkVisitors';
 
 export interface ActorState {
   id: string;
@@ -16,6 +18,8 @@ export interface ActorState {
   travelDistance?: number;
   activity?: 'walking' | 'crossing' | 'waiting-to-cross' | 'looking-around' | 'resting';
   activityTime?: number;
+  weather?: PersonWeatherState;
+  sitting?: number;
   sharedBike?: BikeShareTripState;
   speed: number;
   routeLength: number;
@@ -39,8 +43,11 @@ interface ParkVisitor {
 export class ActorSimulation {
   readonly actors: readonly ActorState[];
   readonly traffic: CityTraffic;
+  readonly weather: PeopleWeather;
+  readonly resting = new ParkVisitors();
   elapsed = 0;
   private readonly walkers: ParkVisitor[];
+  private readonly parkActors: readonly ActorState[];
   private readonly lookAhead = new Vector3();
 
   constructor(seed: number = ACTIVITY.seed) {
@@ -79,36 +86,41 @@ export class ActorSimulation {
         untilRest: (route.segments[0].length - distance + route.length) % route.length,
       };
     });
-    this.actors = Object.freeze([...this.walkers.map(({ actor }) => actor), ...this.traffic.actors]);
+    this.parkActors = this.walkers.map(({ actor }) => actor);
+    this.actors = Object.freeze([...this.parkActors, ...this.traffic.actors, ...this.resting.actors]);
+    this.weather = new PeopleWeather(this.actors);
   }
 
   getActor(id: string): ActorState | undefined {
     return this.actors.find((actor) => actor.id === id);
   }
 
-  step(delta: number, traction = 1): void {
+  step(delta: number, traction = 1, weather?: PeopleWeatherInput, reducedMotion = false): void {
     if (!Number.isFinite(delta) || delta < 0) throw new RangeError('Actor delta must be finite and nonnegative.');
     if (!Number.isFinite(traction) || traction < 0.3 || traction > 1) throw new RangeError('Road traction must be between 0.3 and 1.');
     if (delta === 0) return;
     const dt = Math.min(delta, ACTIVITY.maxStep);
     this.elapsed += dt;
+    if (weather) this.weather.step(dt, weather);
     this.traffic.step(dt, traction);
     for (const walker of this.walkers) {
       walker.advance = 0;
+      if (this.weather.adverse) walker.rest = 0;
       if (walker.rest > 0) {
         walker.rest = Math.max(0, walker.rest - dt);
         walker.actor.speed = 0;
         walker.actor.state = 'dwelling';
         continue;
       }
-      let available = walker.restDuration > 0 ? walker.untilRest : Infinity;
+      let available = walker.restDuration > 0 && !this.weather.adverse ? walker.untilRest : Infinity;
       for (const other of this.walkers) {
         if (other === walker || other.route !== walker.route) continue;
         const gap = (other.actor.distance - walker.actor.distance + walker.route.length) % walker.route.length;
         available = Math.min(available, Math.max(0, gap - PERSON_SPACE.headway));
       }
-      walker.advance = Math.min(walker.desiredSpeed * dt, available);
+      walker.advance = Math.min(walker.desiredSpeed * (walker.actor.weather?.pace ?? 1) * dt, available);
       sampleParkRoute(walker.route, walker.actor.distance + walker.advance, walker.next);
+      if (!canWalkTo(walker.actor, walker.next, walker.actor.heading, this.resting.actors)) walker.advance = 0;
       for (const other of this.walkers) {
         if (other === walker) continue;
         const current = (walker.actor.position.x - other.actor.position.x) ** 2 +
@@ -132,9 +144,10 @@ export class ActorSimulation {
       actor.heading = Math.atan2(this.lookAhead.x - actor.position.x, this.lookAhead.z - actor.position.z);
       walker.untilRest -= walker.advance;
       if (walker.untilRest <= 1e-7) {
-        walker.rest = walker.restDuration;
+        walker.rest = this.weather.adverse ? 0 : walker.restDuration;
         walker.untilRest = actor.routeLength;
       }
     }
+    this.resting.step(dt, this.weather.adverse, this.weather.returnAllowed, this.parkActors, reducedMotion);
   }
 }

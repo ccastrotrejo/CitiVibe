@@ -169,7 +169,7 @@ export class StreetPedestrians {
       }
       actor.activity = walker.crossing ? 'crossing' : 'walking';
       actor.activityTime = 0;
-      let available = walker.pace * dt;
+      let available = walker.pace * (actor.weather?.pace ?? 1) * dt;
       if (!walker.crossing) {
         const route = this.routes[walker.block][walker.lane];
         let corner = 0;
