@@ -1,10 +1,12 @@
 import * as THREE from 'three';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { BIKE_SHARE_LAYOUT as L, BIKE_SHARE_STATIONS, bikeShareBounds } from '../content/bikeShare';
+import { BIKE_SHARE_LAYOUT as L, BIKE_SHARE_STATIONS, BIKE_SHARE_STYLE,
+  bikeShareBounds, sharedBikeKind } from '../content/bikeShare';
 import { ActorInstances } from './actorInstances';
 import { buildBikeShare, buildSharedBike } from './bikeShare';
 import { poseVehicleRig } from './locomotion';
 import { buildStreetscape, type StreetscapeBuilder } from './streetscape';
+import { CityTraffic } from './traffic';
 
 const cleanups: (() => void)[] = [];
 
@@ -23,11 +25,12 @@ function createFixture(blueMaterial?: THREE.Material) {
   const staticParts: THREE.Mesh[] = [];
   const builder: StreetscapeBuilder = {
     box, crown: head, cylinder, palette,
-    add(shape, surface, position, scale, rotation = [0, 0, 0]) {
+    add(shape, surface, position, scale, rotation = [0, 0, 0], tint) {
       const mesh = new THREE.Mesh(shape, surface);
       mesh.position.set(...position);
       mesh.scale.set(...scale);
       mesh.rotation.set(...rotation);
+      mesh.userData.tint = tint;
       staticParts.push(mesh);
     },
     block(surface, x, y, z, width, height, depth, yaw = 0) {
@@ -63,12 +66,60 @@ afterEach(() => {
 });
 
 describe('shared-bike art and retained activity', () => {
+  it('lets every station neighbor leave the dock and reach the cycle lane', () => {
+    const traffic = new CityTraffic();
+    const riding = new Set<string>();
+    for (let tick = 0; tick < 120 * 30; tick += 1) {
+      traffic.step(1 / 30);
+      for (const actor of traffic.actors) {
+        if (actor.sharedBike?.phase === 'riding') riding.add(actor.id);
+      }
+    }
+    expect([...riding].sort(), JSON.stringify(traffic.actors.filter((actor) => actor.sharedBike)))
+      .toEqual(BIKE_SHARE_STATIONS.map((station) => station.riderId).sort());
+  });
+
+  it('keeps hands on the actual bicycle at every station and while walking around bends', () => {
+    const { activity } = createFixture();
+    const traffic = new CityTraffic();
+    const touched = new Set<string>();
+    for (let tick = 0; tick < 90 * 30; tick += 1) {
+      traffic.step(1 / 30);
+      if (tick % 6 !== 0) continue;
+      activity.update(traffic.elapsed, false, 0.23, traffic.actors);
+      for (const [index, station] of BIKE_SHARE_STATIONS.entries()) {
+        const trip = traffic.actors.find((actor) => actor.id === station.riderId)!.sharedBike!;
+        if (trip.phase === 'riding') continue;
+        const bike = activity.rigs[index * 3];
+        const person = activity.rigs[index * 3 + 2];
+        person.updateWorldMatrix(true, true);
+        const hands: THREE.Mesh[] = [];
+        person.traverse((part) => {
+          if (part instanceof THREE.Mesh && part.name === 'Forearm and hand') hands.push(part);
+        });
+        expect(hands).toHaveLength(2);
+        for (const hand of hands) {
+          const tip = hand.localToWorld(new THREE.Vector3(0, -0.5, 0));
+          const contact = bike.worldToLocal(tip);
+          expect(Math.abs(contact.x)).toBeLessThanOrEqual(0.091);
+          expect(contact.y).toBeGreaterThanOrEqual(0.899);
+          expect(contact.y).toBeLessThanOrEqual(0.941);
+          expect(contact.z).toBeGreaterThanOrEqual(-0.391);
+          expect(contact.z).toBeLessThanOrEqual(-0.279);
+          expect(hand.parent!.scale.y).toBeLessThan(1.6);
+        }
+        touched.add(`${station.id}:${trip.phase}`);
+      }
+    }
+    for (const station of BIKE_SHARE_STATIONS) expect(touched).toContain(`${station.id}:pushing-out`);
+  });
+
   it('builds recognizable open step-through frames, blue fenders, baskets, wheels and tall kiosks', () => {
     const { activity, staticParts } = createFixture();
     expect(activity.rigs).toHaveLength(9);
     const bike = activity.rigs[0];
     expect(bike.getObjectByName('Low step-through tube')).toBeDefined();
-    expect(bike.getObjectByName('Blue wheel fender')).toBeDefined();
+    expect(bike.getObjectByName('Wheel fender')).toBeDefined();
     expect(bike.getObjectByName('Basket base')).toBeDefined();
     expect(bike.getObjectByName('Open basket strut')).toBeDefined();
     const names: string[] = [];
@@ -78,7 +129,7 @@ describe('shared-bike art and retained activity', () => {
     expect(staticParts.filter((part) => part.scale.y > 2)).toHaveLength(3);
   });
 
-  it('keeps all riders and bicycles visible, paired and continuous through departures and returns', () => {
+  it('keeps initialized docked rigs continuous when no traffic snapshot is supplied', () => {
     const { activity } = createFixture();
     const identity = [...activity.rigs];
     let previous: number[][] | undefined;
@@ -113,6 +164,8 @@ describe('shared-bike art and retained activity', () => {
       const bikes = [activity.rigs[index * 3],
         ...parked.children.filter((child): child is THREE.Group => child instanceof THREE.Group)];
       expect(bikes).toHaveLength(10);
+      expect(new Set(bikes.map((bike) => bike.userData.bikeKind))).toEqual(new Set(['classic', 'electric']));
+      expect(activity.rigs[index * 3].userData.bikeKind).toBe(sharedBikeKind(station.riderId));
       const slots = Array.from({ length: L.slots }, (_, slot) => slot).filter((slot) => slot !== L.emptySlot);
       bikes.sort((a, b) => a.getWorldPosition(new THREE.Vector3()).x - b.getWorldPosition(new THREE.Vector3()).x);
       bikes.forEach((bike, bikeIndex) => {
@@ -128,6 +181,60 @@ describe('shared-bike art and retained activity', () => {
       total += bikes.length;
     }
     expect(total).toBe(30);
+  });
+
+  it('builds silver tapered docks with recessed dark faces and clear front-wheel channels', () => {
+    const { activity, staticParts, art } = createFixture();
+    activity.update(0, true);
+    for (const [index, station] of BIKE_SHARE_STATIONS.entries()) {
+      for (let slot = 0; slot < L.slots; slot += 1) {
+        const x = station.x + slot * L.slotSpacing;
+        const dock = staticParts.filter((part) =>
+          Math.abs(part.position.x - x) < 0.25 && Math.abs(part.position.z - station.z) < 1.15 &&
+          Math.abs(part.position.z - station.z) > 0.2);
+        const face = dock.find((part) => part.userData.tint === BIKE_SHARE_STYLE.seat)!;
+        expect(face).toBeDefined();
+        const cheeks = dock.filter((part) => Math.abs(part.rotation.z) === 0.055);
+        expect(cheeks).toHaveLength(2);
+        for (const cheek of cheeks) {
+          expect(cheek.userData.tint).toBe(BIKE_SHARE_STYLE.metal);
+          const top = cheek.localToWorld(new THREE.Vector3(0, 0.5, 0));
+          const bottom = cheek.localToWorld(new THREE.Vector3(0, -0.5, 0));
+          expect(Math.abs(top.x - x)).toBeLessThan(Math.abs(bottom.x - x));
+        }
+        expect(face.position.z - face.scale.z / 2).toBeGreaterThan(cheeks[0].position.z - cheeks[0].scale.z / 2);
+        expect(dock.every((part) => part.geometry === art.box && part.material === art.material)).toBe(true);
+      }
+      const bikes = [activity.rigs[index * 3], ...activity.rigs[index * 3 + 1].children
+        .filter((child): child is THREE.Group => child instanceof THREE.Group)];
+      for (const bike of bikes) {
+        bike.updateWorldMatrix(true, true);
+        const wheels: THREE.Object3D[] = [];
+        bike.traverse((part) => { if (part.name === 'Rolling wheel') wheels.push(part); });
+        const wheel = new THREE.Box3().setFromObject(wheels[1]);
+        for (const part of staticParts) {
+          const bounds = new THREE.Box3().setFromObject(part);
+          if (bounds.max.y > station.surfaceY + 0.12) expect(bounds.intersectsBox(wheel)).toBe(false);
+        }
+      }
+    }
+  });
+
+  it('keeps active lock indicators on the raised dock face without lighting the empty dock', () => {
+    const { activity, staticParts } = createFixture();
+    activity.update(0, true, 0.23);
+    for (const [index, station] of BIKE_SHARE_STATIONS.entries()) {
+      const parked = activity.rigs[index * 3 + 1];
+      const marker = parked.getObjectByName('Dock lock confirmed')!;
+      const point = marker.getWorldPosition(new THREE.Vector3());
+      expect(point.x).toBeCloseTo(station.x + station.activeSlot * L.slotSpacing);
+      expect(point.y).toBeCloseTo(station.surfaceY - L.surfaceY + L.dockIndicatorY);
+      expect(point.z).toBeCloseTo(station.z + L.dockIndicatorZ);
+      const empty = staticParts.find((part) =>
+        part.position.x === station.x + L.emptySlot * L.slotSpacing &&
+        part.position.z === station.z + L.dockIndicatorZ && part.scale.x === 0.08)!;
+      expect(empty.userData.tint).toBe(BIKE_SHARE_STYLE.tire);
+    }
   });
 
   it('keeps all rendered moving parts and docks within their three roomy plaza pockets', () => {
@@ -333,12 +440,36 @@ describe('shared-bike art and retained activity', () => {
     expect(bike.pedals[1].rotation.x).toBeCloseTo(2 / 0.65 + Math.PI);
   });
 
+  it('distinguishes electric bikes by battery, light, display and a heavier silver step-through frame', () => {
+    const { art } = createFixture();
+    const classic = buildSharedBike(art);
+    const electric = buildSharedBike(art, undefined, 'electric');
+    expect(classic.group.getObjectByName('Electric battery enclosure')).toBeUndefined();
+    for (const name of ['Electric battery enclosure', 'Electric front light lens', 'Handlebar assist display']) {
+      expect(electric.group.getObjectByName(name)).toBeDefined();
+    }
+    const frame = electric.group.getObjectByName('Low step-through tube') as THREE.Mesh;
+    expect(frame.userData.instanceColor.getHexString()).toBe(BIKE_SHARE_STYLE.electricFrame.slice(1));
+    expect(frame.scale.x).toBeGreaterThan(classic.group.getObjectByName('Low step-through tube')!.scale.x);
+    const bounds = new THREE.Box3().setFromObject(electric.group);
+    expect(bounds.max.x - bounds.min.x).toBeLessThan(L.slotSpacing);
+    expect(bounds.max.z - bounds.min.z).toBeLessThan(2);
+    electric.group.traverse((part) => {
+      if (part instanceof THREE.Mesh) {
+        expect(part.material).toBe(art.material);
+        expect(part.geometry).toBe(art.box);
+      }
+    });
+    expect(electric.wheelRigs.map((wheel) => wheel.front)).toEqual([false, true]);
+    expect(electric.pedals).toHaveLength(2);
+  });
+
   it('borrows the existing civic-blue material without tint multiplication or material ownership', () => {
     const blue = new THREE.MeshStandardMaterial({ color: '#256897' });
     cleanups.push(() => blue.dispose());
     const dispose = vi.spyOn(blue, 'dispose');
     const { activity, art } = createFixture(blue);
-    const frame = activity.rigs[0].getObjectByName('Low step-through tube') as THREE.Mesh;
+    const frame = activity.rigs[0].getObjectByName('Basket base') as THREE.Mesh;
     expect(frame.material).toBe(blue);
     expect(frame.userData.instanceColor.getHexString()).toBe('ffffff');
     const instances = new ActorInstances(activity.rigs);
@@ -364,7 +495,7 @@ describe('shared-bike art and retained activity', () => {
     }
     expect(green.scale.x).toBe(0.08);
     expect(amber.scale.x).toBe(0);
-    expect(green.getWorldPosition(new THREE.Vector3()).y).toBeCloseTo(0.53);
+    expect(green.getWorldPosition(new THREE.Vector3()).y).toBeCloseTo(L.dockIndicatorY);
   });
 
   it('rejects invalid inputs before pose mutation', () => {

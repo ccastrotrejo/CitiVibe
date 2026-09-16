@@ -31,8 +31,8 @@ function matrices(group: THREE.Group) {
 }
 function shown(group: THREE.Group, name: string) {
   group.updateMatrixWorld(true);
-  const part = group.getObjectByName(name)!;
-  return Math.abs(part.matrixWorld.determinant()) > 1e-10;
+  const part = group.getObjectByName(name);
+  return part !== undefined && Math.abs(part.matrixWorld.determinant()) > 1e-10;
 }
 
 describe('weather-aware procedural people', () => {
@@ -45,12 +45,34 @@ describe('weather-aware procedural people', () => {
     }
   });
 
+  it('allocates umbrella meshes only for profiles that can actually use them', () => {
+    let umbrellas = 0;
+    let raincoats = 0;
+    for (const context of ['street', 'park', 'runner', 'resting'] as const) for (let index = 0; index < 80; index++) {
+      const { group, rig, profile } = person(`equipment-${index}`, context);
+      const eligible = context !== 'runner' && createWeatherTraits(profile.id).rainProtection === 'umbrella';
+      expect(rig.weatherArt?.shaft !== undefined).toBe(eligible);
+      expect(group.getObjectByName('Umbrella crown') !== undefined).toBe(eligible);
+      let panels = 0;
+      group.traverse((part) => { if (part.name === 'Umbrella canopy panel') panels++; });
+      expect(panels).toBe(eligible ? 6 : 0);
+      applyPersonWeather(rig, weather(eligible ? 'umbrella' : 'raincoat'));
+      expect(shown(group, 'Umbrella shaft')).toBe(eligible);
+      expect(shown(group, 'Weather coat')).toBe(!eligible);
+      if (eligible) umbrellas++;
+      else raincoats++;
+    }
+    expect(umbrellas).toBeGreaterThan(80);
+    expect(raincoats).toBeGreaterThan(80);
+  });
+
   it('restores identical dry matrices and is idempotent on paused weather changes', () => {
     for (const context of ['street', 'runner', 'resting'] as const) {
       const { group, rig } = person(`restore-${context}`, context);
       poseWalkerRig(rig, { distance: 1.7, speed: 1, blend: 1, reducedMotion: false, running: context === 'runner' });
       const dry = matrices(group);
       for (const equipment of ['umbrella', 'raincoat', 'winter', 'dry'] as const) {
+        if (equipment === 'umbrella' && !rig.weatherArt?.shaft) continue;
         applyPersonWeather(rig, weather(equipment));
         const first = matrices(group);
         applyPersonWeather(rig, weather(equipment));
@@ -92,28 +114,34 @@ describe('weather-aware procedural people', () => {
   });
 
   it('keeps open canopies above existing hats and hair, including tall workwear hats', () => {
+    let checked = 0;
     for (let index = 0; index < 200; index++) {
       const { group, rig, profile } = person(`hat-clearance-${index}`);
+      if (!rig.weatherArt?.shaft) continue;
+      checked++;
       applyPersonWeather(rig, weather('umbrella'));
       group.updateMatrixWorld(true);
       const head = new THREE.Box3().setFromObject(group.getObjectByName('Head and headwear')!);
       const canopy = new THREE.Box3().setFromObject(rig.weatherArt!.canopy);
       expect(canopy.min.y, `${profile.id} ${profile.hat}`).toBeGreaterThan(head.max.y + 0.005);
     }
+    expect(checked).toBeGreaterThan(80);
   });
 
   it('keeps the umbrella shaft on the holding hand through gait and turns', () => {
-    for (const context of ['street', 'runner', 'resting'] as const) {
-      const { group, rig } = person(`grip-${context}`, context);
+    const id = Array.from({ length: 80 }, (_, index) => `grip-${index}`)
+      .find((id) => createWeatherTraits(id).rainProtection === 'umbrella');
+    expect(id).toBeDefined();
+    for (const context of ['street', 'resting'] as const) {
+      const { group, rig } = person(id!, context);
       for (let phase = 0; phase <= 1; phase += 0.1) {
         group.rotation.y = phase * Math.PI;
         poseWalkerRig(rig, { distance: phase * 1.3, speed: 1.5, blend: 1,
-          running: context === 'runner', reducedMotion: false, weather: weather('umbrella') });
+          reducedMotion: false, weather: weather('umbrella') });
         group.updateMatrixWorld(true);
         const shaft = group.getObjectByName('Umbrella shaft')!;
         const endpoint = shaft.localToWorld(new THREE.Vector3(0, -0.5, 0));
-        const hand = rig.arms[1].localToWorld(new THREE.Vector3(...(context === 'runner'
-          ? [0, -0.27, 0.23] as const : [0, -0.465, 0] as const)));
+        const hand = rig.arms[1].localToWorld(new THREE.Vector3(0, -0.465, 0));
         expect(endpoint.distanceTo(hand)).toBeLessThan(1e-7);
       }
     }
@@ -123,6 +151,7 @@ describe('weather-aware procedural people', () => {
     for (const context of ['street', 'runner', 'resting'] as const) for (let index = 0; index < 200; index++) {
       const { group, rig, profile } = person(`envelope-${index}`, context);
       for (const equipment of ['umbrella', 'raincoat', 'winter'] as const) for (const phase of [0, 0.1, 0.25, 0.5, 0.75, 1]) {
+        if (equipment === 'umbrella' && !rig.weatherArt?.shaft) continue;
         poseWalkerRig(rig, { distance: phase * (rig.scale ?? 1), speed: profile.pace, blend: 1,
           running: context === 'runner', reducedMotion: false,
           sitting: context === 'resting' ? phase : undefined });
@@ -144,7 +173,7 @@ describe('weather-aware procedural people', () => {
       expect(batches.group.children).toHaveLength(2);
       for (const { group, rig } of people) {
         applyPersonWeather(rig, weather('umbrella'));
-        expect(shown(group, 'Umbrella shaft')).toBe(true);
+        expect(shown(group, 'Umbrella shaft')).toBe(rig.weatherArt?.shaft !== undefined);
         applyPersonWeather(rig, weather('umbrella', 0));
         expect(shown(group, 'Umbrella shaft')).toBe(false);
         applyPersonWeather(rig, weather('winter'));

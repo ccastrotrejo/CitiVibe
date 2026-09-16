@@ -104,8 +104,11 @@ describe('runtime ownership and suspension', () => {
     expect(matrices()).toEqual(snow);
   });
 
-  it('retains shared-bike users and docked inventory through paused graphics restoration', () => {
+  it('retains shared-bike users, an active crossing and mixed inventory through paused graphics restoration', () => {
     const model = new WorldModel(false);
+    for (let tick = 0; tick < 20 * 30; tick += 1) model.simulation.step(1 / 30);
+    expect(model.simulation.actors.find((actor) => actor.id === 'bikeshare-rider-juniper')!.sharedBike!.phase)
+      .toBe('pushing-out');
     const { canvas, world } = mount(model);
     onTestFinished(() => world.dispose());
     tick(0);
@@ -125,7 +128,7 @@ describe('runtime ownership and suspension', () => {
         }));
     };
     const before = snapshot();
-    expect(model.simulation.elapsed).toBeGreaterThan(2);
+    expect(model.simulation.elapsed).toBeGreaterThan(22);
     hidden = true;
     document.dispatchEvent(new Event('visibilitychange'));
     tick(300000);

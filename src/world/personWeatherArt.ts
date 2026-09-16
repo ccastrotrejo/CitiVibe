@@ -16,14 +16,13 @@ export interface PersonWeatherRig {
   trousers: THREE.Object3D[];
   umbrella: THREE.Object3D;
   canopy: THREE.Object3D;
-  shaft: THREE.Mesh;
+  shaft?: THREE.Mesh;
   clothes: CoveredPart[];
   headwear: CoveredPart[];
   bareLegs: CoveredPart[];
   bodyScale: THREE.Vector3;
   winterHat: 'beanie' | 'hood';
   safetyHelmet: boolean;
-  running: boolean;
   armSwing: number;
   hand: THREE.Vector3;
   tip: THREE.Vector3;
@@ -54,6 +53,7 @@ export function buildPersonWeather(rig: WalkerRig, profile: PersonProfile, head:
   const coat = optional(rig.torso);
   add(coat, 'Weather coat', profile.top, [0, 0.17, 0.0075], [0.415, 0.63, 0.3]);
   const running = profile.context === 'runner';
+  const traits = createWeatherTraits(profile.id);
   const sleeves: THREE.Object3D[] = [];
   const trousers: THREE.Object3D[] = [];
   const bareLegs: CoveredPart[] = [];
@@ -83,19 +83,22 @@ export function buildPersonWeather(rig: WalkerRig, profile: PersonProfile, head:
   const umbrella = optional(root);
   const canopy = new THREE.Object3D();
   umbrella.add(canopy);
-  for (let panel = 0; panel < 6; panel++) {
-    const angle = panel * Math.PI / 3;
-    const facet = add(canopy, 'Umbrella canopy panel', panel % 2 ? profile.top : profile.accent,
-      [Math.sin(angle) * 0.18, -0.06, Math.cos(angle) * 0.18], [0.31, 0.025, 0.285]);
-    facet.rotation.set(0, angle, 0);
-    facet.rotateX(0.38);
+  let shaft: THREE.Mesh | undefined;
+  if (!running && traits.rainProtection === 'umbrella') {
+    for (let panel = 0; panel < 6; panel++) {
+      const angle = panel * Math.PI / 3;
+      const facet = add(canopy, 'Umbrella canopy panel', panel % 2 ? profile.top : profile.accent,
+        [Math.sin(angle) * 0.18, -0.06, Math.cos(angle) * 0.18], [0.31, 0.025, 0.285]);
+      facet.rotation.set(0, angle, 0);
+      facet.rotateX(0.38);
+    }
+    add(canopy, 'Umbrella crown', profile.accent, [0, -0.008, 0], [0.23, 0.035, 0.23]);
+    shaft = add(umbrella, 'Umbrella shaft', '#46515a', [0, 0, 0], [0.016, 1, 0.016]);
   }
-  add(canopy, 'Umbrella crown', profile.accent, [0, -0.008, 0], [0.23, 0.035, 0.23]);
-  const shaft = add(umbrella, 'Umbrella shaft', '#46515a', [0, 0, 0], [0.016, 1, 0.016]);
   return { coat, hood, beanie, scarf, sleeves, trousers, umbrella, canopy, shaft, clothes, headwear, bareLegs,
-    bodyScale: root.scale.clone(), winterHat: createWeatherTraits(profile.id).winterHat,
+    bodyScale: root.scale.clone(), winterHat: traits.winterHat,
     safetyHelmet: ['hard-hat', 'fire-helmet', 'cycle-helmet'].includes(profile.hat),
-    running, armSwing: 0, hand: new THREE.Vector3(), tip: new THREE.Vector3(), direction: new THREE.Vector3() };
+    armSwing: 0, hand: new THREE.Vector3(), tip: new THREE.Vector3(), direction: new THREE.Vector3() };
 }
 
 /** Apply retained equipment after a pose, including paused changes; never advance simulation or allocate meshes. */
@@ -115,12 +118,12 @@ export function applyPersonWeather(rig: WalkerRig, state?: PersonWeatherState): 
   showParts(art.clothes, !jacket);
   showParts(art.headwear, !hood && !beanie);
   showParts(art.bareLegs, !winter);
-  const open = state?.equipment === 'umbrella' ? Math.min(1, Math.max(0, state.umbrellaOpen)) : 0;
+  const open = art.shaft && state?.equipment === 'umbrella' ? Math.min(1, Math.max(0, state.umbrellaOpen)) : 0;
   art.umbrella.scale.setScalar(open > 0 ? 1 : 0);
-  rig.arms[1].rotation.x = open > 0 ? (art.running ? 0.2 : -0.5) : art.armSwing;
-  if (open === 0) return;
+  rig.arms[1].rotation.x = open > 0 ? -0.5 : art.armSwing;
+  if (open === 0 || !art.shaft) return;
   // Anchor in rig coordinates, not world coordinates: actor turns cannot detach the shaft.
-  art.hand.set(0, art.running ? -0.27 : -0.465, art.running ? 0.23 : 0)
+  art.hand.set(0, -0.465, 0)
     .applyEuler(rig.arms[1].rotation).add(rig.arms[1].position)
     .applyEuler(rig.torso.rotation).add(rig.torso.position)
     .applyEuler(rig.pelvis.rotation).add(rig.pelvis.position);

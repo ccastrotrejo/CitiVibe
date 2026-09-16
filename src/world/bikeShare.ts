@@ -1,11 +1,11 @@
 import * as THREE from 'three';
 import {
   BIKE_SHARE_LAYOUT as L, BIKE_SHARE_STATIONS, BIKE_SHARE_STYLE as S,
-  bikeSharePoint, sampleBikeShare, validateBikeShareStations, type BikeShareStation,
+  bikeSharePoint, sampleBikeShare, sharedBikeKind, validateBikeShareStations, type BikeShareStation, type SharedBikeKind,
 } from '../content/bikeShare';
 import { createPersonProfile } from '../content/people';
 import type { ActorState } from './actors';
-import { poseWalkerRig, type WalkerRig, type WheelRig } from './locomotion';
+import { WALKER, poseWalkerRig, type WalkerRig, type WheelRig } from './locomotion';
 import { buildPersonRig, personPart, type PersonArt } from './person';
 import type { StreetscapeBuilder } from './streetscape';
 
@@ -22,9 +22,14 @@ export interface SharedBikeRig {
  * Original full-size step-through bicycle. Borrowed person primitives/material allow
  * all colored parts to share existing ActorInstances batches, including street bikes.
  */
-export function buildSharedBike(art: PersonArt, blueMaterial?: THREE.Material): SharedBikeRig {
+export function buildSharedBike(
+  art: PersonArt, blueMaterial?: THREE.Material, kind: SharedBikeKind = 'classic',
+): SharedBikeRig {
   const group = new THREE.Group();
-  group.name = 'Original blue shared bicycle';
+  group.name = kind === 'electric' ? 'Original electric shared bicycle' : 'Original blue shared bicycle';
+  group.userData.bikeKind = kind;
+  const electric = kind === 'electric';
+  const frame = electric ? S.electricFrame : S.blue;
   const part = (name: string, color: string, position: Triple, size: Triple, parent = group) => {
     const mesh = personPart(art, parent, name, color, position, size);
     if (color === S.blue && blueMaterial) {
@@ -65,7 +70,7 @@ export function buildSharedBike(art: PersonArt, blueMaterial?: THREE.Material): 
     for (let segment = 0; segment < 3; segment += 1) {
       const a = -Math.PI / 2 + segment * Math.PI / 3;
       const b = a + Math.PI / 3;
-      const mesh = bar('Blue wheel fender', S.blue,
+      const mesh = bar('Wheel fender', electric ? S.battery : S.blue,
         [0, S.wheelRadius + Math.cos(a) * 0.39, z + Math.sin(a) * 0.39],
         [0, S.wheelRadius + Math.cos(b) * 0.39, z + Math.sin(b) * 0.39], 0.035);
       mesh.scale.x = 0.08;
@@ -74,12 +79,20 @@ export function buildSharedBike(art: PersonArt, blueMaterial?: THREE.Material): 
   const crank: Triple = [0, 0.32, -0.1];
   const saddleStem: Triple = [0, 0.78, -0.28];
   const headset: Triple = [0, 0.83, 0.44];
-  bar('Low step-through tube', S.blue, [0, 0.3, -0.28], [0, 0.35, 0.2], 0.085);
-  bar('Curved step-through riser', S.blue, [0, 0.35, 0.2], headset, 0.09);
-  bar('Seat tube', S.blue, crank, saddleStem, 0.075);
-  bar('Rear frame stay', S.blue, [0, 0.32, -0.54], saddleStem, 0.05);
-  bar('Front fork', S.blue, [0, 0.32, 0.54], [0, 0.83, 0.44], 0.055);
-  part('Enclosed chain guard', S.blue, [0, 0.32, -0.3], [0.065, 0.16, 0.57]);
+  bar('Low step-through tube', frame, [0, 0.3, -0.28], [0, 0.35, 0.2], electric ? 0.13 : 0.085);
+  bar('Curved step-through riser', frame, [0, 0.35, 0.2], headset, electric ? 0.15 : 0.09);
+  bar('Seat tube', frame, crank, saddleStem, electric ? 0.11 : 0.075);
+  bar('Rear frame stay', frame, [0, 0.32, -0.54], saddleStem, 0.05);
+  bar('Front fork', frame, [0, 0.32, 0.54], [0, 0.83, 0.44], electric ? 0.075 : 0.055);
+  part('Enclosed chain guard', frame, [0, 0.32, -0.3], [0.065, 0.16, 0.57]);
+  if (electric) {
+    bar('Electric battery enclosure', S.battery, [0, 0.37, -0.18], [0, 0.73, -0.31], 0.15);
+    part('Battery top cap', frame, [0, 0.75, -0.31], [0.17, 0.055, 0.17]);
+    part('Electric front light housing', S.battery, [0, 1.035, 0.805], [0.2, 0.14, 0.11]);
+    part('Electric front light lens', '#eff4df', [0, 1.035, 0.865], [0.16, 0.095, 0.015]);
+    part('Handlebar assist display', S.battery, [0, 1.095, 0.48], [0.14, 0.055, 0.09]);
+    part('Plain assist indicator', S.paleBlue, [0, 1.126, 0.48], [0.09, 0.01, 0.045]);
+  }
   bar('Seat post', S.metal, saddleStem, [0, 0.9, -0.28], 0.035);
   part('Saddle', S.seat, [0, 0.93, -0.28], [0.22, 0.065, 0.25]);
   bar('Upright handlebar stem', S.metal, headset, [0, 1.065, 0.48], 0.035);
@@ -128,28 +141,33 @@ export function buildBikeShare(
   builder: StreetscapeBuilder, art: PersonArt, blueMaterial?: THREE.Material,
 ): BikeShareActivity {
   validateBikeShareStations();
-  const { block, palette: p } = builder;
+  const { add, box, palette: p } = builder;
   const bays: BayRig[] = [];
   const rigs: THREE.Group[] = [];
   for (const station of BIKE_SHARE_STATIONS) {
     const surfaceOffset = station.surfaceY - L.surfaceY;
     const place = (material: THREE.Material, x: number, y: number, z: number,
-      width: number, height: number, depth: number) => {
+      width: number, height: number, depth: number, tint?: string, lean = 0) => {
       const point = bikeSharePoint(station, x, z);
-      block(material, point.x, y + surfaceOffset, point.z, width, height, depth, station.yaw);
+      add(box, material, [point.x, y + surfaceOffset, point.z],
+        [width, height, depth], [0, station.yaw, lean], tint);
     };
     // Juniper already has continuous paving; don't overlay a coplanar duplicate slab.
     if (station.surfaceY === L.surfaceY) place(p.paving, (L.padMinX + L.padMaxX) / 2,
       -0.13, (L.padMinZ + L.padMaxZ) / 2, L.padMaxX - L.padMinX, 0.1, L.padMaxZ - L.padMinZ);
     for (let slot = 0; slot < L.slots; slot += 1) {
       const x = slot * L.slotSpacing;
-      place(p.stone, x, -0.045, 0.85, 0.54, 0.07, 0.39);
-      place(p.roof, x, 0.27, 0.86, 0.22, 0.58, 0.2);
-      place(p.copperEdge, x, 0.47, 0.75, 0.23, 0.14, 0.1);
-      if (slot > 0) place(p.line, x, 0.53, 0.68, 0.08, 0.04, 0.028);
-      // Empty wheel guides remain visibly empty when their bicycle is walked out.
+      place(p.facade, x, 0.75, 1.03, 0.23, 0.43, 0.2, S.metal);
+      place(p.facade, x, 0.775, 0.91, 0.15, 0.25, 0.012, S.seat);
+      place(p.facade, x, 0.96, 1, 0.26, 0.07, 0.28, S.metal);
       for (const side of [-1, 1]) {
-        place(p.copperEdge, x + side * 0.095, -0.005, 0.49, 0.035, 0.15, 0.58);
+        // Split, inward-tapering cheeks leave the front tire channel physically open.
+        place(p.facade, x + side * 0.115, 0.445, 0.95, 0.07, 1.04, 0.26, S.metal, side * 0.055);
+        place(p.facade, x + side * 0.095, -0.005, 0.49, 0.035, 0.15, 0.58, S.metal);
+      }
+      if (slot !== station.activeSlot) {
+        place(p.facade, x, L.dockIndicatorY, L.dockIndicatorZ, 0.08, 0.04, 0.028,
+          slot === L.emptySlot ? S.tire : '#70ba83');
       }
     }
     const kioskX = 8.45;
@@ -163,26 +181,26 @@ export function buildBikeShare(
       place(blueMaterial ?? p.teal, kioskX - station.side * 0.26, 1.34 + mark * 0.105, kioskZ,
         0.02, 0.038, 0.14 - mark * 0.027);
     }
-    const bike = buildSharedBike(art, blueMaterial);
+    const bike = buildSharedBike(art, blueMaterial, sharedBikeKind(station.riderId));
     bike.group.name = `${station.id}: checkout bicycle`;
     const parked = new THREE.Group();
     parked.name = `${station.id}: parked bicycle`;
     for (let slot = 0; slot < L.slots; slot += 1) {
       if (slot === station.activeSlot || slot === L.emptySlot) continue;
-      const dockedBike = buildSharedBike(art, blueMaterial);
+      const dockedBike = buildSharedBike(art, blueMaterial, sharedBikeKind(`${station.id}:${slot}`));
       dockedBike.group.name = `${station.id}: parked bicycle ${slot}`;
       dockedBike.group.position.x = slot * L.slotSpacing;
       parked.add(dockedBike.group);
     }
     const lockMarkers = [
       personPart(art, parked, 'Dock handling marker', '#dfac52',
-        [0, 0, 0.68], [0.08, 0.04, 0.028]),
+        [station.activeSlot * L.slotSpacing, 0, L.dockIndicatorZ], [0.08, 0.04, 0.028]),
       personPart(art, parked, 'Dock lock confirmed', '#70ba83',
-        [0, 0, 0.68], [0.08, 0.04, 0.028]),
+        [station.activeSlot * L.slotSpacing, 0, L.dockIndicatorZ], [0.08, 0.04, 0.028]),
     ] as const;
     const person = new THREE.Group();
     person.name = `${station.id}: neighbor checking a bicycle`;
-    const profile = createPersonProfile(`${station.id}-neighbor`, 'cyclist');
+    const profile = createPersonProfile(station.riderId, 'cyclist');
     const rig = buildPersonRig(person, { ...profile, stature: 1.7, build: 0.94, bag: 'none', outfit: 'casual' }, art);
     for (const group of [bike.group, parked, person]) group.rotation.y = station.yaw;
     const dock = bikeSharePoint(station, station.activeSlot * L.slotSpacing, 0);
@@ -214,13 +232,14 @@ export function buildBikeShare(
           // Scene-owned instance colors stay immutable; transform-only markers need no extra draw.
           const active = sample.phase !== 'riding' && (index === 1) === sample.lockConfirmed;
           marker.scale.set(active ? 0.08 : 0, active ? 0.04 : 0, active ? 0.028 : 0);
-          marker.position.y = 0.53 - L.surfaceY - groundLift;
+          marker.position.y = L.dockIndicatorY - L.surfaceY - groundLift;
         });
         person.position.set(sample.personX, floor, sample.personZ);
         person.rotation.y = sample.heading;
         person.scale.setScalar(showPerson ? 1 : 0);
         for (const wheel of bike.wheels) wheel.rotation.x = sample.displacement / S.wheelRadius;
-        poseWalkerRig(rig, { distance: sample.displacement, speed: Math.max(0.2, sample.speed), blend: 1, reducedMotion });
+        poseWalkerRig(rig, { distance: sample.displacement, speed: sample.speed,
+          blend: Math.min(1, sample.speed / 0.2), reducedMotion });
         if (showPerson && !reducedMotion) {
           // Docked neighbors gently shift their weight so they read as resting rather
           // than frozen. Torso-only (feet stay planted); deterministic and locked to a
@@ -231,13 +250,16 @@ export function buildBikeShare(
           rig.torso.rotation.z += 0.035 * sway;
           rig.torso.position.x += 0.015 * sway;
         }
+        if (!showPerson) continue;
         person.updateWorldMatrix(true, true);
+        bike.group.updateWorldMatrix(true, true);
         rig.arms.forEach((arm, index) => {
           const touch = index === 0 ? sample.latchTouch : 0;
-          const hand = bikeSharePoint(station, (index === 0 ? -1 : 1) * 0.09 * (1 - touch),
-            sample.displacement - 0.28 - 0.11 * touch);
-          handDirection.set(hand.x, floor + 0.94 - 0.04 * touch, hand.z);
+          handDirection.set((index === 0 ? -1 : 1) * 0.09 * (1 - touch),
+            0.94 - 0.04 * touch, -0.28 - 0.11 * touch);
+          bike.group.localToWorld(handDirection);
           arm.parent!.worldToLocal(handDirection).sub(arm.position);
+          arm.scale.y = handDirection.length() / WALKER.armLen;
           arm.quaternion.setFromUnitVectors(down, handDirection.normalize());
         });
       }

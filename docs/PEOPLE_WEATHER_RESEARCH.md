@@ -96,7 +96,7 @@ The surrounding walk can take several simulated minutes. Sunny makes return elig
 - Weather modifies desired pedestrian pace before existing crossing, landing, destination-capacity and headway constraints. It never grants right of way.
 - Full oriented body envelopes govern the additional park travelers. Same-direction headway uses a consistent leader/follower ordering; symmetric "both approaching" checks can deadlock at a merge.
 - Exterior paths use distance-exact line segments and small corner bevels. A freely interpolated long rectangle overshot toward street signal hardware during development; the corrected route retains the existing sidewalk envelope.
-- Optional garment meshes remain allocated, sharing existing primitives/materials. Because `ActorInstances` hides source meshes and copies their matrices, accessory suppression must affect the submitted transform, not rely on `visible`.
+- Optional garment meshes remain allocated, sharing existing primitives/materials. Umbrella meshes are created only for eligible, umbrella-preferring walkers; runners and raincoat-only profiles never select them. Because `ActorInstances` hides source meshes and copies their matrices, accessory suppression must affect the submitted transform, not rely on `visible`.
 - No new React frame state, network calls, dependencies, weather menu, timers, buildings, park infrastructure or scene-budget increases.
 
 ## Verification targets and limits

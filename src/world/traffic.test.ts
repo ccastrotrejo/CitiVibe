@@ -95,6 +95,52 @@ function overlap(
 }
 
 describe('shared connected street graph', () => {
+  it.each([
+    ...[0, 1, 4, 14, 42, 91, 2401, 0xffffffff].map((seed) => ({ seed, traction: 1, pace: 1 })),
+    ...[0, 2401].map((seed) => ({ seed, traction: 0.3, pace: 1 })),
+    { seed: 2401, traction: 1, pace: 1.12 },
+    { seed: 2401, traction: 0.3, pace: 0.72 },
+  ])(
+    'completes Juniper bike trips without crossing other bodies (seed $seed, grip $traction, walking pace $pace)',
+    ({ seed, traction, pace }) => {
+      const traffic = new CityTraffic(seed);
+      if (pace !== 1) for (const actor of traffic.pedestrians.actors) {
+        actor.weather = { equipment: traction === 1 ? 'raincoat' : 'winter', umbrellaOpen: 0, pace, cautious: traction < 1 };
+      }
+      const index = traffic.actors.findIndex((actor) => actor.id === 'bikeshare-rider-juniper');
+      const rider = traffic.actors[index];
+      const phases = new Set<string>();
+      let returned = false;
+      let returnTime = 0;
+      for (let tick = 0; tick < SOAK_SECONDS / DT; tick += 1) {
+        traffic.step(DT, traction);
+        const trip = rider.sharedBike!;
+        if (trip.docked && phases.has('riding') && !returned) {
+          returned = true;
+          returnTime = tick * DT;
+        }
+        phases.add(trip.phase);
+        for (const [otherIndex, other] of traffic.actors.entries()) {
+          if (other === rider || Math.abs(other.position.x - rider.position.x) > 6 ||
+            Math.abs(other.position.z - rider.position.z) > 6) continue;
+          if (overlap(rider.position.x, rider.position.z, rider.heading, halfLength(index), halfWidth(index),
+            other.position.x, other.position.z, other.heading, halfLength(otherIndex), halfWidth(otherIndex))) {
+            throw new Error(`Juniper overlap with ${other.id} at ${tick * DT}s (${trip.phase}): ` +
+              JSON.stringify({ bike: rider.position, heading: rider.heading, other: other.position,
+                otherHeading: other.heading, otherState: other.state }));
+          }
+        }
+      }
+      expect(phases).toContain('riding');
+      expect(phases).toContain('pushing-in');
+      expect(returned, JSON.stringify(rider)).toBe(true);
+      expect(rider.sharedBike!.travelDistance).toBeGreaterThan(rider.routeLength - 1e-6);
+      if (returnTime < SOAK_SECONDS - 20) {
+        expect(rider.sharedBike!.travelDistance, JSON.stringify({ rider, returnTime })).toBeGreaterThan(rider.routeLength + 0.5);
+      }
+    },
+  );
+
   it('keeps relocated street poles outside full motor and protected cycling footprints', () => {
     const pose = { position: { x: 0, y: 0, z: 0 }, heading: 0 };
     const blocked = new Set<string>();

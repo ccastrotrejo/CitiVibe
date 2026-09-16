@@ -69,9 +69,11 @@ describe('foot trajectory', () => {
 });
 
 describe('two-bone inverse kinematics', () => {
-  it('keeps shared-bike soles on level pedal platforms through complete crank rotations', () => {
+  it.each(['city-cyclist-1', 'bikeshare-rider-lantern'])(
+    'keeps shared-bike soles on level pedals through complete crank rotations: %s', (id) => {
     const world = scene();
-    const group = world.actors.get('city-cyclist-1')!;
+    const group = world.actors.get(id)!;
+    group.scale.setScalar(1);
     const rig = group.userData.rig as VehicleRig;
     expect(rig.cyclingLegs).toHaveLength(2);
     group.position.set(7, 0.2, -9);

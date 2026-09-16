@@ -8,10 +8,21 @@ export const BIKE_SHARE_STYLE = {
   metal: '#bac9cb',
   tire: '#29363e',
   seat: '#344650',
+  electricFrame: '#bdcbd1',
+  battery: '#40535e',
   wheelRadius: 0.32,
   wheelbase: 1.08,
   handlebarWidth: 0.54,
 } as const;
+
+export type SharedBikeKind = 'classic' | 'electric';
+
+/** Stable fleet mix independent of traffic randomness, shared by docked and ridden representations. */
+export function sharedBikeKind(id: string): SharedBikeKind {
+  let hash = 2166136261;
+  for (const character of id) hash = Math.imul(hash ^ character.charCodeAt(0), 16777619);
+  return (hash >>> 0) % 3 === 0 ? 'electric' : 'classic';
+}
 
 export interface BikeShareStation {
   readonly id: string;
@@ -63,6 +74,8 @@ export const BIKE_SHARE_LAYOUT = {
   surfaceY: -0.08,
   period: 48,
   dockSeconds: 10,
+  dockIndicatorY: 0.82,
+  dockIndicatorZ: 0.895,
 } as const;
 
 export const JUNIPER_CYCLE_ACCESS = {
@@ -72,6 +85,44 @@ export const JUNIPER_CYCLE_ACCESS = {
   markingWidth: 1.2,
   markingLength: 13.8,
 } as const;
+
+/** Shared walking/cycling access across Juniper Street, including both sidewalk lanes. */
+export const JUNIPER_ACCESS_CROSSING = {
+  minX: 24.1, maxX: 27.7, minZ: 89.9, maxZ: 103.7,
+} as const;
+
+export interface BikeAccessBarrier {
+  readonly minX: number;
+  readonly maxX: number;
+  readonly minZ: number;
+  readonly maxZ: number;
+}
+
+/** Distance to a reserved crossing; occupants may leave, but approaching bodies stop outside. */
+export function bikeAccessStopDistance(
+  barrier: BikeAccessBarrier, x: number, z: number, heading: number, radius: number,
+): number {
+  const minX = barrier.minX - radius;
+  const maxX = barrier.maxX + radius;
+  const minZ = barrier.minZ - radius;
+  const maxZ = barrier.maxZ + radius;
+  if (x > minX + 1e-7 && x < maxX - 1e-7 && z > minZ + 1e-7 && z < maxZ - 1e-7) return Infinity;
+  let entry = 0;
+  let exit = Infinity;
+  for (const [position, direction, min, max] of [
+    [x, Math.sin(heading), minX, maxX], [z, Math.cos(heading), minZ, maxZ],
+  ]) {
+    if (Math.abs(direction) < 1e-7) {
+      if (position < min || position > max) return Infinity;
+      continue;
+    }
+    const a = (min - position) / direction;
+    const b = (max - position) / direction;
+    entry = Math.max(entry, Math.min(a, b));
+    exit = Math.min(exit, Math.max(a, b));
+  }
+  return exit >= entry && exit > 0 ? entry : Infinity;
+}
 
 export type BikeSharePhase = 'docked' | 'pushing-out' | 'riding' | 'pushing-in' | 'locking';
 
@@ -83,6 +134,7 @@ export interface BikeShareTripState {
   readonly heading: number;
   readonly speed: number;
   readonly distanceFromDock: number;
+  readonly travelDistance: number;
   readonly docked: boolean;
   readonly lockConfirmed: boolean;
 }
@@ -132,7 +184,7 @@ export function sampleBikeShare(
         x: bike.x - Math.sin(heading) * BIKE_SHARE_LAYOUT.personBehind,
         z: bike.z - Math.cos(heading) * BIKE_SHARE_LAYOUT.personBehind,
       };
-  const displacement = still ? 0 : trip.distanceFromDock;
+  const displacement = still ? 0 : trip.travelDistance;
   const latchTime = docked ? smooth(Math.min(1, Math.max(0, elapsedSeconds % BIKE_SHARE_LAYOUT.dockSeconds / 2))) : 0;
   return {
     phase, displacement, speed: still ? 0 : trip.speed, docked, lockConfirmed, heading,

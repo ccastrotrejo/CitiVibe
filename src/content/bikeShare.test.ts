@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   BIKE_SHARE_LAYOUT as L, BIKE_SHARE_STATIONS, BIKE_SHARE_STYLE, BIKE_SHARE_POCKETS, COURTSIDE_BIKE_POCKET,
-  bikeShareBounds, bikeSharePoint, sampleBikeShare, validateBikeShareStations, type BikeShareTripState,
+  bikeAccessStopDistance, bikeShareBounds, bikeSharePoint, sampleBikeShare, sharedBikeKind,
+  validateBikeShareStations, type BikeShareTripState,
 } from './bikeShare';
 import { BASKETBALL_COURT, PICKLEBALL_COURT, RECREATION_AREA } from './courts';
 import { COURT_LAMPS, LAMP_GEOMETRY } from './lighting';
@@ -16,10 +17,30 @@ const overlaps = (a: ReturnType<typeof bikeShareBounds>, b: ReturnType<typeof bi
 const trip = (station: typeof BIKE_SHARE_STATIONS[number], phase: BikeShareTripState['phase'],
   docked: boolean): BikeShareTripState => ({
   stationId: station.id, phase, x: station.x + 3, z: station.z - 2, heading: Math.PI / 2,
-  speed: docked ? 0 : 2.8, distanceFromDock: docked ? 0 : 5, docked, lockConfirmed: docked,
+  speed: docked ? 0 : 2.8, distanceFromDock: docked ? 0 : 5, travelDistance: 5, docked, lockConfirmed: docked,
 });
 
 describe('original shared-bike content', () => {
+  it('holds approaching bodies outside a reservation while allowing occupants and parallel traffic to leave', () => {
+    const barrier = { minX: 10, maxX: 14, minZ: 20, maxZ: 30 };
+    expect(bikeAccessStopDistance(barrier, 5, 25, Math.PI / 2, 1)).toBeCloseTo(4);
+    expect(bikeAccessStopDistance(barrier, 18, 25, -Math.PI / 2, 1)).toBeCloseTo(3);
+    expect(bikeAccessStopDistance(barrier, 12, 15, 0, 1)).toBeCloseTo(4);
+    expect(bikeAccessStopDistance(barrier, 12, 35, Math.PI, 1)).toBeCloseTo(4);
+    expect(bikeAccessStopDistance(barrier, 9, 25, Math.PI / 2, 1)).toBe(0);
+    expect(bikeAccessStopDistance(barrier, 9 + 1e-10, 25, Math.PI / 2, 1)).toBe(0);
+    expect(bikeAccessStopDistance(barrier, 12, 25, Math.PI / 2, 1)).toBe(Infinity);
+    expect(bikeAccessStopDistance(barrier, 5, 18, Math.PI / 2, 1)).toBe(Infinity);
+    expect(bikeAccessStopDistance(barrier, 5, 25, -Math.PI / 2, 1)).toBe(Infinity);
+  });
+
+  it('keeps bicycle kinds stable independently of build order', () => {
+    const ids = Array.from({ length: 15 }, (_, index) => `city-cyclist-${index + 1}`);
+    const kinds = ids.map(sharedBikeKind);
+    expect(new Set(kinds)).toEqual(new Set(['classic', 'electric']));
+    expect([...ids].reverse().map(sharedBikeKind).reverse()).toEqual(kinds);
+  });
+
   it('conserves every bike while a rider is docked or taking a trip', () => {
     for (const station of BIKE_SHARE_STATIONS) {
       for (const state of [trip(station, 'docked', true), trip(station, 'pushing-out', false), trip(station, 'riding', false), trip(station, 'pushing-in', false)]) {

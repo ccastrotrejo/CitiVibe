@@ -1329,7 +1329,18 @@ function buildSignalLights({ block, add, box, cylinder, palette: p }: Streetscap
           [transform.rotation.x, transform.rotation.y, transform.rotation.z]);
         const makeHead = (axis: SignalHead['axis'], x: number, y: number, z: number, angle: number) => {
           const pedestrian = axis === 'pedestrians';
-          block(pedestrian ? p.rubber : p.taxi, x, y, z, pedestrian ? 0.53 : 0.65, pedestrian ? 0.8 : 1.42, 0.3, angle);
+          const width = pedestrian ? 0.53 : 0.65;
+          const height = pedestrian ? 0.8 : 1.42;
+          block(p.taxi, x, y, z, width, height, 0.3, angle);
+          block(p.rubber, x + Math.sin(angle) * 0.16, y, z + Math.cos(angle) * 0.16,
+            width - 0.1, height - 0.1, 0.035, angle);
+          for (const edge of [-1, 1]) {
+            block(p.taxi, x + Math.cos(angle) * edge * (width - 0.055) / 2 + Math.sin(angle) * 0.16,
+              y, z - Math.sin(angle) * edge * (width - 0.055) / 2 + Math.cos(angle) * 0.16,
+              0.055, height, 0.085, angle);
+            block(p.taxi, x + Math.sin(angle) * 0.16, y + edge * (height - 0.055) / 2,
+              z + Math.cos(angle) * 0.16, width, 0.055, 0.085, angle);
+          }
           if (pedestrian) block(p.rubber, x, y + 0.43, z, 0.65, 0.07, 0.5, angle);
           const lamps: SignalHead['lamps'] = {};
           const colors: LampColor[] = pedestrian ? ['red', 'green'] : ['red', 'amber', 'green'];
