@@ -134,7 +134,7 @@ describe('original curbside furniture', () => {
       },
     };
     const vehicleArt = {
-      box, cylinder, wheel, taperedShell: box, taxiLettering: lettering.parking,
+      box, cylinder, wheel, taperedShell: box, wheelArch: box, taxiLettering: lettering.parking,
       personArt: { box, head: crown, material: surface }, civicBlue: blue,
       vehiclePaint: surface, vehicleGlass: glass, lampGlow: surface,
       beaconRed: surface, beaconBlue: surface, palette,
@@ -142,7 +142,7 @@ describe('original curbside furniture', () => {
     try {
       buildStreetFurniture(builder, blue, glass, lettering, vehicleArt);
       expect(parts.filter(({ shape, material }) => shape === cylinder && material === blue)).toHaveLength(6);
-      expect(parts.filter(({ material }) => material === glass)).toHaveLength(40);
+      expect(parts.filter(({ material }) => material === glass)).toHaveLength(28);
       expect(parts.filter(({ shape }) => shape === lettering.food)).toHaveLength(8);
       expect(parts.filter(({ shape }) => shape === lettering.parking)).toHaveLength(20);
       expect(parts.length).toBeLessThan(1500);

@@ -17,6 +17,7 @@ export interface VehicleArt {
   cylinder: THREE.BufferGeometry;
   wheel: THREE.BufferGeometry;
   taperedShell: THREE.BufferGeometry;
+  wheelArch: THREE.BufferGeometry;
   taxiLettering: THREE.BufferGeometry;
   personArt: PersonArt;
   civicBlue: THREE.Material;

@@ -34,6 +34,7 @@ beforeAll(() => {
   art = {
     box, cylinder: hub.geometry, wheel: tire.geometry,
     taperedShell: mesh(passenger, 'Passenger shoulder').geometry,
+    wheelArch: mesh(passenger, 'Open wheel arch trim').geometry,
     taxiLettering: mesh(taxi, 'Original TAXI lettering').geometry,
     vehiclePaint: paint, vehicleGlass: mesh(passenger, 'Front windshield').material,
     lampGlow: mesh(taxi, 'Unbranded taxi roof light').material,
@@ -103,6 +104,13 @@ describe('ordinary and parked fleet artwork', () => {
         ray.set(new THREE.Vector3(side * 4, p.y + rig.wheelRadius * 0.72, p.z), new THREE.Vector3(-side, 0, 0));
         expect(ray.intersectObjects(targets, false)[0]?.object, `${id} tire`).toBe(wheel.spin.children[0]);
       }
+      actor.traverse(object => {
+        if (!(object instanceof THREE.Mesh) || object.name !== 'Open wheel arch trim') return;
+        const normal = new THREE.Vector3().fromBufferAttribute(object.geometry.getAttribute('normal'), 0)
+          .transformDirection(object.matrixWorld);
+        expect(normal.x * Math.sign(object.position.x)).toBeGreaterThan(0.99);
+        expect(object.geometry.index!.count / 3).toBe(6);
+      });
     }
   });
 

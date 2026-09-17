@@ -62,19 +62,21 @@ export function buildPassengerVehicle(body: THREE.Object3D, id: string, taxi: bo
   else add('Passenger hatch', color, [0, belt - 0.04, -1.28], [width - 0.1, 0.32, 0.06]);
   glass('Passenger glazing', [0, belt + cabinHeight / 2, cabinZ],
     [width - 0.14, cabinHeight, cabinLength], true);
-  // The front/rear planes follow the shared taper exactly, rather than hiding inside a solid cab.
+  // The front plane follows the shared taper; its existing rear face forms the sloping backlight.
   const frontZ = cabinZ + cabinLength * 0.42;
-  const rearZ = cabinZ - cabinLength * 0.52;
   glass('Front windshield', [0, belt + cabinHeight / 2, frontZ + 0.008],
     [width - 0.25, Math.hypot(cabinHeight, cabinLength * 0.16), 0.015])
     .rotation.x = -Math.atan2(cabinLength * 0.16, cabinHeight);
-  glass('Rear windshield', [0, belt + cabinHeight / 2, rearZ - 0.008],
-    [width - 0.25, Math.hypot(cabinHeight, cabinLength * 0.04), 0.015])
-    .rotation.x = Math.atan2(cabinLength * 0.04, cabinHeight);
   add('Passenger roof', color, [0, roof + 0.035, cabinZ - cabinLength * 0.06],
     [width - 0.25, 0.07, cabinLength * 0.8], true);
   add('Front grille', DARK, [0, 0.67, 1.314], [0.64, 0.15, 0.04]);
   for (const side of [-1, 1]) {
+    for (const z of [-length * 0.32, length * 0.32]) {
+      const arch = add('Open wheel arch trim', tall ? DARK : color,
+        [side * (width / 2 + 0.032), radius, z], [1, radius, radius]);
+      arch.geometry = art.wheelArch;
+      arch.rotation.y = side > 0 ? 0 : Math.PI;
+    }
     const pillar = add('Sloping windshield pillar', color,
       [side * (width - 0.14) * 0.475, belt + cabinHeight / 2, frontZ + 0.008],
       [0.04, Math.hypot(cabinHeight, cabinLength * 0.16), 0.045]);

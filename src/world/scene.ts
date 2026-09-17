@@ -201,8 +201,22 @@ export function buildCityScene(): CityScene {
     shellPositions.setZ(index, shellPositions.getZ(index) * 0.8 - 0.06);
   }
   taperedShell.computeVertexNormals();
+  const archVertices: number[] = [];
+  const archIndices: number[] = [];
+  for (let step = 0; step <= 3; step++) {
+    const angle = step / 3 * Math.PI;
+    for (const radius of [1, 1.16]) archVertices.push(0, Math.sin(angle) * radius, Math.cos(angle) * radius);
+    if (step < 3) {
+      const index = step * 2;
+      archIndices.push(index, index + 2, index + 1, index + 1, index + 2, index + 3);
+    }
+  }
+  const wheelArch = geometry(new THREE.BufferGeometry());
+  wheelArch.setAttribute('position', new THREE.Float32BufferAttribute(archVertices, 3));
+  wheelArch.setIndex(archIndices);
+  wheelArch.computeVertexNormals();
   const vehicleArt: VehicleArt = {
-    box, cylinder, wheel, taperedShell, personArt, civicBlue, vehicleGlass, lampGlow, palette, beaconRed, beaconBlue,
+    box, cylinder, wheel, taperedShell, wheelArch, personArt, civicBlue, vehicleGlass, lampGlow, palette, beaconRed, beaconBlue,
     vehiclePaint: palette.facade, taxiLettering: geometry(buildSignLettering('TAXI', 0.5, 0.13)),
   };
   const dummy = new THREE.Object3D();

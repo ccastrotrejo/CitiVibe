@@ -1,6 +1,6 @@
 # NYC ordinary vehicle study - 2026-09-16
 
-**Status: all six approved groups implemented; final verification pending.** The approved slice refines all six ordinary moving/parked fleet categories: moving passenger cars, parked cars, yellow taxis, cargo vans, box trucks and street buses. It changes their original procedural artwork, not traffic behavior, actor counts or safety envelopes. The separate [emergency-vehicle study](NYC_EMERGENCY_VEHICLES_RESEARCH.md) remains applicable to the retained service fleet.
+**Status: all six approved groups implemented; verification recorded with a sleep-interrupted full-run caveat.** The approved slice refines all six ordinary moving/parked fleet categories: moving passenger cars, parked cars, yellow taxis, cargo vans, box trucks and street buses. It changes their original procedural artwork, not traffic behavior, actor counts or safety envelopes. The separate [emergency-vehicle study](NYC_EMERGENCY_VEHICLES_RESEARCH.md) remains applicable to the retained service fleet.
 
 ## Evidence and provenance
 
@@ -65,11 +65,14 @@ This is an art-only fleet refinement. Preserve stable IDs, route allocation, sim
 
 Original procedural geometry must retain shared scene resource ownership and the unchanged scene budgets; no downloaded runtime model, photograph, logo, brand texture, real livery or new dependency is part of this scope. Parked-car shell reuse is a consistency requirement, not permission to give static scenery a moving-vehicle simulation.
 
-**Implementation-owner follow-up, not executed by this documentation pass:**
+## Implementation-owner record - 2026-09-17
 
-- Record which of the six approved categories was implemented, including stable variants and any bounded simplifications.
-- Verify visible glazing, front/rear and cargo/passenger distinctions, sensible grounded axles, full body/trim/lamp envelope fit, and parked-car scale/clearance.
-- Confirm retained counts, deterministic reconstruction, lighting/weather, traffic rules, pause/recovery, shared-resource disposal and unchanged budgets.
-- Append actual source-scene measurements and executed checks, with browser/pixel-inspection and physical-device limits stated separately. Prior emergency-pass measurements and tests do not verify the ordinary fleet.
+**Implemented:** all six rows of the approved translation above now have original procedural artwork. The approval table remains a record of the original design decision, not an assertion about the external sources. Three passenger forms, two taxi forms and low/high-roof vans are derived from vehicle IDs without changing the traffic stream. The passenger shell and wheel rig also build the twelve parked cars; their original positions, orientations and 6.2 x 2 m bays remain. Static art now fits a complete 2.8 x 1.65 m reservation instead of the oversized 3.4/3.7 m bodies. Ordinary motors retain their existing full lengths: sedan/taxi 2.8 m, van 3.5 m, truck 4.6 m and bus 4.8 m.
 
-Implementation status, final scene measurements, test counts and visual approval are deliberately left to the owner. This record supplies no new compile, test, render, accessibility, traffic-compliance or performance result. See the [art contract](ART_AND_ASSETS.md), [experience specification](EXPERIENCE_SPEC.md) and [acceptance record](ACCEPTANCE_CRITERIA.md) for the retained project boundaries and the owner's subsequent verification.
+**Observed, original generated pixels:** the implementation owner inspected before/after front/rear studies of all five moving categories, a final sedan/hatch/crossover/taxi-minivan/low-van/parked-family study, and live city/day/night-rain views. The studies use actual source rigs, preserved per-instance colors and the production driving-lamp renderer; they introduce no runtime route or UI. The pre-change study was captured on unmodified main `518c36b`, at the same camera, layout, lighting and viewport as the final moving-fleet study. These images are generated CitiVibe artwork, not pixel observations of P1-P3. They are posted in [PR #23](https://github.com/ccastrotrejo/CitiVibe/pull/23).
+
+**Measured:** final CPU base-scene traversal is **639,571 triangles / 110 visible mesh submissions / 37 materials**, compared with **638,803 / 109 / 37** at the pre-change checkpoint. The original TAXI letters decrease from 840 to 40 triangles per cab, saving 7,200 across nine taxis before the other body details. A shared open wheel-arch primitive and tapered backlights keep the subsequent polish within the unchanged scene ceilings. These counts exclude extra weather passes and do not establish physical-device frame rate.
+
+Source-mesh exemplar totals (including wheels, excluding the separately rendered lamp lenses) are 604 triangles for the sampled sedan, 668 for the sampled sedan taxi, 592 for the sampled cargo van, 592 for the box truck and 628 for the bus. Taller passenger variants have additional pillars; these exemplar counts are not fleet-wide averages.
+
+Executed automated checks and remaining verification limits are maintained in the [acceptance record](ACCEPTANCE_CRITERIA.md). See the [art contract](ART_AND_ASSETS.md) and [experience specification](EXPERIENCE_SPEC.md) for retained behavior. No new real-world photo-pixel inspection, fleet census, exact vehicle-scale claim, accessibility conversion, physical-device FPS or long-session sign-off is implied.
