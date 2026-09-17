@@ -47,7 +47,7 @@ export const PARKING_SIGNS: readonly StreetProp[] = [-1, 1].flatMap((side) =>
     id: `parking-sign-${side}-${x}`, x, z: side * 99.97, yaw: side < 0 ? 0 : Math.PI,
   })));
 
-/** Only the ends of the two occupied curb runs are marked, never individual bays. */
+/** Small curb-end ticks complement the individual roadway bay outlines. */
 export const CURB_RUN_ENDS = [-1, 1].flatMap((side) => [-25.3, 25.3].map((x) => ({
   id: `curb-run-end-${side}-${x}`, x, z: side * 100.09, yaw: 0,
 })));

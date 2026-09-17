@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {
-  CURB_RUN_ENDS, CURB_VEHICLES, EXTRA_PARK_BENCHES, FOOD_CARTS, FOOD_CART_SPACE, PARKING_SIGNS, PARK_READING_POCKET,
+  CURB_RUN_ENDS, CURB_VEHICLES, EXTRA_PARK_BENCHES, FOOD_CARTS, FOOD_CART_SPACE, PARKING_BAYS, PARKING_SIGNS, PARK_READING_POCKET,
   STREET_BENCHES, STREET_FURNITURE_APRONS, STREET_MAILBOXES, type CurbVehicle, type StreetProp,
 } from '../content/streetFurniture';
 import type { StreetscapeBuilder } from './streetscape';
@@ -120,6 +120,13 @@ export function buildStreetFurniture(
   vehicleArt: VehicleArt,
 ): void {
   const p = builder.palette;
+  for (const bay of PARKING_BAYS) {
+    const { block } = placedBuilder(builder, bay);
+    block(p.line, -bay.width / 2, 0.025, 0, 0.085, 0.02, bay.length);
+    for (const end of [-1, 1]) {
+      block(p.line, 0, 0.025, end * bay.length / 2, bay.width, 0.02, 0.085);
+    }
+  }
   for (const end of CURB_RUN_ENDS) {
     builder.block(p.line, end.x, 0.093, end.z, 0.2, 0.006, 0.13);
   }

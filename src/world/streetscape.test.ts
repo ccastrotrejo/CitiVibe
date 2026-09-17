@@ -642,6 +642,83 @@ describe('original connected-city streetscape', () => {
     }
   });
 
+  it('gives brick and brownstone elevations a base and crown instead of stripes on every floor', () => {
+    const { parts, builder } = createArt();
+    for (const building of STREET_BUILDINGS.filter(({ fabricType }) =>
+      ['rowhouse', 'tenement', 'masonry-loft', 'masonry-office'].includes(fabricType))) {
+      const art = buildingParts(parts, building);
+      for (let floor = 2; floor < building.floors; floor++) {
+        const y = 0.3 + floor * building.architecture.floorHeight + 0.12;
+        expect(art.filter(({ position, scale }) =>
+          Math.abs(position[1] - y) < 1e-8 && scale[1] === 0.12 &&
+          scale[0] >= building.width && scale[2] >= building.depth), building.id).toHaveLength(0);
+      }
+      const baseBandY = 0.3 + building.architecture.floorHeight + 0.12;
+      expect(art.some(({ position, scale }) =>
+        Math.abs(position[1] - baseBandY) < 1e-8 && scale[1] === 0.12 &&
+        scale[0] >= building.width && scale[2] >= building.depth)).toBe(true);
+      if (building.fabricType === 'tenement') {
+        expect(building.architecture.windowHeight / building.architecture.windowWidth).toBeGreaterThan(1.2);
+        const roofY = 0.3 + building.floors * building.architecture.floorHeight;
+        expect(art.some(({ surface, position, scale }) =>
+          surface === builder.palette.rubber && Math.abs(position[1] - roofY - 0.03) < 1e-8 &&
+          scale[0] >= building.width && scale[2] >= building.depth)).toBe(true);
+      }
+    }
+  });
+
+  it('places actual shadow friezes and brackets on the street face, clear of lot lines and upper windows', () => {
+    const { parts, builder } = createArt();
+    for (const building of STREET_BUILDINGS.filter(({ fabricType }) =>
+      fabricType === 'tenement' || fabricType === 'metal-loft')) {
+      const art = buildingParts(parts, building);
+      const span = buildingFrontSpan(building);
+      const top = 0.3 + building.floors * building.architecture.floorHeight;
+      const center = buildingFrontPoint(building, 0, 0.1);
+      const frieze = art.find(({ surface, position, scale }) =>
+        surface === builder.palette.rubber &&
+        Math.abs(position[0] - center.x) < 1e-8 && Math.abs(position[2] - center.z) < 1e-8 &&
+        Math.abs(position[1] - top + 0.08) < 1e-8 && scale[0] === span - 0.12 && scale[1] === 0.12);
+      expect(frieze, building.id).toBeDefined();
+      const brackets = art.filter(({ surface, position, scale }) =>
+        surface === builder.palette.rubber && scale[0] === 0.14 && scale[1] === 0.24 &&
+        Math.abs(position[1] - top + 0.08) < 1e-8);
+      expect(brackets.length, building.id).toBe(Math.max(2, Math.floor(span / 2.4)));
+      const along = building.front.axis === 'x' ? 'z' : 'x';
+      for (const { bounds } of brackets) {
+        expect(bounds.min[along]).toBeGreaterThan(building[along] - span / 2);
+        expect(bounds.max[along]).toBeLessThan(building[along] + span / 2);
+        expect(bounds.min.y).toBeGreaterThan(
+          0.3 + (building.floors - 1) * building.architecture.floorHeight +
+          building.architecture.floorHeight * 0.52 + building.architecture.windowHeight / 2 + 0.14,
+        );
+      }
+    }
+  });
+
+  it('completes raised brownstone principal-window surrounds without covering the glass', () => {
+    const { parts, builder } = createArt();
+    for (const building of STREET_BUILDINGS.filter(({ brownstone }) => brownstone)) {
+      const art = buildingParts(parts, building);
+      const face = buildingFrontPoint(building, 0, 0.025);
+      const axis = building.front.axis;
+      const windows = art.filter(({ surface, position, scale }) =>
+        surface === builder.palette.glass && scale[1] === building.architecture.windowHeight + 0.25 &&
+        Math.abs(position[axis === 'x' ? 0 : 2] - face[axis]) < 1e-8);
+      expect(windows.length).toBeGreaterThan(0);
+      for (const pane of windows) {
+        const alongIndex = axis === 'x' ? 2 : 0;
+        for (const side of [-1, 1]) {
+          expect(art.some(({ surface, position, scale }) =>
+            surface === builder.palette.copperEdge && scale[1] === pane.scale[1] + 0.08 &&
+            Math.abs(position[1] - pane.position[1]) < 1e-8 &&
+            Math.abs(position[alongIndex] - pane.position[alongIndex] -
+              side * (building.architecture.windowWidth / 2 + 0.075)) < 1e-8)).toBe(true);
+        }
+      }
+    }
+  });
+
   it('renders coherent window proportions and sash, divided or picture glazing, not metadata-only variants', () => {
     const { parts, builder } = createArt();
     const renderedWidths = new Set<number>();

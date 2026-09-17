@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { STEAM_PILOT, STREET_DRAINS, outsideWalkingCorridors } from '../content/civicUtilities';
+import { PARKING_BAYS } from '../content/streetFurniture';
 import { LOADING_SERVICE_POCKET } from './loadingFrontage';
 import { BUILDING_SERVICE_CONNECTIONS, STREET_BUILDINGS } from './streetscape';
 import { buildCityScene, type CityScene } from './scene';
@@ -26,6 +27,23 @@ describe('integrated civic utility geometry', () => {
     if (!result) throw new Error(`No civic surface at ${x}, ${y}, ${z}.`);
     return result.point;
   };
+
+  it('keeps all twelve three-sided parking outlines exposed above the road surface', () => {
+    expect(PARKING_BAYS).toHaveLength(12);
+    for (const bay of PARKING_BAYS) {
+      const samples = [-0.4, 0, 0.4].flatMap((fraction) => [
+        [-bay.width / 2, fraction * bay.length],
+        [fraction * bay.width, -bay.length / 2],
+        [fraction * bay.width, bay.length / 2],
+      ]);
+      for (const [dx, dz] of samples) {
+        const x = bay.x + dx * Math.cos(bay.yaw) + dz * Math.sin(bay.yaw);
+        const z = bay.z - dx * Math.sin(bay.yaw) + dz * Math.cos(bay.yaw);
+        expect(hit(x, 0.15, z, new THREE.Vector3(0, -1, 0)).y, `${bay.id}: ${dx}, ${dz}`)
+          .toBeCloseTo(0.035, 5);
+      }
+    }
+  });
 
   it('cuts genuine road recesses beneath flush metal bars and keeps curb mouths open behind their face', () => {
     for (const drain of STREET_DRAINS) {

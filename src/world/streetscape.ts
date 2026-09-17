@@ -14,7 +14,7 @@ import {
 import { JUNIPER_CYCLE_ACCESS } from '../content/bikeShare';
 import {
   buildCommercialFront, buildingFrontPoint, buildingFrontSpan, closeStreetWallGaps, faceName,
-  assignBuildingCorners, type BuildingFace,
+  assignBuildingCorners, buildStreetCornice, type BuildingFace,
 } from './buildingFabric';
 import { buildCurbTransitions, buildFrontagePaving } from './pavement';
 import { STREET_DRAINS } from '../content/civicUtilities';
@@ -794,6 +794,9 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
     const tone = building.tone;
     const construction = BUILDING_FABRIC[building.fabricType].trim;
     const metal = construction === 'metal-pier' || construction === 'curtain-grid';
+    const continuousBands = metal || construction === 'stone-band';
+    const cornice = brownstone ? p.copperEdge :
+      construction === 'brick-lintel' || construction === 'metal-pier' ? p.rubber : p.paving;
     // A lot-line wall is only exposed on the main volume, so setbacks keep their windows.
     const party = base < 1 ? building.partyWall : null;
     const attached = base < 1 ? building.attached : [];
@@ -867,6 +870,10 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
             block(p.copperEdge, wx, y + windowHeight / 2 + 0.1, front + 0.08, windowWidth + 0.27, 0.18, 0.24);
             if (principal) {
               block(p.glass, wx, 0.5, front + 0.15, windowWidth - 0.11, 0.3, 0.045);
+              for (const edge of [-1, 1]) {
+                block(p.copperEdge, wx + edge * (windowWidth / 2 + 0.075), y, front + 0.065,
+                  0.12, windowHeight + 0.08, 0.18);
+              }
             }
           }
           if (mullions !== 'none') {
@@ -892,6 +899,12 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
           if (brownstone && building.front.axis === 'x' && side === building.front.side) {
             block(p.copperEdge, flank + side * 0.08, y + windowHeight / 2 + 0.1, wz,
               0.24, 0.18, windowWidth + 0.27);
+            if (principal) {
+              for (const edge of [-1, 1]) {
+                block(p.copperEdge, flank + side * 0.065, y, wz + edge * (windowWidth / 2 + 0.075),
+                  0.18, windowHeight + 0.08, 0.12);
+              }
+            }
           }
           if (mullions !== 'none') {
             block(p.rubber, flank + side * 0.03, y, wz, 0.075, 0.065, windowWidth);
@@ -902,10 +915,12 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
           airConditioner(building, floor, [flank, y - windowHeight / 2, wz], 'x', side);
         }
       }
-      block(brownstone ? p.copperEdge : metal ? p.roof : p.stone, x, base + floor * floorHeight + 0.12, z,
-        width + 0.08 * trimX, 0.12, depth + 0.08 * trimZ);
+      if (continuousBands || floor < 2) {
+        block(brownstone ? p.copperEdge : metal ? p.roof : p.stone, x, base + floor * floorHeight + 0.12, z,
+          width + 0.08 * trimX, 0.12, depth + 0.08 * trimZ);
+      }
     }
-    block(brownstone ? p.copperEdge : p.paving, x, base + height + 0.03, z,
+    block(cornice, x, base + height + 0.03, z,
       width + (brownstone ? 0.65 : 0.45) * trimX, brownstone ? 0.26 : 0.18, depth + 0.45 * trimZ);
     block(masonry, x, base + height + 0.2, z, width + 0.12 * trimX, 0.2, depth + 0.12 * trimZ, 0, tone);
     if (brownstone) {
@@ -952,6 +967,7 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
     const serviceX = x + serviceSide * (roofWidth / 2 - 0.72);
     const serviceZ = z - roofDepth / 2 + 0.72;
     if (setbackFloors) facade(building, width - 1.4, depth - 2.2, height, setbackFloors);
+    buildStreetCornice(building, p, frontPiece);
     const civic = CIVIC_SERVICES.find(({ buildingId }) => buildingId === building.id);
     if (civic) {
       buildCivicFront(building, civic, p, frontPiece, frontRod);

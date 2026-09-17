@@ -30,7 +30,7 @@ export const BUILDING_FABRIC = {
   tenement: {
     family: 'masonry', materials: ['redBrick', 'salmonBrick', 'orangeBrick', 'buffBrick', 'paintedBrick'],
     roofs: ['chimneys', 'tank', 'garden'], trim: 'brick-lintel',
-    width: 0.82, height: 1.15, spacing: 2.4, mullions: 'sash',
+    width: 0.78, height: 1.28, spacing: 2.4, mullions: 'sash',
   },
   'masonry-loft': {
     family: 'loft', materials: ['redBrick', 'buffBrick', 'ironSpot', 'terracotta'],
