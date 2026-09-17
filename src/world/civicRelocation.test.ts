@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { BIKE_SHARE_POCKETS, JUNIPER_ACCESS_CROSSING } from '../content/bikeShare';
-import { CIVIC_UTILITIES, SIDEWALK_ZONING, STEAM_PILOT, outsideWalkingCorridors } from '../content/civicUtilities';
+import { CIVIC_UTILITIES, SIDEWALK_ZONING, STEAM_STACKS, outsideWalkingCorridors } from '../content/civicUtilities';
 import { CIVIC_SERVICES } from '../content/civicServices';
 import { METRO_ENTRANCES, METRO_GEOMETRY } from '../content/metro';
 import { PARK_PATHS } from '../content/park';
@@ -42,7 +42,7 @@ const placements = [
   ...STREET_MAILBOXES.map((prop) => envelope(prop, 0.8, 1.5, 2.3, 0.35)),
   ...CIVIC_UTILITIES.map((prop) => envelope(prop, prop.width + 0.06, prop.depth + 0.06,
     prop.kind === 'hydrant' ? 1.1 : prop.kind === 'service-cover' ? 0.2 : 1)),
-  envelope(STEAM_PILOT, 0.76, 0.76, STEAM_PILOT.topY + 0.05),
+  ...STEAM_STACKS.map((stack) => envelope(stack, 0.76, 0.76, stack.topY + 0.05)),
 ];
 const disjoint = (a: ReturnType<typeof propBounds>, b: ReturnType<typeof propBounds>) =>
   a.maxX < b.minX || a.minX > b.maxX || a.maxZ < b.minZ || a.minZ > b.maxZ;
@@ -120,8 +120,10 @@ describe('interior civic furniture relocation', () => {
       [0, 1, 2, 3].map((index) => `street-bench-${side}-${index}`)));
     expect(STREET_MAILBOXES.map(({ id }) => id)).toEqual([-1, 1].flatMap((side) =>
       [0, 1, 2].map((index) => `mailbox-${side}-${index}`)));
-    expect(CIVIC_UTILITIES).toHaveLength(6);
-    expect(placements).toHaveLength(21);
+    expect(CIVIC_UTILITIES).toHaveLength(19);
+    expect(CIVIC_UTILITIES.filter(({ kind }) => kind === 'hydrant')).toHaveLength(15);
+    expect(STEAM_STACKS).toHaveLength(4);
+    expect(placements).toHaveLength(37);
     for (const { bounds, id } of placements) {
       expect(Math.max(Math.abs(bounds.minX), Math.abs(bounds.maxX)), id).toBeLessThanOrEqual(CITY_EXTENT.x - 12);
       expect(Math.max(Math.abs(bounds.minZ), Math.abs(bounds.maxZ)), id).toBeLessThanOrEqual(CITY_EXTENT.z - 12);

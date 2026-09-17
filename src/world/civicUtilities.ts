@@ -1,5 +1,5 @@
 import type * as THREE from 'three';
-import { CIVIC_UTILITIES, MAINTENANCE_STRIPS, STEAM_PILOT, STREET_DRAINS } from '../content/civicUtilities';
+import { CIVIC_UTILITIES, MAINTENANCE_STRIPS, STEAM_STACKS, STREET_DRAINS } from '../content/civicUtilities';
 import { METRO_ENTRANCES, METRO_GEOMETRY, metroStationFor } from '../content/metro';
 import { LOADING_CURB_MARKER, type StreetProp } from '../content/streetFurniture';
 import { BUS_STOP_MARKER } from '../content/transitService';
@@ -142,17 +142,18 @@ export function buildCivicUtilities(builder: StreetscapeBuilder): void {
     for (let bar = 0; bar < 9; bar++) {
       block(p.roof, x - 0.48 + bar * 0.12, drain.grateTopY - 0.009, z, 0.04, 0.018, depth - 0.06);
     }
-    block(p.rubber, x, 0.02, drain.curbZ - 0.055, width, 0.08, 0.04);
+    block(p.rubber, x, 0.02, drain.curbZ + drain.curbSide * 0.055, width, 0.08, 0.04);
   }
-  const stack = STEAM_PILOT;
-  block(p.paving, stack.x, stack.surfaceY - 0.03, stack.z, stack.width + 0.04, 0.06, stack.depth + 0.04);
-  block(p.roof, stack.x, stack.surfaceY + 0.06, stack.z, stack.width, 0.12, stack.depth);
-  for (let band = 0; band < 5; band++) {
-    add(cylinder, band % 2 ? p.cream : p.clay,
-      [stack.x, stack.surfaceY + 0.12 + (band + 0.5) * (stack.height - 0.12) / 5, stack.z],
-      [stack.stackRadius, (stack.height - 0.12) / 5, stack.stackRadius]);
+  for (const stack of STEAM_STACKS) {
+    block(p.paving, stack.x, stack.surfaceY - 0.03, stack.z, stack.width + 0.04, 0.06, stack.depth + 0.04);
+    block(p.roof, stack.x, stack.surfaceY + 0.06, stack.z, stack.width, 0.12, stack.depth);
+    for (let band = 0; band < 5; band++) {
+      add(cylinder, band % 2 ? p.cream : p.clay,
+        [stack.x, stack.surfaceY + 0.12 + (band + 0.5) * (stack.height - 0.12) / 5, stack.z],
+        [stack.stackRadius, (stack.height - 0.12) / 5, stack.stackRadius]);
+    }
+    add(cylinder, p.roof, [stack.x, stack.outletY + 0.001, stack.z], [stack.stackRadius * 0.84, 0.008, stack.stackRadius * 0.84]);
   }
-  add(cylinder, p.roof, [stack.x, stack.outletY + 0.001, stack.z], [stack.stackRadius * 0.84, 0.008, stack.stackRadius * 0.84]);
   buildMetroWayfinding(builder);
   buildBusStopMarker(builder);
   buildLoadingCurbMarker(builder);
@@ -174,9 +175,10 @@ export function applyCivicMaintenanceCapture(surface: WeatherSurface): void {
         surface.retention[index] = Math.min(surface.retention[index], strip.snowRetention);
       }
     }
-    // A 0.48 m tube can miss every center of the 0.5 m capture grid. Cover its touched cells,
-    // rather than letting precipitation fall through it; this retains the grid's coarse envelope.
-    const stack = STEAM_PILOT;
+  }
+  // A 0.48 m tube can miss every center of the 0.5 m capture grid. Cover its touched cells,
+  // rather than letting precipitation fall through it; this retains the grid's coarse envelope.
+  for (const stack of STEAM_STACKS) {
     for (let row = cell(stack.z - stack.stackRadius); row <= cell(stack.z + stack.stackRadius); row++) {
       for (let column = cell(stack.x - stack.stackRadius); column <= cell(stack.x + stack.stackRadius); column++) {
         const index = row * resolution + column;
