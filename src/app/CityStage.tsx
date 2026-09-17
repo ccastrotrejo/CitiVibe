@@ -27,7 +27,7 @@ export function CityStage({ canvas, attempt, live, guide, status, send, settings
     <h1 className="sr-only">{CITY.name}</h1>
     <div className="scene-navigation" role="region" aria-label="City navigation" aria-describedby="navigation-hint" tabIndex={0} onKeyDown={onKeyDown}>
       <div className={`poster-frame ${live ? 'poster-hidden' : ''}`}>
-        <img className="city-poster" src={`/city/${CITY.version}.svg`} alt="Original miniature city with a reservoir running loop, lawns, woodland, a lake and bridge, and a tree-lined mall. Busy avenues and two-way bike paths surround the park; neighbors play basketball and pickleball at Juniper Court." />
+        <img className="city-poster" src={`/city/${CITY.version}.svg`} alt="Original miniature city, shown as a static illustration rather than a live view. Masonry homes, offices and shops surround a car-free park with a reservoir, woodland, lake and bridge. A hospital, fire station and police station have staff outside. Avenues and two-way bike paths connect the neighborhood; neighbors play basketball and pickleball at Juniper Court." />
       </div>
       <canvas key={attempt} ref={canvas} className={live ? 'world-canvas' : 'world-canvas canvas-hidden'} aria-hidden="true" />
     </div>

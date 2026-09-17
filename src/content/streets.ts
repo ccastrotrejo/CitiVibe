@@ -32,7 +32,7 @@ export type IntersectionControl = 'signal' | 'all-way-stop';
 export interface TrafficSignalState {
   id: string;
   control: IntersectionControl;
-  phase: 'north-south' | 'east-west' | 'clearance' | 'pedestrians' | 'stop';
+  phase: 'north-south' | 'east-west' | 'north-south-yellow' | 'east-west-yellow' | 'clearance' | 'pedestrians' | 'stop';
   /** True while the crosswalks may be entered: a WALK phase, or a clear all-way stop. */
   walk: boolean;
 }

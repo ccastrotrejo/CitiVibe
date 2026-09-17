@@ -186,7 +186,7 @@ describe('single camera owner', () => {
     expect(model).not.toHaveProperty('selectedId');
     expect(model.snapshot()).not.toHaveProperty('selectedId');
     expect(CAMERA_ANCHORS.map(({ subject }) => subject)).toEqual([
-      'District overview', 'Rainlight Pavilion', 'Crosstown Steps', 'Terrace Steps', 'Reservoir Walk', 'Juniper Court',
+      'District overview', 'Rainlight Pavilion', 'East avenue and Crosstown Steps', 'Neighborhood street wall', 'Reservoir Walk', 'Juniper Court',
     ]);
     model.command({ type: 'start-tour' });
     for (const [index, anchor] of CAMERA_ANCHORS.entries()) {

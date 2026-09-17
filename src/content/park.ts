@@ -14,6 +14,31 @@ export const PARK_ACTORS = [
   ...Array.from({ length: 24 }, (_, index) => ({ id: `runner-${index + 1}`, gait: 'run' as const })),
 ];
 export const PARK_PICNICS = [[5.4, -7.2], [15.3, -9.9], [11.7, 6.3], [19.8, 59.4]] as const;
+
+export const PARK_EDGE_ROLES = [
+  { id: 'north-arrival', role: 'arrival', path: 'north-ramble', x: 0, z: -86 },
+  { id: 'west-quiet-edge', role: 'quiet-seating', path: 'lake-walk', x: -32.4, z: 24.3 },
+  { id: 'reservoir-running-edge', role: 'running', path: 'reservoir-track', x: 27, z: -49.5 },
+  { id: 'south-recreation-approach', role: 'recreation', path: 'mall', x: 0, z: 85.5 },
+] as const;
+
+/** Existing seats face their actual amenity; their centers and the complete park remain unchanged. */
+export const PARK_SEATS = [
+  { id: 'park-mall-west-north', x: -4.4, z: 54, yaw: Math.PI / 2, view: 'mall' },
+  { id: 'park-mall-east-north', x: 4.4, z: 49.5, yaw: -Math.PI / 2, view: 'mall' },
+  { id: 'park-mall-west-south', x: -4.4, z: 67.5, yaw: Math.PI / 2, view: 'mall' },
+  { id: 'park-mall-east-south', x: 4.4, z: 67.5, yaw: -Math.PI / 2, view: 'mall' },
+  { id: 'park-pergola-west', x: -6.3, z: 37.8, yaw: Math.PI, view: 'fountain' },
+  { id: 'park-pergola-east', x: 6.3, z: 37.8, yaw: Math.PI, view: 'terrace' },
+  { id: 'park-reservoir-east-south', x: 31.5, z: -41.4, yaw: -Math.PI / 2, view: 'water' },
+  { id: 'park-reservoir-east-north', x: 31.5, z: -59.4, yaw: -Math.PI / 2, view: 'water' },
+  { id: 'park-reservoir-west', x: -30.6, z: -63.9, yaw: Math.PI / 2, view: 'water' },
+  { id: 'park-lake-south', x: -21.6, z: 57.6, yaw: Math.PI, view: 'lake-walk' },
+  { id: 'park-meadow-east', x: 35, z: 74.7, yaw: -Math.PI / 2, view: 'meadow' },
+] as const;
+export const PARK_SEAT_GEOMETRY = { width: 2, depth: 0.6, seatHeight: 0.63 } as const;
+export const PARK_COMPANION_SEAT_IDS = ['park-mall-west-south', 'park-mall-east-south'] as const;
+
 type Point = readonly [number, number];
 interface PathInput { id: string; points: readonly Point[]; width: number; closed?: boolean }
 

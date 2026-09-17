@@ -49,7 +49,7 @@ test('reduced-motion city-wide guided views, inert bracket shortcuts, DPR bounds
   await expect(page.getByText('Overview', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: /landmark|clear selection/i })).toHaveCount(0);
   await page.getByRole('button', { name: 'Guided views' }).click();
-  const subjects = ['District overview', 'Rainlight Pavilion', 'Crosstown Steps', 'Terrace Steps', 'Reservoir Walk', 'Juniper Court'];
+  const subjects = ['District overview', 'Rainlight Pavilion', 'East avenue and Crosstown Steps', 'Neighborhood street wall', 'Reservoir Walk', 'Juniper Court'];
   for (const [index, subject] of subjects.entries()) {
     await expect(page.locator('#tour-hint')).toHaveText(`Guided view ${index + 1} / 6: ${subject}`);
     await page.getByRole('button', { name: 'Next view' }).click();
@@ -66,6 +66,9 @@ test('reduced-motion city-wide guided views, inert bracket shortcuts, DPR bounds
 });
 
 test('scene labels remain readable over nighttime rain', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'Resume city' })).toBeEnabled();
@@ -77,6 +80,7 @@ test('scene labels remain readable over nighttime rain', async ({ page }) => {
   await expect(page.locator('.scene-heading')).toHaveCount(0);
   await expect(page.getByRole('heading', { level: 1, name: 'Rainlight Square' })).toHaveClass('sr-only');
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  expect(errors).toEqual([]);
 });
 
 test('unsupported WebGL keeps the descriptive still without landmark navigation', async ({ page }) => {

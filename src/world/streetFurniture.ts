@@ -1,9 +1,10 @@
 import * as THREE from 'three';
 import {
-  CURB_VEHICLES, EXTRA_PARK_BENCHES, FOOD_CARTS, FOOD_CART_SPACE, PARKING_BAYS, PARKING_SIGNS,
-  STREET_BENCHES, STREET_MAILBOXES, type CurbVehicle, type StreetProp,
+  CURB_RUN_ENDS, CURB_VEHICLES, EXTRA_PARK_BENCHES, FOOD_CARTS, FOOD_CART_SPACE, PARKING_SIGNS, PARK_READING_POCKET,
+  STREET_BENCHES, STREET_FURNITURE_APRONS, STREET_MAILBOXES, type CurbVehicle, type StreetProp,
 } from '../content/streetFurniture';
 import type { StreetscapeBuilder } from './streetscape';
+import { buildCivicUtilities } from './civicUtilities';
 import { buildVehicleRig, type VehicleArt } from './vehicle';
 
 /** Bake the same passenger shell and grounded wheels as traffic; parked engines/lamps stay off. */
@@ -119,30 +120,31 @@ export function buildStreetFurniture(
   vehicleArt: VehicleArt,
 ): void {
   const p = builder.palette;
-  for (const bay of PARKING_BAYS) {
-    const { block, position } = placedBuilder(builder, bay);
-    block(p.line, -bay.width / 2, 0.025, 0, 0.085, 0.02, bay.length);
-    for (const end of [-1, 1]) {
-      block(p.line, 0, 0.025, end * bay.length / 2, bay.width, 0.02, 0.085);
-    }
-    builder.add(lettering.parking, p.line, position(0, 0.037, bay.length / 2 - 0.5),
-      [0.85, 0.85, 1], [-Math.PI / 2, 0, -bay.yaw]);
+  for (const end of CURB_RUN_ENDS) {
+    builder.block(p.line, end.x, 0.093, end.z, 0.2, 0.006, 0.13);
   }
   for (const sign of PARKING_SIGNS) {
-    const { block, cylinder, add } = placedBuilder(builder, sign);
-    cylinder(p.stone, 0, 1.65, 0, 0.04, 3.3);
-    for (const y of [2.56, 3.08]) cylinder(p.roof, 0, y, 0, 0.063, 0.09);
-    block(p.teal, 0, 2.82, 0, 0.8, 1.04, 0.055);
+    const { block, cylinder } = placedBuilder(builder, sign);
+    cylinder(p.stone, 0, 1.4, 0, 0.04, 2.8);
+    block(p.teal, 0, 2.47, 0, 0.64, 0.7, 0.055);
     for (const side of [-1, 1]) {
-      block(p.cream, 0, 2.82, side * 0.035, 0.72, 0.96, 0.012);
-      add(lettering.parking, p.teal, 0, 2.96, side * 0.046, [1, 1, 1], side === 1 ? 0 : Math.PI);
-      block(p.teal, 0, 2.52, side * 0.046, 0.43, 0.035, 0.012);
-      for (const end of [-1, 1]) {
-        block(p.teal, end * 0.2, 2.52, side * 0.046, 0.04, 0.13, 0.012);
-      }
+      block(p.cream, 0, 2.47, side * 0.035, 0.56, 0.62, 0.012);
+      // A curb/car pictogram locates the reserved curb, without inventing parking permissions.
+      block(p.teal, 0, 2.55, side * 0.046, 0.35, 0.085, 0.012);
+      block(p.teal, 0, 2.63, side * 0.046, 0.23, 0.075, 0.012);
+      for (const end of [-1, 1]) block(p.teal, end * 0.115, 2.49, side * 0.046, 0.05, 0.05, 0.012);
+      block(p.teal, 0, 2.32, side * 0.046, 0.4, 0.025, 0.012);
     }
   }
+  for (const apron of STREET_FURNITURE_APRONS) {
+    builder.block(p.paving, (apron.minX + apron.maxX) / 2, -0.11, (apron.minZ + apron.maxZ) / 2,
+      apron.maxX - apron.minX, 0.06, apron.maxZ - apron.minZ);
+  }
+  buildCivicUtilities(builder);
   for (const prop of [...STREET_BENCHES, ...EXTRA_PARK_BENCHES]) buildStreetBench(builder, prop);
+  const reading = PARK_READING_POCKET;
+  builder.block(p.paving, (reading.minX + reading.maxX) / 2, -0.041, (reading.minZ + reading.maxZ) / 2,
+    reading.maxX - reading.minX, 0.058, reading.maxZ - reading.minZ);
   for (const prop of STREET_MAILBOXES) {
     const { block } = placedBuilder(builder, prop);
     block(p.paving, 0, -0.07, 0, 0.8, 0.04, 0.8);

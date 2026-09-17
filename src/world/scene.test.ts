@@ -157,6 +157,12 @@ describe('original car-free park district', () => {
     expect(PARK_ACTORS.filter(({ gait }) => gait === 'walk')).toHaveLength(55);
     expect(PARK_ACTORS.filter(({ gait }) => gait === 'run')).toHaveLength(24);
     expect(actors.has('square-bus')).toBe(false);
+    const books = [...actors.values()].flatMap((actor) => {
+      const book = actor.getObjectByName('Unbranded reading book');
+      return book ? [book] : [];
+    });
+    expect(books).toHaveLength(6);
+    for (const book of books) expect(book.scale).toEqual(new THREE.Vector3());
     actors.forEach((actor) => {
       expect(actor.position).toEqual(new THREE.Vector3());
       const bounds = new THREE.Box3().setFromObject(actor);

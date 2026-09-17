@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
+import { LOADING_STOP } from '../content/transitService';
 import { EnvironmentController } from './environment';
 import { CityTraffic, TRAFFIC, TRAFFIC_ROUTES } from './traffic';
 import { drivingLightLevel, indicatorLevel, sampleVehicleLights, VEHICLE_LIGHTING, vehicleIndicatorPhase } from './vehicleLighting';
@@ -77,13 +78,24 @@ describe('retained vehicle lighting', () => {
         const turn = segment.kind === 'junction' ? segment : route.segments[(segmentIndex + 1) % route.segments.length];
         const approaching = segment.kind === 'junction' ||
           segment.start + segment.length - actor.distance <= TRAFFIC.indicatorApproach;
-        expect(actor.lighting!.turn).toBe(approaching && turn.turn ? turn.turn > 0 ? 'right' : 'left' : null);
+        const service = traffic.services.find(({ actorId }) => actorId === actor.id);
+        const loadingManeuver = service?.id === LOADING_STOP.id && service.phase !== 'circulating';
+        const expectedTurn = loadingManeuver
+          ? service.phase === 'approaching' ? 'right' : service.phase === 'departing' ? 'left' : null
+          : approaching && turn.turn ? turn.turn > 0 ? 'right' : 'left' : null;
+        expect(actor.lighting!.turn).toBe(expectedTurn);
         if (actor.lighting!.turn) {
           seen.add(actor.lighting!.turn);
           seen.add(segment.kind);
           if (actor.state === 'waiting') seen.add('queued');
         } else if (segment.kind === 'junction') seen.add('straight');
-        expect(actor.lighting!.braking).toBe(previous[index] - actor.speed > 0.2 * DT || actor.state === 'waiting');
+        const serviceBrakeHold = service !== undefined && actor.state === 'dwelling';
+        if (serviceBrakeHold) {
+          expect(actor.speed).toBe(0);
+          expect(['dwelling', 'departing']).toContain(service.phase);
+        }
+        expect(actor.lighting!.braking).toBe(previous[index] - actor.speed > 0.2 * DT ||
+          actor.state === 'waiting' || serviceBrakeHold);
       });
     }
     expect(seen).toEqual(new Set(['left', 'right', 'link', 'junction', 'queued', 'straight']));
@@ -91,5 +103,54 @@ describe('retained vehicle lighting', () => {
     for (let tick = 0; tick < 30; tick++) traffic.step(0);
     expect(traffic.actors).toEqual(paused);
     // Posted-stop dwells lengthen the simulated run needed to observe every indicator case.
+  }, 20_000);
+
+  it('holds real service-stop brakes, signals the loading maneuver, and releases after departure', () => {
+    const traffic = new CityTraffic();
+    const environment = new EnvironmentController();
+    const sample = { head: 0, tail: 0, brake: 0, left: 0, right: 0 };
+    const seen = new Map(traffic.services.map((service) => [service.id, new Set<string>()]));
+    const motors = new Map(traffic.actors.filter(({ lighting }) => lighting).map((actor) => [actor.id, actor]));
+    for (let tick = 0; tick < 900 / DT; tick++) {
+      traffic.step(DT);
+      for (const service of traffic.services) {
+        const actor = motors.get(service.actorId)!;
+        const phases = seen.get(service.id)!;
+        phases.add(service.phase);
+        // Reduced motion makes indicator assertions independent of each retained oscillator phase.
+        sampleVehicleLights(actor, environment.frame, traffic.elapsed, true, sample);
+        if (actor.state === 'dwelling') {
+          expect(actor.speed).toBe(0);
+          expect(actor.lighting!.braking).toBe(true);
+          expect(sample.brake).toBe(1);
+          // The van announces its departure while its final stationary brake tick is still held.
+          expect(sample.left).toBe(service.id === LOADING_STOP.id && service.phase === 'departing' ? 1 : 0);
+          expect(sample.right).toBe(0);
+          if (!phases.has('paused-dwell')) {
+            const held = structuredClone({ actor, service, sample });
+            for (let pause = 0; pause < 30; pause++) traffic.step(0);
+            sampleVehicleLights(actor, environment.frame, traffic.elapsed, true, sample);
+            expect({ actor, service, sample }).toEqual(held);
+            phases.add('paused-dwell');
+          }
+        } else if (service.id === LOADING_STOP.id && service.phase === 'approaching') {
+          expect(sample.right).toBe(1);
+          expect(sample.left).toBe(0);
+        } else if (service.id === LOADING_STOP.id && service.phase === 'departing') {
+          expect(sample.left).toBe(1);
+          expect(sample.right).toBe(0);
+        }
+        if (service.completedCycles > 0 && actor.speed > 0 && !actor.lighting!.braking) {
+          expect(sample.brake).toBe(0);
+          phases.add('released-brakes');
+        }
+      }
+      if ([...seen.values()].every((phases) => phases.has('released-brakes'))) break;
+    }
+    for (const phases of seen.values()) {
+      expect(phases).toEqual(new Set([
+        'circulating', 'approaching', 'dwelling', 'departing', 'paused-dwell', 'released-brakes',
+      ]));
+    }
   }, 20_000);
 });

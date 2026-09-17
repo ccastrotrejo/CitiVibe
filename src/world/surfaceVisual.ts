@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { WeatherPhysics } from './weatherPhysics';
 import { WEATHER_EXTENT } from './weatherPhysics';
 import { SURFACE_RESOLUTION, WeatherSurface } from './weatherSurface';
+import { CIVIC_MAINTENANCE_GLSL } from './civicMaintenance';
 
 /** Borrow tagged materials; alter only exposed surfaces, without adding geometry or render passes. */
 export class SurfaceVisual {
@@ -30,7 +31,7 @@ export class SurfaceVisual {
         const key = material.customProgramCacheKey;
         const retention: unknown = material.userData.snowRetention;
         this.borrowed.push({ material, compile, key });
-        material.customProgramCacheKey = () => `${key.call(material)}:weather-surface-1`;
+        material.customProgramCacheKey = () => `${key.call(material)}:weather-surface-2`;
         material.onBeforeCompile = (shader, renderer) => {
           compile.call(material, shader, renderer);
           shader.uniforms.weatherHeight = { value: this.texture };
@@ -52,6 +53,7 @@ export class SurfaceVisual {
             uniform float weatherWetness;
             uniform float weatherSnow;
             uniform float snowRetention;
+            ${CIVIC_MAINTENANCE_GLSL}
             ${shader.fragmentShader}`.replace('#include <normal_fragment_maps>', `
               #include <normal_fragment_maps>
               vec2 weatherUv = (vWeatherPosition.xz + ${WEATHER_EXTENT.toFixed(1)}) / ${(WEATHER_EXTENT * 2).toFixed(1)};
@@ -61,7 +63,8 @@ export class SurfaceVisual {
               float upward = smoothstep(0.35, 0.85, weatherNormal.y);
               float wet = weatherWetness * exposure * (0.25 + 0.75 * upward);
               float snowGrain = 0.85 + 0.15 * sin(vWeatherPosition.x * 4.7) * sin(vWeatherPosition.z * 6.3);
-              float snowCover = clamp(weatherSnow * snowRetention * snowGrain * upward * exposure, 0.0, 1.0);
+              float localRetention = civicSnowRetention(vWeatherPosition, snowRetention);
+              float snowCover = clamp(weatherSnow * localRetention * snowGrain * upward * exposure, 0.0, 1.0);
               diffuseColor.rgb *= 1.0 - wet * 0.28;
               diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.88, 0.92, 0.95), snowCover);
               roughnessFactor = mix(roughnessFactor, 0.24, wet);

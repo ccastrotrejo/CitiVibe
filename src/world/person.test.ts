@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { afterAll, describe, expect, it } from 'vitest';
 import { createPersonProfile, PERSON_SPACE, type PersonProfile } from '../content/people';
+import { CIVIC_SERVICES } from '../content/civicServices';
 import { TRAFFIC_ACTORS } from '../content/streets';
 import { ActorInstances } from './actorInstances';
 import { poseNeutral, poseWalkerRig, RUNNER, strideLength, type WalkerRig } from './locomotion';
@@ -24,6 +25,37 @@ function ankle(group: THREE.Group, rig: WalkerRig, index: 0 | 1) {
 }
 
 describe('varied articulated people', () => {
+  it('renders each civic employee role with recognizable shared-geometry work clothes', () => {
+    const groups: THREE.Group[] = [];
+    for (const service of CIVIC_SERVICES) for (const staff of service.staff) {
+      const profile = createPersonProfile(staff.id, 'street');
+      const { group, rig } = person(profile);
+      groups.push(group);
+      expect(group.userData.person.civicServiceId).toBe(service.id);
+      expect(group.userData.person.occupation).toBe(staff.occupation);
+      const named: string[] = [];
+      group.traverse((part) => {
+        named.push(part.name);
+        if (part instanceof THREE.Mesh) {
+          expect(part.material).toBe(art.material);
+          expect([art.box, art.head]).toContain(part.geometry);
+        }
+      });
+      const required = staff.outfit === 'lab-coat' ? ['Lab coat hem', 'Lab coat lapel', 'Lab coat pocket'] :
+        staff.outfit === 'scrubs' ? ['Scrub V neck', 'Scrub patch pocket'] :
+          staff.outfit === 'fire-station-wear' ? ['Station shirt pocket', 'Station shoulder tab'] :
+            ['police-cap', 'Utility belt', 'Radio'];
+      for (const name of required) expect(named, `${staff.id}/${name}`).toContain(name);
+      expect(named.some((name) => /weapon|gun|holster|agency|flag/i.test(name))).toBe(false);
+      if (staff.outfit === 'fire-station-wear') expect(named).not.toContain('fire-helmet');
+      for (const leg of [0, 1] as const) expect(ankle(group, rig, leg).y).toBeCloseTo(0, 8);
+    }
+    const batches = new ActorInstances(groups);
+    try {
+      expect(batches.group.children).toHaveLength(2);
+    } finally { batches.dispose(); }
+  });
+
   it('lowers picnic hips and leans through sit/stand while both soles stay planted', () => {
     for (let index = 0; index < 30; index++) {
       const { group, rig } = person(createPersonProfile(`picnic-${index}`, 'resting'));

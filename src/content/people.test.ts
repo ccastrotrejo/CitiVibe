@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { PARK_ACTORS } from './park';
 import { TRAFFIC_ACTORS } from './streets';
 import { createPersonProfile, SKIN_TONES, type PersonContext } from './people';
+import { CIVIC_SERVICES } from './civicServices';
 
 const street = TRAFFIC_ACTORS.filter(({ kind }) => kind === 'pedestrian').map(({ id }) => createPersonProfile(id, 'street'));
 const park = PARK_ACTORS.map(({ id, gait }) => createPersonProfile(id, gait === 'run' ? 'runner' : 'park'));
@@ -23,10 +24,32 @@ describe('original diverse population', () => {
       'healthcare-worker', 'construction-worker', 'courier', 'chef', 'gardener', 'teacher', 'artist',
     ]));
     expect(workers.filter(({ occupation }) => occupation === 'firefighter').every(({ outfit, hat }) =>
-      outfit === 'fire-gear' && hat === 'fire-helmet')).toBe(true);
+      outfit === 'fire-gear' && hat === 'fire-helmet' ||
+      outfit === 'fire-station-wear' && ['none', 'cap'].includes(hat))).toBe(true);
     expect(workers.filter(({ occupation }) => occupation === 'police-officer').every(({ outfit }) =>
       outfit === 'police-uniform')).toBe(true);
     expect(workers.every(({ age }) => age >= 18)).toBe(true);
+  });
+
+  it('casts actual civic employees without recasting their seeded demographics', () => {
+    for (const service of CIVIC_SERVICES) for (const staff of service.staff) {
+      const employee = createPersonProfile(staff.id, 'street');
+      const neighbor = createPersonProfile(staff.id, 'park');
+      expect(employee.civicServiceId).toBe(service.id);
+      expect(employee.occupation).toBe(staff.occupation);
+      expect(employee.outfit).toBe(staff.outfit);
+      expect(employee.age).toBeGreaterThanOrEqual(18);
+      for (const key of ['age', 'ageGroup', 'skin', 'build', 'hair', 'hairColor', 'stature', 'glasses'] as const) {
+        expect(employee[key], `${staff.id}/${key}`).toBe(neighbor[key]);
+      }
+      expect(employee.shorts).toBe(false);
+      expect(employee.bag).toBe('none');
+      expect(neighbor.civicServiceId).toBeUndefined();
+      expect(createPersonProfile(staff.id, 'play-child').occupation).toBe('student');
+      expect(createPersonProfile(staff.id, 'street')).toEqual(employee);
+    }
+    expect(new Set(CIVIC_SERVICES.flatMap(({ staff }) => staff.map(({ id }) =>
+      createPersonProfile(id, 'street').skin))).size).toBeGreaterThanOrEqual(4);
   });
 
   it('varies age, stature, build, hair, clothing, skin and accessories in the shipped manifest', () => {

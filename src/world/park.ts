@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { PARK_BOUNDS, PARK_LAKESIDE, PARK_PATHS, PARK_PICNICS, PARK_RESERVOIR } from '../content/park';
+import {
+  PARK_BOUNDS, PARK_COMPANION_SEAT_IDS, PARK_LAKESIDE, PARK_PATHS, PARK_PICNICS, PARK_RESERVOIR, PARK_SEATS,
+} from '../content/park';
 import type { StreetscapeBuilder } from './streetscape';
 import { GROUND_PUDDLES } from './groundWater';
 
@@ -98,6 +100,10 @@ export function buildCentralPark({ block, add, box, cylinder, crown, palette: p 
     geometry.computeVertexNormals();
     mesh(`Park path ${path.id}`, geometry,
       path.id === 'reservoir-track' ? track : path.id.includes('sidewalk') ? p.paving : gravel);
+  }
+  // Flush arrival bands terminate at the gate, leaving the running and quiet edges informal.
+  for (const side of [-1, 1]) for (const along of [85.7, 87.3]) {
+    block(p.paving, 0, -0.008, side * along, side < 0 ? 2.1 : 4.4, 0.006, 0.18);
   }
 
   const reservoir = PARK_RESERVOIR;
@@ -259,10 +265,13 @@ export function buildCentralPark({ block, add, box, cylinder, crown, palette: p 
     [-5.4, 46.8], [5.4, 46.8], [-5.4, 55.8], [5.4, 55.8], [-5.4, 64.8], [5.4, 64.8], [-5.4, 73.8], [5.4, 73.8],
   ]) if (clearOfPaths(x, z, 0.3) && dryGround(x, z)) trees.push([x, z, Math.abs(x) === 5.4 ? 1.8 : 1.55]);
   for (const [index, [x, z, scale]] of trees.entries()) {
+    if (index % 9 === 0 && clearOfPaths(x, z, 0.7)) {
+      add(cylinder, p.wood, [x, -0.028, z], [0.65, 0.015, 0.65]);
+    }
     add(cylinder, p.wood, [x, 1.65 * scale, z], [0.15 * scale, 3.3 * scale, 0.15 * scale]);
     for (const [dx, dy, dz, size] of [[-0.75, 3.3, 0, 1.25], [0.7, 3.6, 0.35, 1.35], [0, 4.4, -0.35, 1.4]]) {
       add(crown, index % 3 ? p.leaf : p.leafLight, [x + dx * scale, dy * scale, z + dz * scale],
-        [size * scale, size * scale * 1.12, size * scale], [0, index * 1.7, 0]);
+        [size * scale, size * scale * (index % 4 === 0 ? 1.03 : 1.12), size * scale], [0, index * 1.7, 0]);
     }
   }
   for (const [x, z] of [[-21.6, 2.7], [-24.3, 64.8], [-17.1, 80.1], [18, -81.9]]) {
@@ -271,18 +280,20 @@ export function buildCentralPark({ block, add, box, cylinder, crown, palette: p 
       add(crown, p.stone, [x + 1.8, 0.35, z + 0.6], [1.4, 0.7, 1.2]);
     }
   }
-  const benches: readonly Point[] = [
-    [-4.4, 54], [4.4, 49.5], [-4.4, 67.5], [4.4, 67.5], [-6.3, 37.8], [6.3, 37.8],
-    [31.5, -41.4], [31.5, -59.4], [-30.6, -63.9], [-21.6, 57.6], [35, 74.7],
-  ];
-  for (const [x, z] of benches) {
+  for (const { id, x, z, yaw } of PARK_SEATS) {
+    const piece = (material: THREE.Material, dx: number, y: number, dz: number, w: number, h: number, d: number) =>
+      block(material, x + Math.cos(yaw) * dx + Math.sin(yaw) * dz, y,
+        z - Math.sin(yaw) * dx + Math.cos(yaw) * dz, w, h, d, yaw);
+    if ((PARK_COMPANION_SEAT_IDS as readonly string[]).includes(id)) {
+      piece(p.paving, 0.6, -0.02, 0.8, 3.4, 0.016, 2.4);
+    }
     for (let slat = 0; slat < 3; slat++) {
-      block(p.wood, x, 0.58, z - 0.2 + slat * 0.2, 2, 0.1, 0.16);
-      block(p.wood, x, 0.78 + slat * 0.18, z - 0.26, 2, 0.13, 0.09);
+      piece(p.wood, 0, 0.58, -0.2 + slat * 0.2, 2, 0.1, 0.16);
+      piece(p.wood, 0, 0.78 + slat * 0.18, -0.26, 2, 0.13, 0.09);
     }
     for (const side of [-1, 1]) {
-      block(p.rubber, x + side * 0.7, 0.25, z, 0.09, 0.5, 0.45);
-      block(p.rubber, x + side * 0.86, 0.76, z, 0.07, 0.07, 0.6);
+      piece(p.rubber, side * 0.7, 0.25, 0, 0.09, 0.5, 0.45);
+      piece(p.rubber, side * 0.86, 0.76, 0, 0.07, 0.07, 0.6);
     }
   }
   for (const [x, z] of PARK_PICNICS) {

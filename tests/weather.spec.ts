@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { captureCity } from './captureCity';
 import { GROUND_LEVEL, GROUND_PUDDLES } from '../src/world/groundWater';
+import { CAMERA_PROJECTION } from '../src/content/city';
 
 interface WeatherProbe {
   fog: number;
@@ -169,8 +170,9 @@ test('live snow depth and ground pools accumulate, pause, and respond to warming
   await page.getByRole('button', { name: 'Close settings' }).click();
   await page.evaluate(advanceWeather, 21);
   const transitioning = await page.evaluate(readWeather);
-  expect(transitioning.fog).toBeGreaterThan(0.003);
-  expect(transitioning.fog).toBeLessThan(0.007);
+  const fogScale = 60 / CAMERA_PROJECTION.distance;
+  expect(transitioning.fog).toBeGreaterThan(0.003 * fogScale);
+  expect(transitioning.fog).toBeLessThan(0.007 * fogScale);
   await page.evaluate(advanceWeather, 380);
   await page.getByRole('button', { name: 'Pause city' }).click();
   const frozen = await page.evaluate(readWeather);

@@ -1,9 +1,81 @@
 import * as THREE from 'three';
 import { PARK_PATHS, type ParkPathId } from '../content/park';
-import { BIKE_OFFSET, bikeLaneOffset, STREET_X, STREET_Z, TWO_WAY_BIKE_STREETS } from '../content/streets';
-import type { StreetscapeBuilder } from './streetscape';
+import {
+  BIKE_OFFSET, bikeLaneOffset, STOP_LINE_OFFSET, STREET_X, STREET_Z, TWO_WAY_BIKE_STREETS,
+} from '../content/streets';
+import type { StreetBuilding, StreetscapeBuilder } from './streetscape';
 
 type Point = readonly [number, number];
+
+/** Two blended corner pilots; retained routes still contact y=0, with no district-wide lift. */
+export const CURB_TRANSITIONS = [
+  { id: 'west-avenue-landing', x: -82.65, z: -125.3 },
+  { id: 'east-avenue-landing', x: 82.65, z: 125.3 },
+] as const;
+
+export const CURB_TRANSITION_HEIGHTS = { paving: -0.08, landing: 0, warningTop: 0.008 } as const;
+
+/** Build solid tapered tie-ins, not warning paint hovering above the old sidewalk. */
+export function buildCurbTransitions({ add, block, box, palette }: StreetscapeBuilder): void {
+  const slope = (x: number, z: number, axis: 'x' | 'z', run: number, width: number,
+    startY: number, endY: number) => {
+    const angle = Math.atan2(endY - startY, run);
+    const thick = 0.1;
+    const shift = Math.sin(angle) * thick / 2;
+    add(box, palette.paving,
+      [x + (axis === 'x' ? shift : 0), (startY + endY) / 2 - Math.cos(angle) * thick / 2,
+        z + (axis === 'z' ? shift : 0)],
+      axis === 'x' ? [Math.hypot(run, endY - startY), thick, width] :
+        [width, thick, Math.hypot(run, endY - startY)],
+      axis === 'x' ? [0, 0, angle] : [-angle, 0, 0]);
+  };
+  for (const landing of CURB_TRANSITIONS) {
+    block(palette.paving, landing.x, -0.05, landing.z, 1.6, 0.1, 1.8);
+    for (const side of [-1, 1]) {
+      const roadSide = side === -Math.sign(landing.x);
+      const outerHeight = roadSide ? -0.015 : CURB_TRANSITION_HEIGHTS.paving;
+      const run = roadSide ? 0.85 : 0.5;
+      slope(landing.x + side * (0.8 + run / 2), landing.z, 'x', run, 1.8,
+        side < 0 ? outerHeight : 0, side < 0 ? 0 : outerHeight);
+      const crossRoadSide = side === Math.sign(landing.z);
+      const crossRun = crossRoadSide ? 0.8 : 0.4;
+      const crossHeight = crossRoadSide ? -0.005 : CURB_TRANSITION_HEIGHTS.paving;
+      slope(landing.x, landing.z + side * (0.9 + crossRun / 2), 'z', crossRun, 1.6,
+        side < 0 ? crossHeight : 0, side < 0 ? 0 : crossHeight);
+    }
+    const warningX = landing.x - Math.sign(landing.x) * 0.5;
+    block(palette.facade, warningX, 0.001, landing.z, 0.5, 0.002, 1.45, 0, '#bdab81');
+    for (const x of [-0.13, 0.13]) for (const z of [-0.5, -0.25, 0, 0.25, 0.5]) {
+      block(palette.stone, warningX + x, 0.005, landing.z + z, 0.07, 0.006, 0.07);
+    }
+  }
+}
+
+/** Sparse, flush concrete joints follow frontage widths rather than a random grunge blanket. */
+export function buildFrontagePaving({ block, palette }: StreetscapeBuilder, buildings: readonly StreetBuilding[]): void {
+  const occupied = new Set<string>();
+  for (const building of buildings) {
+    const vertical = building.front.axis === 'x';
+    const roads = vertical ? STREET_X : STREET_Z;
+    const crossings = vertical ? STREET_Z : STREET_X;
+    const center = vertical ? building.x : building.z;
+    const road = roads.reduce((nearest, value) =>
+      Math.abs(center - value) < Math.abs(center - nearest) ? value : nearest);
+    const across = road + Math.sign(center - road) * 6.7;
+    const span = vertical ? building.depth : building.width;
+    const along = vertical ? building.z : building.x;
+    const count = Math.max(2, Math.floor(span / (building.frontageRole === 'mixed-avenue' ? 2.4 : 3.4)));
+    for (let index = 0; index <= count; index++) {
+      const at = along + (index / count - 0.5) * span;
+      if (crossings.some((crossing) => Math.abs(crossing - at) < STOP_LINE_OFFSET)) continue;
+      const key = `${vertical}:${across}:${Math.round(at * 2)}`;
+      if (occupied.has(key)) continue;
+      occupied.add(key);
+      block(palette.facade, vertical ? across : at, -0.074, vertical ? at : across,
+        vertical ? 1.58 : 0.035, 0.008, vertical ? 0.035 : 1.58, 0, '#b2b7ac');
+    }
+  }
+}
 
 export const BIKE_MARKINGS = [
   ...STREET_X.flatMap((x) => STREET_Z.slice(0, -1).flatMap((z, index) =>

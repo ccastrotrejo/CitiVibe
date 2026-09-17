@@ -37,11 +37,11 @@ export const CAMERA_PROJECTION = {
 
 export const CAMERA_ANCHORS = [
   { id: 'square-overview', subject: 'District overview', pose: { x: 0, z: 0, yaw: Math.PI / 4, pitch: CAMERA_PROJECTION.defaultPitch, zoom: 1 } },
-  { id: 'pavilion-view', subject: 'Rainlight Pavilion', pose: { x: 0, z: 33.3, yaw: Math.PI / 4, pitch: CAMERA_PROJECTION.defaultPitch, zoom: 4.8 } },
-  { id: 'crosstown-view', subject: 'Crosstown Steps', pose: { x: crosstown.x, z: crosstown.z, yaw: Math.PI / 4, pitch: CAMERA_PROJECTION.defaultPitch, zoom: 5.2 } },
-  { id: 'terrace-view', subject: 'Terrace Steps', pose: { x: 10.8, z: 18, yaw: Math.PI / 4, pitch: CAMERA_PROJECTION.defaultPitch, zoom: 4.5 } },
-  { id: 'garden-view', subject: 'Reservoir Walk', pose: { x: 0, z: -49.5, yaw: Math.PI / 4, pitch: CAMERA_PROJECTION.defaultPitch, zoom: 3.5 } },
-  { id: 'court-view', subject: 'Juniper Court', pose: { x: -5, z: 113.5, yaw: Math.PI / 4, pitch: CAMERA_PROJECTION.defaultPitch, zoom: 5.2 } },
+  { id: 'pavilion-view', subject: 'Rainlight Pavilion', pose: { x: 0, z: 33.3, yaw: -Math.PI / 4, pitch: Math.PI / 5, zoom: 4.8 } },
+  { id: 'crosstown-view', subject: 'East avenue and Crosstown Steps', pose: { x: crosstown.x - 4, z: crosstown.z + 5, yaw: Math.PI * 0.72, pitch: Math.PI / 7, zoom: 5.6 } },
+  { id: 'terrace-view', subject: 'Neighborhood street wall', pose: { x: -61, z: -18, yaw: -Math.PI / 3, pitch: Math.PI / 7, zoom: 4.8 } },
+  { id: 'garden-view', subject: 'Reservoir Walk', pose: { x: 0, z: -49.5, yaw: Math.PI / 10, pitch: Math.PI / 4.6, zoom: 3.5 } },
+  { id: 'court-view', subject: 'Juniper Court', pose: { x: -5, z: 113.5, yaw: Math.PI / 3, pitch: Math.PI / 4, zoom: 4.6 } },
 ] as const;
 
 export const CONTENT = {

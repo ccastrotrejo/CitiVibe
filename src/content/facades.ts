@@ -16,6 +16,47 @@ export type FacadeFamily =
 
 export type FacadeEvidence = 'observed' | 'inferred';
 
+export type FrontageRole = 'mixed-avenue' | 'neighborhood-row' | 'loft-quarter';
+export type BuildingFabricType =
+  | 'rowhouse' | 'tenement' | 'masonry-loft' | 'metal-loft'
+  | 'courtyard-apartment' | 'masonry-office' | 'curtain-office';
+
+/** Authored construction relationships, not a census or a building-code classification. */
+export const BUILDING_FABRIC = {
+  rowhouse: {
+    family: 'brownstone', materials: ['brownstone'], roofs: ['chimneys', 'garden'],
+    trim: 'stone-surround', width: 0.7, height: 1.22, spacing: 1.9, mullions: 'sash',
+  },
+  tenement: {
+    family: 'masonry', materials: ['redBrick', 'salmonBrick', 'orangeBrick', 'buffBrick', 'paintedBrick'],
+    roofs: ['chimneys', 'tank', 'garden'], trim: 'brick-lintel',
+    width: 0.82, height: 1.15, spacing: 2.4, mullions: 'sash',
+  },
+  'masonry-loft': {
+    family: 'loft', materials: ['redBrick', 'buffBrick', 'ironSpot', 'terracotta'],
+    roofs: ['plant', 'tank', 'garden'], trim: 'brick-pier',
+    width: 1.25, height: 1.2, spacing: 3.1, mullions: 'cross',
+  },
+  'metal-loft': {
+    family: 'loft', materials: ['castIron'], roofs: ['plant', 'tank'],
+    trim: 'metal-pier', width: 1.25, height: 1.2, spacing: 3.1, mullions: 'cross',
+  },
+  'courtyard-apartment': {
+    family: 'terrace', materials: ['midCenturyBrick', 'buffBrick', 'limestone'],
+    roofs: ['garden', 'plant'], trim: 'stone-band',
+    width: 1.1, height: 0.95, spacing: 2.8, mullions: 'none',
+  },
+  'masonry-office': {
+    family: 'loft', materials: ['limestone', 'buffBrick', 'ironSpot', 'terracotta'],
+    roofs: ['plant'], trim: 'brick-pier',
+    width: 1.25, height: 1.2, spacing: 3.1, mullions: 'cross',
+  },
+  'curtain-office': {
+    family: 'terrace', materials: ['curtainWall'], roofs: ['plant'],
+    trim: 'curtain-grid', width: 1.1, height: 0.95, spacing: 2.8, mullions: 'none',
+  },
+} as const;
+
 export interface FacadeTone {
   readonly id: string;
   readonly family: FacadeFamily;
