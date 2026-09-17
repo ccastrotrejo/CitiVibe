@@ -1,5 +1,15 @@
 # Art and assets
 
+## NYC ordinary vehicle refinement - 2026-09-17
+
+The [ordinary-fleet study](NYC_ORDINARY_VEHICLES_RESEARCH.md) informs six original treatments: eleven passenger cars, twelve parked cars, nine yellow taxis, seven cargo vans, five box trucks and six compressed city buses. ID-keyed appearance distinguishes sedans, hatches and crossovers, sedan/passenger-minivan taxis and low/high-roof cargo vans without consuming traffic random draws. Sloping windshields, tapered roofs, separate hoods/trunks or hatches, mirrors, bumpers and exposed tires replace the simple stacked shells. Vans retain opaque cargo walls and rear double doors; trucks have separate cabs and roll-up loading doors; buses have coherent window bands and two curbside doors.
+
+Moving and parked passenger cars use the same shell and wheel builder. Parked art fits a 2.8 x 1.65 m complete reservation, including mirrors and unlit lamps, instead of the previous 3.4/3.7 m bodies. Their twelve IDs, positions, orientations and 6.2 x 2 m bays remain. No moving traffic envelope is enlarged.
+
+Taxi identifiers use the original planar stroke alphabet, extended with X: two faces total 40 triangles per cab instead of 840 cube-lettering triangles. Yellow bodies and plain TAXI signs replace door-medallion geometry; there is no advertising, copied livery or accessibility-conversion claim. Existing weather-aware white paint carries per-instance colors; shared glazing stays non-emissive. The existing emergency silhouettes and equipment are untouched. No new material, dependency, photo texture, model download, traffic actor or runtime control is introduced.
+
+The subsequently requested polish adds a shared six-triangle, open half-ring trim around each passenger wheel rather than a solid disk hiding its sidewall. Lower sedans/hatches use body-colored trim; taller crossovers/minivans use dark protection. Moving and parked versions share this same primitive. The existing tapered glazing supplies the sloping backlight, removing a redundant rear overlay to offset detail costs. Front/rear model studies use actual source rigs and the production driving-lamp renderer; the PR includes a same-framing pre-change capture plus the final fleet and parked-family study.
+
 ## NYC emergency vehicle refinement - 2026-09-16
 
 The [nine-source emergency-vehicle study](NYC_EMERGENCY_VEHICLES_RESEARCH.md) informs five original service silhouettes. White/blue patrol SUVs use tapered glazing and hood/roof forms, mirrors, push-bumper uprights and thin roof bars. Red/white ambulances separate their cabs from the patient modules and show rear double doors, windows, loading steps, lockers and upper warning lights. Cab-forward pumpers expose metallic control panels/couplings, compartment shutters, hose beds, folded hose loads and stowed ladders. Fire-command SUVs retain a separate red/white treatment with roof rails.

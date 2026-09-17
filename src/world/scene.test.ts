@@ -530,12 +530,13 @@ describe('original car-free park district', () => {
     for (const { id } of taxis) {
       const cab = actors.get(id)!;
       expect(cab.getObjectByName('Unbranded taxi roof light')).toBeDefined();
-      expect(cab.getObjectByName('Taxi front grille')).toBeDefined();
-      expect(cab.getObjectByName('Generic taxi door medallion')).toBeDefined();
+      expect(cab.getObjectByName('Front grille')).toBeDefined();
+      expect(cab.getObjectByName('Door handle')).toBeDefined();
+      expect(cab.getObjectByName('Original TAXI lettering')).toBeDefined();
       const bounds = new THREE.Box3().setFromObject(cab);
       expect(bounds.max.z - bounds.min.z).toBeLessThanOrEqual(2.8);
-      expect(bounds.max.x - bounds.min.x).toBeLessThanOrEqual(1.46);
-      expect(bounds.max.y).toBeLessThan(1.8);
+      expect(bounds.max.x - bounds.min.x).toBeLessThanOrEqual(1.8);
+      expect(bounds.max.y).toBeLessThan(2);
     }
   });
 

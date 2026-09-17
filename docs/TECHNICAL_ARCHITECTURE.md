@@ -4,6 +4,12 @@
 
 ## Current implementation
 
+### Ordinary vehicle bodywork
+
+`ordinaryVehicle.ts` builds passenger, taxi and commercial shells inside the common `VehicleRig.body`. `vehicle.ts` retains wheel pivots, locomotion ownership and eleven driving-lamp sockets per motor. Appearance uses the existing independent keyed hash with vehicle-specific keys, never the traffic RNG. The six bus IDs retain their 4.8 m reservations; the new art is deliberately compressed rather than a full-length bus simulation.
+
+`buildParkedCar` reuses that passenger rig builder and adds four unlit lens meshes. `streetFurniture.ts` bakes its actual mesh transforms and tints into the existing static district batches before weather capture, then releases the temporary source hierarchy to garbage collection. No parked rigs enter the simulation or dynamic lamp list. All geometry/materials are borrowed from the scene, including the existing tapered primitive, one shared six-triangle open wheel-arch trim and one shared TAXI lettering geometry; scene disposal remains the sole owner. Static roof capture and snow targeting include the reused parked shells. The unchanged emergency builder uses the same resources without an appearance or behavior change.
+
 ### Emergency vehicle bodywork
 
 `emergencyVehicle.ts` builds five service variants inside the ordinary `VehicleRig.body`, returning dimensions and headlight height to `vehicle.ts`; wheel pivots and eleven driving-lamp sockets remain in the common rig path. `streets.ts` converts two existing sedan slots to `policeSuv`, keeping the same IDs and 2.8 m reservations. Existing ambulance/fire IDs, route assignment and random draws are unchanged. No emergency-response simulation is added.
