@@ -1,9 +1,27 @@
-import type * as THREE from 'three';
+import * as THREE from 'three';
 import {
   CURB_VEHICLES, EXTRA_PARK_BENCHES, FOOD_CARTS, FOOD_CART_SPACE, PARKING_BAYS, PARKING_SIGNS,
-  STREET_BENCHES, STREET_MAILBOXES, type StreetProp,
+  STREET_BENCHES, STREET_MAILBOXES, type CurbVehicle, type StreetProp,
 } from '../content/streetFurniture';
 import type { StreetscapeBuilder } from './streetscape';
+import { buildVehicleRig, type VehicleArt } from './vehicle';
+
+/** Bake the same passenger shell and grounded wheels as traffic; parked engines/lamps stay off. */
+export function buildParkedCar(prop: CurbVehicle, art: VehicleArt): THREE.Group {
+  const group = new THREE.Group();
+  group.name = prop.id;
+  const rig = buildVehicleRig(group, { id: prop.id, kind: 'car', vehicleType: 'sedan' }, art);
+  for (const lamp of rig.lamps.filter(({ channel }) => channel === 'head' || channel === 'tail')) {
+    const lens = new THREE.Mesh(art.box, lamp.channel === 'head' ? art.palette.line : art.palette.clay);
+    lens.name = 'Unlit parked lamp';
+    lens.position.copy(lamp.mount.position);
+    lens.scale.set(...lamp.size);
+    rig.body.add(lens);
+  }
+  group.position.set(prop.x, 0, prop.z);
+  group.rotation.y = prop.yaw;
+  return group;
+}
 
 function placedBuilder(builder: StreetscapeBuilder, prop: StreetProp) {
   const { x, z, yaw } = prop;
@@ -98,6 +116,7 @@ function buildFoodCart(builder: StreetscapeBuilder, prop: StreetProp, accent: TH
 export function buildStreetFurniture(
   builder: StreetscapeBuilder, blue: THREE.Material, glazing: THREE.Material,
   lettering: { food: THREE.BufferGeometry; parking: THREE.BufferGeometry },
+  vehicleArt: VehicleArt,
 ): void {
   const p = builder.palette;
   for (const bay of PARKING_BAYS) {
@@ -143,29 +162,17 @@ export function buildStreetFurniture(
     }
   }
   FOOD_CARTS.forEach((cart, index) => buildFoodCart(builder, cart, index % 2 ? blue : p.bus, glazing, lettering.food));
-  for (const [index, prop] of CURB_VEHICLES.entries()) {
-    const { block, cylinder } = placedBuilder(builder, prop);
-    const color = [p.teal, p.clay, p.cream, blue, p.roof][index % 5];
-    const { width, length } = prop;
-    const radius = 0.28;
-    block(p.rubber, 0, 0.32, 0, width * 0.84, 0.17, length - 0.35);
-    block(color, 0, 0.66, 0, width, 0.63, length);
-    block(glazing, 0, 1.15, -0.15, width - 0.14, 0.5, length * 0.5);
-    block(color, 0, 1.42, -0.15, width - 0.08, 0.1, length * 0.53);
-    for (const side of [-1, 1]) {
-      block(color, side * (width / 2 - 0.05), 1.15, -0.18, 0.055, 0.5, 0.08);
-      block(p.stone, side * (width / 2 + 0.005), 0.88, -0.5, 0.018, 0.04, 0.21);
-    }
-    for (const side of [-1, 1]) {
-      for (const end of [-1, 1]) {
-        cylinder(p.rubber, side * (width / 2 - 0.06), radius - 0.005,
-          end * length * 0.32, radius, 0.18, true);
-        cylinder(p.stone, side * (width / 2 + 0.04), radius - 0.005,
-          end * length * 0.32, radius * 0.5, 0.025, true);
-      }
-      block(p.cream, side * width * 0.31, 0.72, length / 2 + 0.012, 0.27, 0.16, 0.035);
-      block(p.clay, side * width * 0.31, 0.72, -length / 2 - 0.012, 0.23, 0.16, 0.035);
-    }
-    for (const end of [-1, 1]) block(p.stone, 0, 0.41, end * (length / 2 + 0.02), width * 0.88, 0.12, 0.07);
+  const position = new THREE.Vector3(), scale = new THREE.Vector3();
+  const quaternion = new THREE.Quaternion(), rotation = new THREE.Euler();
+  for (const prop of CURB_VEHICLES) {
+    const car = buildParkedCar(prop, vehicleArt);
+    car.updateWorldMatrix(true, true);
+    car.traverse((object) => {
+      if (!(object instanceof THREE.Mesh) || Array.isArray(object.material)) return;
+      object.matrixWorld.decompose(position, quaternion, scale);
+      rotation.setFromQuaternion(quaternion);
+      builder.add(object.geometry, object.material, position.toArray(), scale.toArray(),
+        [rotation.x, rotation.y, rotation.z], object.userData.instanceColor?.getStyle());
+    });
   }
 }

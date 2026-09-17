@@ -103,6 +103,7 @@ describe('original curbside furniture', () => {
   it('builds finite shared geometry, rounded mailboxes, slats and street-facing service counters without owning resources', () => {
     const box = new THREE.BoxGeometry();
     const cylinder = new THREE.CylinderGeometry(1, 1, 1, 10);
+    const wheel = new THREE.CylinderGeometry(0.38, 0.38, 0.2, 12);
     const crown = new THREE.DodecahedronGeometry();
     const surface = new THREE.MeshStandardMaterial();
     const blue = new THREE.MeshStandardMaterial();
@@ -132,10 +133,16 @@ describe('original curbside furniture', () => {
         this.add(box, material, [x, y, z], [w, h, d], [0, yaw, 0]);
       },
     };
+    const vehicleArt = {
+      box, cylinder, wheel, taperedShell: box, taxiLettering: lettering.parking,
+      personArt: { box, head: crown, material: surface }, civicBlue: blue,
+      vehiclePaint: surface, vehicleGlass: glass, lampGlow: surface,
+      beaconRed: surface, beaconBlue: surface, palette,
+    };
     try {
-      buildStreetFurniture(builder, blue, glass, lettering);
+      buildStreetFurniture(builder, blue, glass, lettering, vehicleArt);
       expect(parts.filter(({ shape, material }) => shape === cylinder && material === blue)).toHaveLength(6);
-      expect(parts.filter(({ material }) => material === glass)).toHaveLength(16);
+      expect(parts.filter(({ material }) => material === glass)).toHaveLength(40);
       expect(parts.filter(({ shape }) => shape === lettering.food)).toHaveLength(8);
       expect(parts.filter(({ shape }) => shape === lettering.parking)).toHaveLength(20);
       expect(parts.length).toBeLessThan(1500);
@@ -163,10 +170,10 @@ describe('original curbside furniture', () => {
       }
       const first = parts.map(({ matrix }) => matrix.toArray());
       parts.length = 0;
-      buildStreetFurniture(builder, blue, glass, lettering);
+      buildStreetFurniture(builder, blue, glass, lettering, vehicleArt);
       expect(parts.map(({ matrix }) => matrix.toArray())).toEqual(first);
     } finally {
-      [box, cylinder, crown, surface, blue, glass, lettering.food, lettering.parking].forEach((resource) => resource.dispose());
+      [box, cylinder, wheel, crown, surface, blue, glass, lettering.food, lettering.parking].forEach((resource) => resource.dispose());
     }
   });
 });

@@ -1,5 +1,13 @@
 # Acceptance criteria and verification plan
 
+## NYC ordinary vehicle refinement - 2026-09-17
+
+**Draft checkpoint:** all six approved groups are implemented. TypeScript and ESLint pass; the final full unit suite and production build are running. The already-planned served browser checks and final front/rear, parked-family and live-city visual inspection are pending. This checkpoint is not a claim that those checks passed.
+
+New tests cover every ordinary source mesh and actual driving-lens dimensions inside the unchanged traffic reservations, grounded wheels, ray-tested exposed windshields/tire sidewalls, ID-stable variants, cargo/passenger distinctions, shared 40-triangle TAXI lettering, parked-car full geometry and weather-height capture. The first geometry run caught a 3 mm loading-step overhang, corrected inward without changing the envelope. Old taxi-only art assertions were updated for the approved taller passenger-minivan form and mirrors; the actual 2.8 m length / 1.8 m full-width traffic reservation and whole-scene ceilings are unchanged.
+
+The first rendered pass measured 638,419 base triangles, 108 visible mesh submissions and 37 materials before the final windshield-pillar addition. Final accounting will replace this draft checkpoint. Limits remain **less than 640,000 triangles, at most 110 submissions and at most 37 materials**; no unrelated scenery is simplified to fit. Physical-device frame times and long-session sign-off remain outside this browser/CPU evidence.
+
 ## NYC emergency vehicle refinement - 2026-09-16
 
 Five original service designs replace generic bodywork: patrol SUV, box ambulance, compact ambulance, pumper engine and fire-command SUV. Two sedan slots become patrol SUVs while retaining their IDs; the eight existing ambulance/fire IDs, 48 motor vehicles and all other actors remain. Source provenance and miniature-scale limitations are recorded in the [emergency-vehicle study](NYC_EMERGENCY_VEHICLES_RESEARCH.md).
