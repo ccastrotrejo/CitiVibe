@@ -80,7 +80,7 @@ export const STREET_BLOCKS = STREET_Z.slice(0, -1).flatMap((minZ, row) =>
 
 export type TrafficVehicleType =
   | 'sedan' | 'taxi' | 'van' | 'truck' | 'bus' | 'bicycle'
-  | 'ambulanceVan' | 'ambulanceBox' | 'firetruck' | 'fireSuv';
+  | 'ambulanceVan' | 'ambulanceBox' | 'firetruck' | 'fireSuv' | 'policeSuv';
 
 export interface TrafficActorDefinition {
   id: string;
@@ -91,11 +91,13 @@ export interface TrafficActorDefinition {
 const VEHICLE_TYPES = ['sedan', 'taxi', 'van', 'truck', 'sedan', 'bus'] as const;
 const ADDITIONAL_VEHICLE_TYPES = ['sedan', 'taxi', 'van', 'truck'] as const;
 /**
- * Two ambulance sizes and two fire-service models join ordinary traffic. Each re-skins an
+ * Ambulances, fire-service vehicles and patrol SUVs join ordinary traffic. Each re-skins an
  * existing car in place, so the simulation footprint (TRAFFIC_LENGTHS) and every seeded
  * placement stay identical: emergency vehicles only replace a same-length regular vehicle.
  */
 const EMERGENCY_OVERRIDES: ReadonlyMap<string, { id: string; vehicleType: TrafficVehicleType }> = new Map([
+  ['city-vehicle-1', { id: 'city-vehicle-1', vehicleType: 'policeSuv' }],
+  ['city-vehicle-25', { id: 'city-vehicle-25', vehicleType: 'policeSuv' }],
   ['city-vehicle-16', { id: 'city-ambulance-1', vehicleType: 'ambulanceBox' }],
   ['city-vehicle-22', { id: 'city-ambulance-2', vehicleType: 'ambulanceBox' }],
   ['city-vehicle-39', { id: 'city-ambulance-3', vehicleType: 'ambulanceVan' }],

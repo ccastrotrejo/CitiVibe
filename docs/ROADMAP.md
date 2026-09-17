@@ -165,6 +165,7 @@ The checked weather/dock work below reflects its incoming-main implementation ch
 
 Replace the initial garden-village feel with an **original fictional NYC-like neighborhood**, not a literal map or a recreation of named buildings. Execute this visual pass before the final M6/M7 accessibility and performance sign-off so measurements cover the final artwork.
 
+- [x] Refine the original ambulance/fire vehicles and add patrol-SUV artwork in two existing sedan slots using [NYC fleet research](NYC_EMERGENCY_VEHICLES_RESEARCH.md). Retain 48 motor vehicles, existing safety envelopes, weather/lighting and controls; no real department branding or emergency-response behavior. The user subsequently authorized a commit, push and new PR, not deployment.
 - [x] Make NYC the durable visual direction, with source-backed attached building groups, ordinary offices and stores beneath upper floors; preserve meaningful public openings rather than squeezing sidewalks to obtain density. See the 2026-09-15 building-fabric slice above.
 - [x] Create a denser street-wall silhouette with original brick/brownstone and limestone mid-rises, varied cornices, fire escapes, rooftop water tanks, and restrained taller accents.
 - [x] Rework streets and public space toward asphalt, concrete sidewalks, curb details, railings, small tree pits, and a car-free central park. Keep routes, gate openings, stop bars and painted lane symbols aligned.

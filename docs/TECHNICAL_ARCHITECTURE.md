@@ -4,6 +4,12 @@
 
 ## Current implementation
 
+### Emergency vehicle bodywork
+
+`emergencyVehicle.ts` builds five service variants inside the ordinary `VehicleRig.body`, returning dimensions and headlight height to `vehicle.ts`; wheel pivots and eleven driving-lamp sockets remain in the common rig path. `streets.ts` converts two existing sedan slots to `policeSuv`, keeping the same IDs and 2.8 m reservations. Existing ambulance/fire IDs, route assignment and random draws are unchanged. No emergency-response simulation is added.
+
+The scene owns one additional tapered primitive and lends its existing neutral weather-aware material as `vehiclePaint`. Per-instance tints preserve service colors within the same `ActorInstances` mechanism without allocating a material per vehicle or removing wet/snow shading. Glass remains non-emissive; warning lenses retain the two existing steady beacon materials. Bounds coverage includes wheels, mirrors, trim and the rendered driving-lamp sizes. Scene disposal, retained locomotion and lighting restoration cover these new parts through the existing owners. See [research and authored limits](NYC_EMERGENCY_VEHICLES_RESEARCH.md).
+
 ### Weather-aware people
 
 `peopleWeather.ts` is a retained CPU controller within `ActorSimulation`. It consumes blended precipitation, temperature, wind, wetness and ground-snow cover from `WorldModel`, using independent ID-keyed `createWeatherTraits` samples rather than adding draws to the traffic streams. Each pedestrian carries one stable equipment/umbrella/pace/caution state. Weather modifies desired pace before existing safety constraints; it cannot release a crossing reservation or override headway. Paused explicit selections apply static equipment without progressing any actor.

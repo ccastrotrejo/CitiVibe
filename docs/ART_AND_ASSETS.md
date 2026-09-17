@@ -1,5 +1,13 @@
 # Art and assets
 
+## NYC emergency vehicle refinement - 2026-09-16
+
+The [nine-source emergency-vehicle study](NYC_EMERGENCY_VEHICLES_RESEARCH.md) informs five original service silhouettes. White/blue patrol SUVs use tapered glazing and hood/roof forms, mirrors, push-bumper uprights and thin roof bars. Red/white ambulances separate their cabs from the patient modules and show rear double doors, windows, loading steps, lockers and upper warning lights. Cab-forward pumpers expose metallic control panels/couplings, compartment shutters, hose beds, folded hose loads and stowed ladders. Fire-command SUVs retain a separate red/white treatment with roof rails.
+
+`emergencyVehicle.ts` replaces the old generic service boxes. All colors use the existing white weather-aware material with per-instance tint; one scene-owned tapered box joins the shared primitives. No new material, texture, downloaded model, department insignia, manufacturer badge, unit number or font is introduced. The blue medical identifier and all color layouts are original simplified geometry. Reference imagery stays outside the application.
+
+The eight existing ambulance/fire IDs remain. Two sedan slots become patrol SUVs without changing their IDs, total population, lane reservations, simulation order or routes. Models and lamp lenses fit the existing traffic envelopes; wheels, body attitude, driving lamps, steady warning bars, weather shading and pause/recovery retain their existing owners. Real-world vehicle dimensions are compressed to match the established miniature traffic, not claimed as accurately scaled fleet models. The companion illustration and unrelated scenery are unchanged.
+
 ## Weather-aware people - 2026-09-16
 
 Original weather clothing extends the existing procedural pedestrian rigs rather than replacing their identity: compact faceted umbrella canopies and shafts, hooded rainwear, winter coats, head coverings and scarves. Optional parts share the existing primitives and neutral per-instance-color material. They are built once and activated through submitted transforms, since source-mesh visibility alone does not hide an `ActorInstances` slot. No photographs, clothing brands, downloaded models or extra material owners are introduced.

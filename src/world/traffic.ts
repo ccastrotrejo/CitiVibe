@@ -34,8 +34,8 @@ export const TRAFFIC = {
 export const TRAFFIC_LENGTHS: Record<TrafficVehicleType, number> = {
   sedan: 2.8, taxi: 2.8, van: 3.5, truck: 4.6, bus: 4.8, bicycle: 2,
   // Emergency vehicles re-skin same-length cars: firetruck/ambulanceBox match truck (4.6),
-  // ambulanceVan matches van (3.5), fireSuv matches sedan (2.8) so placement never shifts.
-  ambulanceVan: 3.5, ambulanceBox: 4.6, firetruck: 4.6, fireSuv: 2.8,
+  // ambulanceVan matches van (3.5), both SUVs match sedan (2.8) so placement never shifts.
+  ambulanceVan: 3.5, ambulanceBox: 4.6, firetruck: 4.6, fireSuv: 2.8, policeSuv: 2.8,
 };
 
 interface Point { x: number; z: number }
