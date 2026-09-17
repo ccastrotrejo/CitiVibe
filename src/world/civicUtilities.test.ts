@@ -68,7 +68,7 @@ describe('bounded civic fabric', () => {
       ...STREET_MAILBOXES.map((prop) => propBounds(prop, 0.8, 0.8)),
       ...STREET_BENCHES.map((prop) => propBounds(prop, 2.65, 0.86)),
     ];
-    const props = [...CIVIC_UTILITIES, STEAM_PILOT];
+    const props = [...CIVIC_UTILITIES, ...STEAM_STACKS];
     for (const prop of props) {
       const bounds = propBounds(prop, prop.width + 0.06, prop.depth + 0.06);
       expect(outsideWalkingCorridors(prop, prop.width + 0.06, prop.depth + 0.06), prop.id).toBe(true);
@@ -95,13 +95,18 @@ describe('bounded civic fabric', () => {
     expect(STEAM_PILOT.baseY).toBe(STEAM_PILOT.surfaceY);
   });
 
-  it('locates exactly two rectangular drains in an empty non-cycle curb segment, not parking bays or landings', () => {
-    expect(STREET_DRAINS).toHaveLength(2);
+  it('locates thirty rectangular drains in empty non-cycle curb segments, not parking bays or landings', () => {
+    expect(STREET_DRAINS).toHaveLength(30);
     for (const drain of STREET_DRAINS) {
       const bounds = propBounds(drain, drain.width, drain.depth);
       expect(outsideWalkingCorridors(drain, drain.width, drain.depth)).toBe(true);
-      expect(drain.z + drain.depth / 2).toBeLessThan(drain.roadZ - VEHICLE_OFFSET - 1.1);
-      expect(drain.z - drain.depth / 2).toBeGreaterThanOrEqual(drain.roadZ - ROAD_HALF_WIDTH);
+      if (drain.curbSide < 0) {
+        expect(drain.z + drain.depth / 2).toBeLessThan(drain.roadZ - VEHICLE_OFFSET - 1.1);
+        expect(drain.z - drain.depth / 2).toBeGreaterThanOrEqual(drain.roadZ - ROAD_HALF_WIDTH);
+      } else {
+        expect(drain.z - drain.depth / 2).toBeGreaterThan(drain.roadZ + VEHICLE_OFFSET + 1.1);
+        expect(drain.z + drain.depth / 2).toBeLessThanOrEqual(drain.roadZ + ROAD_HALF_WIDTH);
+      }
       expect(drain.grateTopY).toBe(drain.surfaceY);
       expect(drain.recessY).toBeLessThan(drain.surfaceY);
       expect(drain.mouthTopY).toBeLessThan(drain.curbTopY);
@@ -185,7 +190,8 @@ describe('bounded civic fabric', () => {
       expect(capture.parts.every(({ shape }) => shape === capture.builder.box || shape === capture.builder.cylinder)).toBe(true);
       const triangles = capture.parts.reduce((sum, { shape }) =>
         sum + (shape.index?.count ?? shape.getAttribute('position').count) / 3, 0);
-      expect(triangles).toBeLessThan(6000);
+      // Local civic geometry scales with the approved drain, hydrant and stack counts.
+      expect(triangles).toBeLessThan(16000);
       for (const drain of STREET_DRAINS) {
         const frames = capture.parts.filter(({ material, bounds }) => material === capture.builder.palette.roof && bounds.max.y > -0.01 &&
           Math.abs(bounds.getCenter(new THREE.Vector3()).x - drain.x) < drain.width &&
@@ -193,11 +199,14 @@ describe('bounded civic fabric', () => {
         expect(frames).toHaveLength(13);
         for (const frame of frames) expect(frame.bounds.max.y).toBeCloseTo(drain.grateTopY);
       }
-      const stackParts = capture.parts.filter(({ bounds }) => Math.abs(bounds.getCenter(new THREE.Vector3()).x - STEAM_PILOT.x) < 0.5 &&
-        Math.abs(bounds.getCenter(new THREE.Vector3()).z - STEAM_PILOT.z) < 0.5);
-      expect(stackParts).toHaveLength(8);
-      expect(STEAM_STACKS).toEqual([STEAM_PILOT]);
-      expect(Math.max(...stackParts.map(({ bounds }) => bounds.max.y))).toBeCloseTo(STEAM_PILOT.topY);
+      expect(STEAM_STACKS[0]).toBe(STEAM_PILOT);
+      expect(STEAM_STACKS).toHaveLength(4);
+      for (const stack of STEAM_STACKS) {
+        const stackParts = capture.parts.filter(({ bounds }) => Math.abs(bounds.getCenter(new THREE.Vector3()).x - stack.x) < 0.5 &&
+          Math.abs(bounds.getCenter(new THREE.Vector3()).z - stack.z) < 0.5);
+        expect(stackParts, stack.id).toHaveLength(8);
+        expect(Math.max(...stackParts.map(({ bounds }) => bounds.max.y)), stack.id).toBeCloseTo(stack.topY);
+      }
       for (const cover of CIVIC_UTILITIES.filter(({ kind }) => kind === 'service-cover')) {
         const nearby = capture.parts.filter(({ bounds }) =>
           Math.abs(bounds.getCenter(new THREE.Vector3()).x - cover.x) < 0.4 &&
@@ -264,7 +273,7 @@ describe('bounded civic fabric', () => {
     expect(surface.snowRetentionAt(4, -86.25)).toBe(1);
     expect(surface.heightAt(STEAM_PILOT.x, STEAM_PILOT.z)).toBeCloseTo(STEAM_PILOT.topY);
     expect(surface.snowRetentionAt(STEAM_PILOT.x, STEAM_PILOT.z)).toBe(1);
-    expect(MAINTENANCE_STRIPS).toHaveLength(4);
+    expect(MAINTENANCE_STRIPS).toHaveLength(2 + STREET_DRAINS.length);
     const before = surface.retention.slice();
     applyCivicMaintenanceCapture(surface);
     expect(surface.retention).toEqual(before);

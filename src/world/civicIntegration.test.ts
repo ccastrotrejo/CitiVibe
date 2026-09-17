@@ -31,9 +31,11 @@ describe('integrated civic utility geometry', () => {
     for (const drain of STREET_DRAINS) {
       expect(hit(drain.x, 0.2, drain.z, new THREE.Vector3(0, -1, 0)).y).toBeCloseTo(drain.surfaceY);
       expect(hit(drain.x + 0.06, 0.2, drain.z, new THREE.Vector3(0, -1, 0)).y).toBeCloseTo(drain.recessY);
-      const mouth = hit(drain.x, 0.02, drain.z + 0.2, new THREE.Vector3(0, 0, -1));
-      const solidCurb = hit(drain.x + drain.width / 2 + 0.15, 0.02, drain.z + 0.2, new THREE.Vector3(0, 0, -1));
-      expect(mouth.z).toBeLessThan(solidCurb.z - 0.1);
+      const mouthProbeZ = drain.z - drain.curbSide * 0.2;
+      const mouth = hit(drain.x, 0.02, mouthProbeZ, new THREE.Vector3(0, 0, drain.curbSide));
+      const solidCurb = hit(drain.x + drain.width / 2 + 0.15, 0.02, mouthProbeZ, new THREE.Vector3(0, 0, drain.curbSide));
+      if (drain.curbSide < 0) expect(mouth.z).toBeLessThan(solidCurb.z - 0.1);
+      else expect(mouth.z).toBeGreaterThan(solidCurb.z + 0.1);
       expect(world.weatherSurface.snowRetentionAt(drain.x, drain.z)).toBeCloseTo(drain.snowRetention);
     }
   });
