@@ -1,5 +1,19 @@
 # Art and assets
 
+## NYC realism and interior furnishing - 2026-09-17
+
+The [37-item implementation record](NYC_REALISM_RESEARCH_PLAN.md#local-implementation-record---2026-09-17) supersedes the earlier visual snapshots below. Three frontage roles and seven construction systems correlate building use, facade materials, window geometry and roofs. Shared planar glazing replaces redundant solids; cornices, shallow entry recesses, corner shopfronts and grounded roof bulkheads provide local depth without a new postprocessing effect.
+
+All 94 building IDs remain. Buildings 63, 60 and 93 become an original hospital, fire station and police station, respectively. Distinct entries, a closed apparatus shutter, canopies, simple lettering and a teal care-pulse plate use existing primitives/materials. A bounded opening is subtracted from building 15's rear wall/foundation/trim to make a real service-front recess, with a closed door and retained upper wall; it is not an enterable interior.
+
+Six mailboxes, eight street benches, two hydrants, two litter baskets, two service covers and one steam stack are distributed through interior plazas, forecourts and safe spare-curb pockets. Four small level aprons connect forecourt furniture to existing paving. Seat, user and companion envelopes are reserved alongside full pedestrian/cyclist access; the old outer-edge furniture ribbon is removed. Original parked-car positions, carts, tree sites, park scenery, subway mouths and full-size courts remain.
+
+Two roadway drains have flush bars over actual recesses and open curb mouths. Selected gate/drain strips use zero snow retention consistently in CPU support, surface tint and color/shadow shell fragments, without clearing overhead roofs. These are authored maintenance cues, not hydraulic or utility-network simulation.
+
+The 2.7 m banded steam stack at (-64.5, -43) shares static batches; its outlet is 2.725 m above the scene datum. Twelve analytic vapor puffs add one bounded effect draw and 768 allocated effect triangles, borrowing the cloud material and owning only their geometry/instance buffers. Retained weather time/wind drive the plume; reduced motion is stationary and lightweight hides vapor, not the stack. Six optional reading books likewise use existing person primitives/materials and hide through instance transforms.
+
+The original companion SVG and both fallback descriptions now include the civic neighborhood while explicitly remaining simplified, static illustrations. No new external assets, source photographs, branded insignia, agency route marks, advertisements or dependencies are shipped. An earlier interior-plaza capture was pixel-inspected; the refreshed captures were not. Wider art/device approval remains a separate gate in [acceptance criteria](ACCEPTANCE_CRITERIA.md).
+
 ## Weather-aware people - 2026-09-16
 
 Original weather clothing extends the existing procedural pedestrian rigs rather than replacing their identity: compact faceted umbrella canopies and shafts, hooded rainwear, winter coats, head coverings and scarves. Optional parts share the existing primitives and neutral per-instance-color material. They are built once and activated through submitted transforms, since source-mesh visibility alone does not hide an `ActorInstances` slot. No photographs, clothing brands, downloaded models or extra material owners are introduced.

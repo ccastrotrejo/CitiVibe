@@ -87,6 +87,7 @@ export interface WalkerRig {
   legs: [LegRig, LegRig];
   arms: [Object3D, Object3D];
   weatherArt?: PersonWeatherRig;
+  readingBook?: Object3D;
 }
 
 export interface WheelRig {
@@ -176,8 +177,14 @@ export interface WalkerPose {
 /** Pose an articulated pedestrian rig from its travelled distance. */
 export function poseWalkerRig(rig: WalkerRig, pose: WalkerPose): void {
   const { reducedMotion } = pose;
+  const reading = pose.activity === 'reading' && pose.speed === 0;
+  const observingWindow = pose.activity === 'window-shopping' && pose.speed === 0;
+  const civicDuty = pose.activity === 'civic-duty' && pose.speed === 0;
+  const resting = pose.activity === 'resting' && pose.speed === 0;
+  if (rig.readingBook) rig.readingBook.scale.setScalar(reading ? 1 : 0);
   const sitting = smoothstep(clamp(pose.sitting ?? 0, 0, 1));
-  const blend = sitting > 0 || (pose.sitting !== undefined && pose.speed === 0) ? 0 : pose.blend;
+  const blend = reading || observingWindow || civicDuty || resting || sitting > 0 ||
+    (pose.sitting !== undefined && pose.speed === 0) ? 0 : pose.blend;
   // Solve in rig-local metres so shorter legs take shorter steps, without skating.
   const distance = pose.distance / (rig.scale ?? 1);
   const speed = pose.speed / (rig.scale ?? 1);
@@ -198,6 +205,9 @@ export function poseWalkerRig(rig: WalkerRig, pose: WalkerPose): void {
   rig.torso.position.x = reducedMotion || blend === 0 ? 0 : WALKER.swayAmp * Math.sin(TAU * cyclePhase) * blend;
   rig.torso.rotation.y = !reducedMotion && pose.activity === 'looking-around'
     ? 0.1 * Math.sin(Math.PI * Math.min(1, (pose.activityTime ?? 0) / 1.5)) : 0;
+  if (civicDuty && !reducedMotion) {
+    rig.torso.rotation.y = 0.12 * Math.sin(Math.PI * Math.min(1, (pose.activityTime ?? 0) / 2.5));
+  }
 
   for (let leg = 0; leg < 2; leg += 1) {
     const phase = gaitPhase(distance, stride, leg === 1 ? 0.5 : 0);
@@ -215,6 +225,10 @@ export function poseWalkerRig(rig: WalkerRig, pose: WalkerPose): void {
   const swing = (reducedMotion ? 0.4 : 1) * (running ? RUNNER.armSwing : WALKER.armSwing) * blend;
   rig.arms[0].rotation.x = swing * Math.cos(TAU * cyclePhase) - 0.45 * sitting;
   rig.arms[1].rotation.x = swing * Math.cos(TAU * gaitPhase(distance, stride, 0.5)) - 0.45 * sitting;
+  if (reading) {
+    rig.arms[0].rotation.x = -0.95;
+    rig.arms[1].rotation.x = -0.95;
+  }
   if (rig.weatherArt) rig.weatherArt.armSwing = rig.arms[1].rotation.x;
   applyPersonWeather(rig, pose.weather);
 }

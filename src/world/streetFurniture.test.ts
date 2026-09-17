@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import {
-  CURB_VEHICLES, EXTRA_PARK_BENCHES, FOOD_CARTS, FOOD_CART_SPACE, PARKING_BAYS, PARKING_SIGNS,
+  CURB_RUN_ENDS, CURB_VEHICLES, EXTRA_PARK_BENCHES, FOOD_CARTS, FOOD_CART_SPACE, PARKING_BAYS, PARKING_SIGNS,
   STREET_BENCHES, STREET_MAILBOXES, foodCartBounds, propBounds,
 } from '../content/streetFurniture';
-import { CITY_EXTENT, INTERSECTIONS, ROAD_HALF_WIDTH, SIDEWALK_OFFSET, STREET_X, STREET_Z, VEHICLE_OFFSET } from '../content/streets';
+import { CITY_EXTENT, INTERSECTIONS, ROAD_HALF_WIDTH, STREET_X, STREET_Z, VEHICLE_OFFSET } from '../content/streets';
+import { outsideWalkingCorridors } from '../content/civicUtilities';
 import { METRO_OPENINGS } from '../content/metro';
 import { buildStreetFurniture } from './streetFurniture';
 import { buildSignLettering } from './signLettering';
@@ -71,8 +72,9 @@ describe('original curbside furniture', () => {
       expect(bounds.maxX).toBeLessThan(CITY_EXTENT.x);
       expect(bounds.minZ).toBeGreaterThan(-CITY_EXTENT.z);
       expect(bounds.maxZ).toBeLessThan(CITY_EXTENT.z);
-      expect(Math.min(Math.abs(bounds.minX), Math.abs(bounds.maxX)))
-        .toBeGreaterThan(102 + SIDEWALK_OFFSET + 0.85);
+      expect(Math.max(Math.abs(bounds.minX), Math.abs(bounds.maxX))).toBeLessThanOrEqual(CITY_EXTENT.x - 12);
+      expect(Math.max(Math.abs(bounds.minZ), Math.abs(bounds.maxZ))).toBeLessThanOrEqual(CITY_EXTENT.z - 12);
+      expect(outsideWalkingCorridors(prop, prop.id.startsWith('mailbox') ? 0.8 : 2.65, 0.86)).toBe(true);
       for (const opening of METRO_OPENINGS) {
         expect(bounds.maxX < opening.minX || bounds.minX > opening.maxX ||
           bounds.maxZ < opening.minZ || bounds.minZ > opening.maxZ).toBe(true);
@@ -80,9 +82,14 @@ describe('original curbside furniture', () => {
     }
   });
 
-  it('marks every curb vehicle bay without entering driving lanes or crossings and mounts signs above walkers', () => {
+  it('retains unpainted curb reservations and restrained signs without entering driving lanes or crossings', () => {
     expect(PARKING_BAYS).toHaveLength(12);
     expect(PARKING_SIGNS).toHaveLength(4);
+    expect(CURB_RUN_ENDS).toHaveLength(4);
+    for (const end of CURB_RUN_ENDS) {
+      expect(Math.abs(end.x)).toBe(25.3);
+      expect(Math.abs(end.z)).toBe(100.09);
+    }
     for (const bay of PARKING_BAYS) {
       const vehicle = CURB_VEHICLES.find(({ id }) => id === bay.id)!;
       expect(bay.length).toBeGreaterThan(vehicle.length + 1.5);
@@ -129,7 +136,7 @@ describe('original curbside furniture', () => {
         parts.push({ shape, material, matrix: transform.matrix.clone() });
       },
       block(material, x, y, z, w, h, d, yaw = 0) {
-        this.add(box, material, [x, y, z], [w, h, d], [0, yaw, 0]);
+        builder.add(box, material, [x, y, z], [w, h, d], [0, yaw, 0]);
       },
     };
     try {
@@ -137,14 +144,14 @@ describe('original curbside furniture', () => {
       expect(parts.filter(({ shape, material }) => shape === cylinder && material === blue)).toHaveLength(6);
       expect(parts.filter(({ material }) => material === glass)).toHaveLength(16);
       expect(parts.filter(({ shape }) => shape === lettering.food)).toHaveLength(8);
-      expect(parts.filter(({ shape }) => shape === lettering.parking)).toHaveLength(20);
-      expect(parts.length).toBeLessThan(1500);
+      expect(parts.filter(({ shape }) => shape === lettering.parking)).toHaveLength(0);
+      expect(parts.length).toBeLessThan(1800);
       for (const part of parts) {
         part.shape.computeBoundingBox();
         const bounds = part.shape.boundingBox!.clone().applyMatrix4(part.matrix);
         expect(bounds.min.x).toBeGreaterThan(-CITY_EXTENT.x);
         expect(bounds.max.x).toBeLessThan(CITY_EXTENT.x);
-        expect(bounds.min.y).toBeGreaterThanOrEqual(-0.1);
+        expect(bounds.min.y).toBeGreaterThanOrEqual(-0.140001);
       }
       for (const cart of FOOD_CARTS) {
         const space = foodCartBounds(cart);

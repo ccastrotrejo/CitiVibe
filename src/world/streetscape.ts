@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { BASKETBALL_COURT, PICKLEBALL_COURT, RECREATION_AREA, netHeightAt } from '../content/courts';
 import {
-  WINDOW_UNIT, WINDOW_UNIT_GRILLE, WINDOW_UNIT_TONES, facadeSample, facadeToneFor,
-  type FacadeFamily,
+  BUILDING_FABRIC, WINDOW_UNIT, WINDOW_UNIT_GRILLE, WINDOW_UNIT_TONES, facadeSample, facadeToneFor,
+  type BuildingFabricType, type FacadeFamily, type FrontageRole,
 } from '../content/facades';
 import { METRO_ENTRANCES, METRO_GEOMETRY, METRO_OPENINGS, type MetroEntrance } from '../content/metro';
 import type { MuralWall } from './murals';
@@ -13,8 +13,15 @@ import {
 } from '../content/streets';
 import { JUNIPER_CYCLE_ACCESS } from '../content/bikeShare';
 import {
-  buildCommercialFront, buildingFrontPoint, buildingFrontSpan, closeStreetWallGaps, faceName, type BuildingFace,
+  buildCommercialFront, buildingFrontPoint, buildingFrontSpan, closeStreetWallGaps, faceName,
+  assignBuildingCorners, type BuildingFace,
 } from './buildingFabric';
+import { buildCurbTransitions, buildFrontagePaving } from './pavement';
+import { STREET_DRAINS } from '../content/civicUtilities';
+import { buildBuildingServiceConnection, buildStreetTreeBed } from './civicUtilities';
+import { CIVIC_SERVICES, type CivicServiceKind } from '../content/civicServices';
+import { buildCivicFront } from './civicFront';
+import { buildLoadingFrontage, LOADING_FRONTAGE, recessedBuildingBlock, type BuildingLoadingRecess } from './loadingFrontage';
 
 type Triple = readonly [number, number, number];
 type SurfaceName = 'sand' | 'stone' | 'paving' | 'road' | 'line' | 'cream' | 'clay' |
@@ -39,7 +46,8 @@ export interface StreetscapeBuilder {
 
 export interface StreetscapeSignalState {
   id: string;
-  phase: 'north-south' | 'east-west' | 'clearance' | 'pedestrians' | 'stop';
+  phase: 'north-south' | 'east-west' | 'north-south-yellow' | 'east-west-yellow' |
+    'clearance' | 'pedestrians' | 'stop';
 }
 
 export interface Streetscape {
@@ -73,9 +81,15 @@ export interface StreetBuilding {
   plantingFootprint: { x: number; z: number; width: number; depth: number };
   front: { axis: 'x' | 'z'; side: -1 | 1 };
   attached: BuildingFace[];
-  use: 'residential' | 'mixed-use' | 'office';
+  use: 'residential' | 'mixed-use' | 'office' | 'civic';
+  civicService: CivicServiceKind | null;
+  loadingRecess: BuildingLoadingRecess | null;
   officeStyle: 'masonry' | 'curtain-wall' | null;
   storefront: 'market' | 'books' | 'cafe' | null;
+  frontageRole: FrontageRole;
+  frontageRun: string;
+  fabricType: BuildingFabricType;
+  corner: { axis: 'x' | 'z'; side: -1 | 1 } | null;
   floors: number;
   roof: 'tank' | 'garden' | 'chimneys' | 'plant';
   setbackFloors: number;
@@ -161,8 +175,8 @@ function architectureSample(seed: number, id: string, feature: string): number {
 /** Dress stable IDs, then join neighboring lots without filling civic access pockets. */
 export function createStreetBuildings(seed = 2401): readonly StreetBuilding[] {
   const buildings: Omit<StreetBuilding, 'architecture' | 'roof' | 'facadeFamily' | 'tone' |
-    'plantingFootprint' | 'front' | 'attached' | 'use' | 'officeStyle' | 'storefront'>[] = [];
-  const roofs = ['tank', 'chimneys', 'garden', 'plant'] as const;
+    'plantingFootprint' | 'front' | 'attached' | 'use' | 'officeStyle' | 'storefront' |
+    'frontageRole' | 'frontageRun' | 'fabricType' | 'corner' | 'civicService' | 'loadingRecess'>[] = [];
   const add = (
     blockId: string, x: number, z: number, width: number, depth: number,
     floors: number, accent = false,
@@ -277,21 +291,29 @@ export function createStreetBuildings(seed = 2401): readonly StreetBuilding[] {
   }
   const finished: StreetBuilding[] = buildings.map((building) => {
     const sample = (feature: string) => architectureSample(seed, building.id, feature);
-    const use = building.brownstone || building.width < 6 || building.depth < 5 ? 'residential' :
+    const civicService = CIVIC_SERVICES.find(({ buildingId }) => buildingId === building.id)?.kind ?? null;
+    const use = civicService ? 'civic' : building.brownstone || building.width < 6 || building.depth < 5 ? 'residential' :
       sample('use') < 0.22 ? 'office' : sample('use') < 0.66 ? 'mixed-use' : 'residential';
-    const officeStyle = use === 'office' ? (sample('office-style') < 0.5 ? 'masonry' : 'curtain-wall') : null;
-    const family = building.brownstone ? 'brownstone' :
-      (['masonry', 'loft', 'terrace'] as const)[Math.floor(sample('family') * 3)];
-    const proportions = {
-      brownstone: { width: 0.7, height: 1.22, spacing: 1.9, mullions: 'sash' },
-      masonry: { width: 0.82, height: 1.15, spacing: 2.4, mullions: 'sash' },
-      loft: { width: 1.25, height: 1.2, spacing: 3.1, mullions: 'cross' },
-      terrace: { width: 1.1, height: 0.95, spacing: 2.8, mullions: 'none' },
-    } as const;
-    const profile = proportions[family];
-    const tone = facadeToneFor(building.id, runIds.get(building.id)!,
-      building.brownstone ? 'brownstone' : officeStyle === 'curtain-wall' ? 'curtainWall' : undefined);
+    const frontageRun = runIds.get(building.id)!;
+    const runSample = (feature: string) => architectureSample(seed, frontageRun, feature);
+    const frontageRole: FrontageRole = building.blockId === 'block-3-2' ||
+      (building.x > 45 && building.z < -95) ? 'loft-quarter' :
+      building.blockId === 'block-1-2' || building.blockId === 'block-2-1'
+        ? 'mixed-avenue' : 'neighborhood-row';
+    const officeStyle = use === 'civic' ? 'masonry' : use === 'office' ?
+      (frontageRole === 'loft-quarter' ? 'curtain-wall' : 'masonry') : null;
+    const fabricType: BuildingFabricType = building.brownstone ? 'rowhouse' :
+      use === 'office' || use === 'civic' ? officeStyle === 'curtain-wall' ? 'curtain-office' : 'masonry-office' :
+      frontageRole === 'loft-quarter' ? runSample('construction') < 0.4 ? 'metal-loft' : 'masonry-loft' :
+      frontageRole === 'mixed-avenue' ? 'tenement' :
+      runSample('construction') < 0.6 ? 'courtyard-apartment' : 'tenement';
+    const profile = BUILDING_FABRIC[fabricType];
+    const family = profile.family;
+    const materials = profile.materials;
+    const tone = facadeToneFor(building.id, frontageRun,
+      materials[Math.floor(runSample('material') * materials.length)]);
     const floors = Math.max(3, building.floors - Math.floor(sample('floors') * 2));
+    const roofs = profile.roofs.filter((roof) => roof !== 'tank' || (floors >= 5 && !building.setbackFloors));
     const roof = roofs[Math.floor(sample('roof') * roofs.length)];
     const parcel = STREET_BLOCKS.find(({ id }) => id === building.blockId)!;
     const frontClearance = building.stoop ? 1.2 : use !== 'residential' ? 0.75 : 0.45;
@@ -314,29 +336,32 @@ export function createStreetBuildings(seed = 2401): readonly StreetBuilding[] {
       ...building,
       x, z, width, depth, front, attached: [],
       plantingFootprint: { x: building.x, z, width: building.reservedWidth, depth: building.reservedDepth },
-      use, officeStyle,
+      use, civicService, officeStyle, frontageRole, frontageRun, fabricType, corner: null,
+      loadingRecess: building.id === LOADING_FRONTAGE.buildingId
+        ? { ...LOADING_FRONTAGE.recess, frontZ: z - depth / 2 } : null,
       storefront: use === 'mixed-use' ? (['market', 'books', 'cafe'] as const)[Math.floor(sample('store') * 3)] : null,
       stoop: use === 'residential' && building.stoop,
-      fireEscape: use !== 'office' && building.fireEscape,
-      windowUnits: use !== 'office' && building.windowUnits,
+      fireEscape: use !== 'office' && use !== 'civic' && building.fireEscape,
+      windowUnits: use !== 'office' && use !== 'civic' && building.windowUnits,
       floors,
       facadeFamily: tone.family,
       tone: tone.hex,
-      roof: use === 'office' || (roof === 'tank' && building.setbackFloors) ? 'plant' : roof,
+      roof,
       architecture: {
         family,
         windowWidth: profile.width + sample('window-width') * (building.brownstone ? 0.14 : 0.25),
         windowHeight: profile.height + sample('window-height') * (building.brownstone ? 0.08 : 0.2),
-        baySpacing: profile.spacing + sample('bays') * 0.35,
-        floorHeight: building.brownstone ? 2.4 : 2.3 + sample('floor-height') * 0.1,
+        baySpacing: profile.spacing + runSample('bays') * 0.3,
+        floorHeight: building.brownstone ? 2.4 : 2.3 + runSample('floor-height') * 0.1,
         mullions: profile.mullions,
-        parapetHeight: 0.22 + sample('parapet') * 0.2,
+        parapetHeight: 0.22 + runSample('parapet') * 0.2,
       },
     };
   });
   closeStreetWallGaps(finished);
   // Lot lines depend on final positions and heights, so they are read after resizing.
-  assignPartyWalls(finished);
+  assignPartyWalls(finished, seed);
+  assignBuildingCorners(finished, STREET_BLOCKS);
   return finished;
 }
 
@@ -351,13 +376,17 @@ function mainVolumeTop(building: StreetBuilding): number {
  * are the walls that carry murals. Records where the blank masonry starts so the renderer
  * leaves it windowless.
  */
-function assignPartyWalls(buildings: readonly StreetBuilding[]): void {
+function assignPartyWalls(buildings: readonly StreetBuilding[], seed: number): void {
+  // Keep the donated mural-wall composition stable when a run's story bands are realigned.
+  const compositionTop = (building: StreetBuilding) => 0.3 + building.floors *
+    (building.brownstone ? 2.4 : 2.3 + architectureSample(seed, building.id, 'floor-height') * 0.1);
   const faces = [
     { axis: 'x', side: -1 }, { axis: 'x', side: 1 }, { axis: 'z', side: -1 }, { axis: 'z', side: 1 },
   ] as const;
   for (const building of buildings) {
     const top = mainVolumeTop(building);
     let best: { axis: 'x' | 'z'; side: 1 | -1; baseY: number } | null = null;
+    let bestCompositionBase = Infinity;
     for (const { axis, side } of faces) {
       if (axis === building.front.axis && side === building.front.side) continue;
       const alongX = axis === 'x';
@@ -381,14 +410,29 @@ function assignPartyWalls(buildings: readonly StreetBuilding[]): void {
       // neighbour's parapet is ever seen from the street.
       const baseY = abutting.length ? Math.max(...abutting.map((other) =>
         mainVolumeTop(other) + 0.34 + other.architecture.parapetHeight)) : 2.7;
-      if (top - baseY < 4 || (alongX ? building.depth : building.width) < 4.5) continue;
-      if (!best || baseY < best.baseY) best = { axis, side, baseY };
+      const compositionBase = abutting.length ? Math.max(...abutting.map((other) =>
+        compositionTop(other) + 0.56 + architectureSample(seed, other.id, 'parapet') * 0.2)) : 2.7;
+      if (top - baseY < 4 || compositionTop(building) - compositionBase < 4 ||
+        (alongX ? building.depth : building.width) < 4.5) continue;
+      if (compositionBase < bestCompositionBase) {
+        best = { axis, side, baseY };
+        bestCompositionBase = compositionBase;
+      }
     }
     if (best) building.partyWall = best;
   }
 }
 
 export const STREET_BUILDINGS = createStreetBuildings();
+
+/** Quiet rear service walls with separate paved space, away from doors and mural faces. */
+export const BUILDING_SERVICE_CONNECTIONS = [67, 85].map((number) => {
+  const building = STREET_BUILDINGS[number - 1];
+  return {
+    id: `service-${building.id}`, buildingId: building.id,
+    x: building.x + building.width / 2 - 0.75, z: building.z - building.depth / 2, yaw: Math.PI,
+  };
+});
 
 /** Protective sheds on occupied buildings; four also carry open upper-facade scaffolding. */
 export const SIDEWALK_SHEDS = [
@@ -447,12 +491,27 @@ export function validateStreetscape(buildings: readonly StreetBuilding[] = STREE
   for (const building of buildings) {
     const { id, blockId, x, z, width, depth, reservedWidth, reservedDepth, floors, setbackFloors, architecture } = building;
     const parcel = STREET_BLOCKS.find((block) => block.id === blockId);
+    const fabric = BUILDING_FABRIC[building.fabricType];
     const frontClearance = building.stoop ? 1.2 : building.use !== 'residential' ? 0.75 : 0.45;
     if (!parcel || !id || ids.has(id) ||
       ![x, z, width, depth, reservedWidth, reservedDepth, floors, setbackFloors].every(Number.isFinite) ||
       typeof building.brownstone !== 'boolean' ||
-      !['residential', 'mixed-use', 'office'].includes(building.use) ||
-      (building.use === 'office'
+      !fabric || !building.frontageRun ||
+      !['mixed-avenue', 'neighborhood-row', 'loft-quarter'].includes(building.frontageRole) ||
+      !(fabric.materials as readonly string[]).includes(building.facadeFamily) ||
+      !(fabric.roofs as readonly string[]).includes(building.roof) ||
+      fabric.family !== architecture?.family ||
+      (building.roof === 'tank' && (floors < 5 || setbackFloors > 0)) ||
+      (building.use === 'office' || building.use === 'civic') !== building.fabricType.endsWith('office') ||
+      (building.use === 'civic'
+        ? !CIVIC_SERVICES.some((service) => service.buildingId === id && service.kind === building.civicService)
+        : building.civicService !== null) ||
+      (building.corner !== null && (building.use === 'residential' ||
+        building.corner.axis === building.front.axis ||
+        building.attached.includes(faceName(building.corner.axis, building.corner.side)) ||
+        (building.partyWall?.axis === building.corner.axis && building.partyWall.side === building.corner.side))) ||
+      !['residential', 'mixed-use', 'office', 'civic'].includes(building.use) ||
+      (building.use === 'office' || building.use === 'civic'
         ? !['masonry', 'curtain-wall'].includes(building.officeStyle ?? '') ||
           building.stoop || building.fireEscape || building.windowUnits
         : building.officeStyle !== null) ||
@@ -485,6 +544,15 @@ export function validateStreetscape(buildings: readonly StreetBuilding[] = STREE
       z + depth / 2 + (building.front.axis === 'z' ? frontClearance : 0.35) > parcel.maxZ - SIDEWALK_EXTENSION + epsilon) {
       throw new Error(`Invalid streetscape building footprint: ${id}.`);
     }
+    const recess = building.loadingRecess;
+    if ((id === LOADING_FRONTAGE.buildingId) !== Boolean(recess) || (recess &&
+      (![recess.minX, recess.maxX, recess.frontZ, recess.backZ, recess.height].every(Number.isFinite) ||
+        recess.minX < x - width / 2 + 0.25 || recess.maxX > x + width / 2 - 0.25 ||
+        recess.minX >= recess.maxX || Math.abs(recess.frontZ - (z - depth / 2)) > epsilon ||
+        recess.backZ <= recess.frontZ || recess.backZ >= z + depth / 2 - 0.4 ||
+        recess.height < 2.4 || recess.height > architecture.floorHeight + 0.2))) {
+      throw new Error(`Invalid loading frontage recess: ${id}.`);
+    }
     if (buildings.some((other) => other !== building &&
       Math.abs(other.x - x) < (other.width + width) / 2 - epsilon &&
       Math.abs(other.z - z) < (other.depth + depth) / 2 - epsilon)) {
@@ -515,6 +583,14 @@ function streetSpans(extent: number, crossings: readonly number[], gap: number) 
 export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = builder.palette.taxi): Streetscape {
   validateStreetscape();
   const { block, add, box, cylinder, crown, palette: p } = builder;
+  // Opaque panes need only their outward face; sills, jambs and mullions retain real depth.
+  const windowPanel = new THREE.PlaneGeometry(1, 1);
+  windowPanel.name = 'Shared outward-facing facade glazing';
+  const windowPane = (x: number, y: number, z: number, width: number, height: number,
+    axis: 'x' | 'z', side: number) => {
+    add(windowPanel, p.glass, [x, y, z], [width, height, 0.045],
+      [0, axis === 'x' ? side * Math.PI / 2 : side < 0 ? Math.PI : 0, 0]);
+  };
   const rod = (surface: THREE.Material, start: Triple, end: Triple, thickness: number) => {
     const direction = new THREE.Vector3(...end).sub(new THREE.Vector3(...start));
     const rotation = new THREE.Euler().setFromQuaternion(new THREE.Quaternion().setFromUnitVectors(
@@ -527,8 +603,7 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
   if (!crown.boundingBox) crown.computeBoundingBox();
   const crownBounds = crown.boundingBox!;
   const tree = (x: number, z: number, size = 1) => {
-    block(p.stone, x, 0.01, z, 1.45, 0.12, 1.45);
-    block(p.roof, x, 0.08, z, 1.18, 0.04, 1.18);
+    buildStreetTreeBed(builder, x, z);
     const radiusX = Math.max(-crownBounds.min.x * 1.35 + 0.35, crownBounds.max.x * 0.95 + 0.5) * size;
     const radiusZ = Math.max(-crownBounds.min.z, crownBounds.max.z) * 1.25 * size + 0.1;
     const nearWalk = STREET_X.some((road) => Math.abs(x - road) <= BUILDING_SIDEWALK_INSET + radiusX + 0.35) ||
@@ -562,13 +637,34 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
     const extent = vertical ? CITY_EXTENT.z : CITY_EXTENT.x;
     const stripe = (
       surface: THREE.Material, road: number, along: number, offset: number,
-      width: number, length: number, y: number, height: number,
+      width: number, length: number, y: number, height: number, tint?: string,
     ) => block(surface, vertical ? road + offset : along, y, vertical ? along : road + offset,
-      vertical ? width : length, height, vertical ? length : width);
+      vertical ? width : length, height, vertical ? length : width, 0, tint);
     for (const road of roads) {
       const track = vertical ? undefined : TWO_WAY_BIKE_STREETS.find(({ z }) => z === road);
       stripe(p.paving, road, 0, 0, SIDEWALK_HALF_WIDTH * 2, extent * 2, -0.13, 0.1);
-      stripe(p.road, road, 0, 0, ROAD_HALF_WIDTH * 2, extent * 2, vertical ? -0.065 : -0.055, 0.1);
+      const roadDrains = vertical ? [] : STREET_DRAINS.filter(({ roadZ }) => roadZ === road);
+      if (roadDrains.length) {
+        let surface: { minX: number; maxX: number; minZ: number; maxZ: number }[] =
+          [{ minX: -extent, maxX: extent, minZ: road - ROAD_HALF_WIDTH, maxZ: road + ROAD_HALF_WIDTH }];
+        for (const drain of roadDrains) surface = surface.flatMap((rectangle) => {
+          const left = Math.max(rectangle.minX, drain.x - drain.width / 2);
+          const right = Math.min(rectangle.maxX, drain.x + drain.width / 2);
+          const back = Math.max(rectangle.minZ, drain.z - drain.depth / 2);
+          const front = Math.min(rectangle.maxZ, drain.z + drain.depth / 2);
+          if (left >= right || back >= front) return [rectangle];
+          return [
+            { ...rectangle, maxX: left }, { ...rectangle, minX: right },
+            { minX: left, maxX: right, minZ: rectangle.minZ, maxZ: back },
+            { minX: left, maxX: right, minZ: front, maxZ: rectangle.maxZ },
+          ].filter(({ minX, maxX, minZ, maxZ }) => maxX > minX && maxZ > minZ);
+        });
+        for (const { minX, maxX, minZ, maxZ } of surface) {
+          block(p.road, (minX + maxX) / 2, -0.055, (minZ + maxZ) / 2, maxX - minX, 0.1, maxZ - minZ);
+        }
+      } else {
+        stripe(p.road, road, 0, 0, ROAD_HALF_WIDTH * 2, extent * 2, vertical ? -0.065 : -0.055, 0.1);
+      }
       for (const segment of streetSpans(extent, crossings, ROAD_HALF_WIDTH)) {
         for (const side of track ? [track.side] : [-1, 1]) {
           stripe(p.teal, road, segment.center, side * (track ? TWO_WAY_BIKE_TRACK.offset : BIKE_OFFSET),
@@ -590,8 +686,23 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
       }
       for (const segment of streetSpans(extent, crossings, STOP_LINE_OFFSET)) {
         for (const side of [-1, 1]) {
-          stripe(p.stone, road, segment.center, side * (ROAD_HALF_WIDTH + 0.09),
-            0.18, segment.length, 0.025, 0.13);
+          const offset = side * (ROAD_HALF_WIDTH + 0.09);
+          const start = segment.center - segment.length / 2;
+          const end = segment.center + segment.length / 2;
+          const drains = vertical ? [] : STREET_DRAINS.filter((drain) =>
+            drain.roadZ === road && drain.curbSide === side &&
+            drain.x - drain.width / 2 > start && drain.x + drain.width / 2 < end).sort((a, b) => a.x - b.x);
+          let cursor = start;
+          for (const drain of drains) {
+            const left = drain.x - drain.width / 2;
+            const right = drain.x + drain.width / 2;
+            stripe(p.stone, road, (cursor + left) / 2, offset, 0.18, left - cursor, 0.025, 0.13);
+            stripe(p.stone, road, drain.x, offset, 0.18, drain.width,
+              (drain.mouthTopY + drain.curbTopY) / 2, drain.curbTopY - drain.mouthTopY);
+            stripe(p.stone, road, drain.x, offset, 0.18, drain.width, drain.mouthBottomY - 0.01, 0.02);
+            cursor = right;
+          }
+          stripe(p.stone, road, (cursor + end) / 2, offset, 0.18, end - cursor, 0.025, 0.13);
         }
         for (const side of track ? [track.side] : [-1, 1]) {
           for (let along = segment.center - segment.length / 2 + 1; along < segment.center + segment.length / 2; along += track ? 3.4 : 5) {
@@ -606,7 +717,7 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
           }
         }
         for (let along = segment.center - segment.length / 2 + 1; along < segment.center + segment.length / 2 - 0.5; along += 4) {
-          stripe(p.line, road, along, 0, 0.085, 1.5, 0.017, 0.018);
+          stripe(p.facade, road, along, 0, 0.085, 1.5, 0.017, 0.018, '#dfb63b');
           if (track) stripe(p.taxi, road, along, track.side * TWO_WAY_BIKE_TRACK.offset, 0.065, 1.3, 0.017, 0.014);
         }
       }
@@ -675,17 +786,31 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
 
   const facade = (building: StreetBuilding, width: number, depth: number, base: number, floors: number) => {
     const { x, z } = building;
+    const block = recessedBuildingBlock(builder.block, building.loadingRecess);
     const { windowWidth, baySpacing, floorHeight, mullions, parapetHeight } = building.architecture;
     const height = floors * floorHeight;
     const brownstone = isBrownstone(building);
     const masonry = p.facade;
     const tone = building.tone;
+    const construction = BUILDING_FABRIC[building.fabricType].trim;
+    const metal = construction === 'metal-pier' || construction === 'curtain-grid';
     // A lot-line wall is only exposed on the main volume, so setbacks keep their windows.
     const party = base < 1 ? building.partyWall : null;
     const attached = base < 1 ? building.attached : [];
     const trimX = attached.some((face) => face === 'west' || face === 'east') ? 0 : 1;
     const trimZ = attached.some((face) => face === 'north' || face === 'south') ? 0 : 1;
-    block(masonry, x, base + height / 2, z, width, height, depth, 0, tone);
+    if (base === 0.3 && building.use !== 'residential') {
+      const thresholdTop = building.civicService === 'fire-station' ? 2.66 : 2.32;
+      const { axis, side } = building.front;
+      block(masonry, x, (thresholdTop + base + height) / 2, z, width,
+        base + height - thresholdTop, depth, 0, tone);
+      block(masonry, x - (axis === 'x' ? side * 0.16 : 0), (base + thresholdTop) / 2,
+        z - (axis === 'z' ? side * 0.16 : 0),
+        width - (axis === 'x' ? 0.32 : 0), thresholdTop - base,
+        depth - (axis === 'z' ? 0.32 : 0), 0, tone);
+    } else {
+      block(masonry, x, base + height / 2, z, width, height, depth, 0, tone);
+    }
     for (let floor = 0; floor < floors; floor++) {
       const principal = brownstone && base === 0.3 && floor === 0;
       const y = base + floor * floorHeight + (principal ? 1.6 : floorHeight * 0.52);
@@ -697,10 +822,12 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
         const bays = Math.max(1, Math.floor((depth - 0.5) / baySpacing));
         const commercial = base === 0.3 && floor === 0 && building.use !== 'residential';
         const blankFront = (party?.axis === 'z' && party.side === side) || attached.includes(faceName('z', side)) ||
-          (commercial && building.front.axis === 'z' && side === building.front.side);
+          (commercial && ((building.front.axis === 'z' && side === building.front.side) ||
+            (building.corner?.axis === 'z' && side === building.corner.side)));
         const blankFlank = (party?.axis === 'x' && party.side === side) || attached.includes(faceName('x', side)) ||
-          (commercial && building.front.axis === 'x' && side === building.front.side);
-        if (building.use === 'office') {
+          (commercial && ((building.front.axis === 'x' && side === building.front.side) ||
+            (building.corner?.axis === 'x' && side === building.corner.side)));
+        if (building.use === 'office' || building.use === 'civic') {
           for (const axis of ['x', 'z'] as const) {
             if (axis === 'z' ? blankFront : blankFlank) continue;
             const span = axis === 'z' ? width : depth;
@@ -708,12 +835,13 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
             const count = Math.max(1, Math.floor(span / (curtain ? 2.2 : 3.2)));
             const bay = (span - 0.65) / count;
             for (let index = 0; index < count; index++) {
+              if (base === 0.3 && floor === 0 && axis === 'z' && side < 0 && index === count - 1 &&
+                BUILDING_SERVICE_CONNECTIONS.some(({ buildingId }) => buildingId === building.id)) continue;
               const along = (index - (count - 1) / 2) * bay;
               const wx = axis === 'z' ? x + along : flank;
               const wz = axis === 'z' ? front : z + along;
               const pane = bay - (curtain ? 0.08 : 0.38);
-              block(p.glass, wx, y, wz, axis === 'z' ? pane : 0.045, floorHeight - 0.45,
-                axis === 'z' ? 0.045 : pane);
+              windowPane(wx, y, wz, pane, floorHeight - 0.45, axis, side);
               block(curtain ? p.paving : p.stone, axis === 'z' ? wx : wx + side * 0.04, y,
                 axis === 'z' ? wz + side * 0.04 : wz,
                 axis === 'z' ? 0.07 : 0.085, floorHeight - 0.4, axis === 'z' ? 0.085 : 0.07);
@@ -723,11 +851,18 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
         }
         for (let column = 0; !blankFront && column < columns; column++) {
           const wx = x + (column - (columns - 1) / 2) * width / columns;
+          const recess = building.loadingRecess;
+          if (recess && base === 0.3 && floor === 0 && side < 0 &&
+            wx + (windowWidth + 0.27) / 2 > recess.minX && wx - (windowWidth + 0.27) / 2 < recess.maxX) continue;
           if (principal && building.front.axis === 'z' && side > 0 &&
             Math.abs(wx - (x - width * 0.26)) < (windowWidth + 1.45) / 2) continue;
-          block(p.glass, wx, y, front, windowWidth, windowHeight, 0.045);
-          block(brownstone ? p.copperEdge : p.paving, wx, y - windowHeight / 2 - 0.08,
+          windowPane(wx, y, front, windowWidth, windowHeight, 'z', side);
+          if (!metal) block(brownstone ? p.copperEdge : p.paving, wx, y - windowHeight / 2 - 0.08,
             front + side * 0.07, windowWidth + 0.23, brownstone ? 0.16 : 0.1, 0.2);
+          if (!brownstone && !metal && building.front.axis === 'z' && side === building.front.side) {
+            block(p.stone, wx, y + windowHeight / 2 + 0.08, front + side * 0.06,
+              windowWidth + 0.2, 0.12, 0.16);
+          }
           if (brownstone && side > 0) {
             block(p.copperEdge, wx, y + windowHeight / 2 + 0.1, front + 0.08, windowWidth + 0.27, 0.18, 0.24);
             if (principal) {
@@ -747,9 +882,13 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
           const entry = buildingFrontPoint(building, -buildingFrontSpan(building) * 0.26, 0);
           if (principal && building.front.axis === 'x' && side === building.front.side &&
             Math.abs(wz - entry.z) < (windowWidth + 1.45) / 2) continue;
-          block(p.glass, flank, y, wz, 0.045, windowHeight, windowWidth);
-          block(brownstone ? p.copperEdge : p.paving, flank + side * 0.07,
+          windowPane(flank, y, wz, windowWidth, windowHeight, 'x', side);
+          if (!metal) block(brownstone ? p.copperEdge : p.paving, flank + side * 0.07,
             y - windowHeight / 2 - 0.08, wz, 0.2, brownstone ? 0.16 : 0.1, windowWidth + 0.23);
+          if (!brownstone && !metal && building.front.axis === 'x' && side === building.front.side) {
+            block(p.stone, flank + side * 0.06, y + windowHeight / 2 + 0.08, wz,
+              0.16, 0.12, windowWidth + 0.2);
+          }
           if (brownstone && building.front.axis === 'x' && side === building.front.side) {
             block(p.copperEdge, flank + side * 0.08, y + windowHeight / 2 + 0.1, wz,
               0.24, 0.18, windowWidth + 0.27);
@@ -763,7 +902,7 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
           airConditioner(building, floor, [flank, y - windowHeight / 2, wz], 'x', side);
         }
       }
-      block(brownstone ? p.copperEdge : p.stone, x, base + floor * floorHeight + 0.12, z,
+      block(brownstone ? p.copperEdge : metal ? p.roof : p.stone, x, base + floor * floorHeight + 0.12, z,
         width + 0.08 * trimX, 0.12, depth + 0.08 * trimZ);
     }
     block(brownstone ? p.copperEdge : p.paving, x, base + height + 0.03, z,
@@ -778,15 +917,15 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
     }
     block(p.roof, x, base + height + 0.31, z, width - 0.35, 0.06, depth - 0.35);
     for (const side of [-1, 1]) {
-      block(p.paving, x, base + height + 0.34 + parapetHeight / 2,
+      block(metal ? p.roof : p.paving, x, base + height + 0.34 + parapetHeight / 2,
         z + side * (depth / 2 - 0.1), width + 0.2 * trimX, parapetHeight, 0.19);
-      block(p.paving, x + side * (width / 2 - 0.04), base + height + 0.34 + parapetHeight / 2,
+      block(metal ? p.roof : p.paving, x + side * (width / 2 - 0.04), base + height + 0.34 + parapetHeight / 2,
         z, attached.includes(faceName('x', side)) ? 0.075 : 0.19, parapetHeight, depth);
     }
   };
   for (const building of STREET_BUILDINGS) {
     const { x, z, width, depth, floors, setbackFloors } = building;
-    const { floorHeight, parapetHeight } = building.architecture;
+    const { floorHeight } = building.architecture;
     const height = floors * floorHeight + 0.3;
     const brownstone = isBrownstone(building);
     const span = buildingFrontSpan(building);
@@ -803,19 +942,57 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
       rod(surface, [start.x, a[1], start.z], [end.x, b[1], end.z], thickness);
     };
     const iron = brownstone ? p.rubber : p.copperEdge;
-    block(brownstone ? p.copperEdge : p.stone, x, brownstone ? 0.4 : 0.17, z,
+    recessedBuildingBlock(block, building.loadingRecess)(brownstone ? p.copperEdge : p.stone, x, brownstone ? 0.4 : 0.17, z,
       width, brownstone ? 0.8 : 0.34, depth);
     facade(building, width, depth, 0.3, floors);
-    const roofY = height + setbackFloors * floorHeight + 0.34 + parapetHeight;
+    const roofY = height + setbackFloors * floorHeight + 0.34;
     const roofWidth = width - (setbackFloors ? 1.4 : 0);
     const roofDepth = depth - (setbackFloors ? 2.2 : 0);
+    const serviceSide = building.front.axis === 'x' ? -building.front.side : 1;
+    const serviceX = x + serviceSide * (roofWidth / 2 - 0.72);
+    const serviceZ = z - roofDepth / 2 + 0.72;
     if (setbackFloors) facade(building, width - 1.4, depth - 2.2, height, setbackFloors);
-    frontPiece(p.glass, entryAlong, brownstone ? 1.765 : 1.06, 0.05, 0.95, 1.85, 0.06);
-    frontPiece(brownstone ? p.copperEdge : p.paving, entryAlong, brownstone ? 2.8 : 2.2,
-      0.17, 1.45, 0.18, 0.34);
-    if (building.use !== 'residential') {
+    const civic = CIVIC_SERVICES.find(({ buildingId }) => buildingId === building.id);
+    if (civic) {
+      buildCivicFront(building, civic, p, frontPiece, frontRod);
+    } else if (building.use !== 'residential') {
       buildCommercialFront(building, p, frontPiece);
+    } else {
+      frontPiece(p.glass, entryAlong, brownstone ? 1.765 : 1.06, 0.05, 0.95, 1.85, 0.06);
+      frontPiece(brownstone ? p.copperEdge : p.paving, entryAlong, brownstone ? 2.8 : 2.2,
+        0.17, 1.45, 0.18, 0.34);
     }
+    const trim = BUILDING_FABRIC[building.fabricType].trim;
+    if (trim === 'metal-pier' || trim === 'brick-pier') {
+      const columns = Math.max(2, Math.floor(span / building.architecture.baySpacing));
+      for (let column = 0; column <= columns; column++) {
+        const along = (column / columns - 0.5) * (span - 0.42);
+        frontPiece(trim === 'metal-pier' ? p.roof : p.stone, along, height / 2 + 1.15, 0.07,
+          trim === 'metal-pier' ? 0.12 : 0.2, height - 2.3, 0.2);
+      }
+    }
+    if (building.corner) {
+      const corner = { ...building, front: building.corner };
+      const cornerSpan = buildingFrontSpan(corner);
+      const bandY = civic?.kind === 'fire-station' ? 2.72 : civic ? 2.47 : 2.42;
+      const band = civic ? civic.kind === 'fire-station' ? p.clay : p.teal :
+        building.storefront === 'market' ? p.teal : p.stone;
+      const wrapYaw = corner.front.axis === 'x' ? corner.front.side * Math.PI / 2 :
+        corner.front.side < 0 ? Math.PI : 0;
+      const width = Math.min(3.2, cornerSpan - 0.8);
+      const along = -building.front.side * corner.front.side * (cornerSpan - width - 0.5) / 2;
+      for (const [material, y, w, h, out] of [
+        [p.glass, 1.25, width, 1.65, 0.04],
+        [p.stone, 0.34, width, 0.22, 0.08],
+        [band, bandY, cornerSpan - 0.12, 0.32, 0.1],
+      ] as const) {
+        const point = buildingFrontPoint(corner, y === bandY ? 0 : along, out);
+        block(material, point.x, y, point.z, w, h, 0.12, wrapYaw);
+      }
+    }
+    const serviceConnection = BUILDING_SERVICE_CONNECTIONS.find(({ buildingId }) => buildingId === building.id);
+    if (serviceConnection) buildBuildingServiceConnection(builder, serviceConnection);
+    if (building.loadingRecess) buildLoadingFrontage(builder, building.loadingRecess);
     if (brownstone) {
       for (const side of [-1, 1]) {
         frontPiece(p.copperEdge, entryAlong + side * 0.62, 1.77, 0.15, 0.16, 1.92, 0.25);
@@ -866,11 +1043,13 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
       add(crown, p.roof, [x, roofY + 2.55, z], [1.03, 0.4, 1.03]);
     } else if (building.roof === 'garden') {
       const planterOffset = Math.min(1.45, roofDepth / 2 - 0.55);
-      const shrubOffset = Math.min(0.8, roofWidth / 2 - 0.65);
+      const planterWidth = Math.max(0.65, roofWidth - 3.2);
+      const planterX = x - serviceSide * 0.6;
+      const shrubOffset = Math.max(0, Math.min(0.8, (planterWidth - 1.2) / 2));
       for (const dz of [-planterOffset, planterOffset]) {
-        block(p.wood, x, roofY + 0.12, z + dz, roofWidth - 2, 0.28, 0.75);
-        for (const dx of [-shrubOffset, shrubOffset]) {
-          add(crown, p.leaf, [x + dx, roofY + 0.6, z + dz], [0.6, 0.6, 0.48]);
+        block(p.wood, planterX, roofY + 0.12, z + dz, planterWidth, 0.28, 0.75);
+        for (const dx of shrubOffset > 0.1 ? [-shrubOffset, shrubOffset] : [0]) {
+          add(crown, p.leaf, [planterX + dx, roofY + 0.6, z + dz], [0.6, 0.6, 0.48]);
         }
       }
       block(p.teal, x, roofY + 0.4, z, 1.4, 0.65, 1.1);
@@ -880,9 +1059,17 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
         add(cylinder, p.roof, [x + 0.4 + dx, roofY + 0.73, z], [0.22, 0.06, 0.22]);
       }
       for (const dz of building.roof === 'chimneys' ? [-roofDepth / 2 + 0.8, roofDepth / 2 - 0.8] : []) {
-        block(p.clay, x - roofWidth / 2 + 0.85, roofY + 0.55, z + dz, 0.55, 1.1, 0.55);
-        block(p.roof, x - roofWidth / 2 + 0.85, roofY + 1.13, z + dz, 0.68, 0.12, 0.68);
+        block(p.clay, x - serviceSide * (roofWidth / 2 - 0.85), roofY + 0.55, z + dz, 0.55, 1.1, 0.55);
+        block(p.roof, x - serviceSide * (roofWidth / 2 - 0.85), roofY + 1.13, z + dz, 0.68, 0.12, 0.68);
       }
+    }
+    block(p.roof, serviceX, roofY + 0.52, serviceZ, 0.95, 1.04, 0.95);
+    block(p.stone, serviceX, roofY + 1.06, serviceZ, 1.06, 0.1, 1.06);
+    block(p.rubber, serviceX, roofY + 0.42, serviceZ + 0.486, 0.5, 0.8, 0.03);
+    // Low rear vent and a scupper at the coping explain roof services without more tanks.
+    block(p.roof, x, roofY + 0.15, z - roofDepth / 2 + 0.5, 0.28, 0.3, 0.28);
+    if (!building.attached.includes('north')) {
+      block(p.rubber, x, height + 0.37, z - depth / 2 - 0.025, 0.32, 0.1, 0.08);
     }
   }
 
@@ -930,6 +1117,8 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
       paving(parcel.x, z, parcel.maxX - parcel.minX - 2 * SIDEWALK_EXTENSION, SIDEWALK_EXTENSION, -0.13);
     }
   }
+  buildFrontagePaving(builder, STREET_BUILDINGS);
+  buildCurbTransitions(builder);
   for (const x of [WEST_X, EAST_X]) for (const position of [-50.5, 0.5, 51.5]) {
     const z = position * SIDE_SCALE;
     paving(x, z, 10.8, 9 * SIDE_SCALE);
@@ -1131,7 +1320,6 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
     for (let index = -2; index <= 2; index++) piece(p.rubber, index * 0.32, 0.61, -mouth, 0.03, 0.82, 0.03);
     piece(p.rubber, 0, g.signHeight, mouth, 2.06, 0.36, 0.07);
     for (const y of [-0.195, 0.195]) piece(p.teal, 0, g.signHeight + y, mouth, 2.06, 0.025, 0.08);
-    // Original line-stroke lettering stays legible without hundreds of tiny pixel boxes.
     let column = 0;
     for (const letter of SUBWAY_LETTERS) {
       for (const [ax, ay, bx, by] of letter.strokes) for (const face of [-1, 1]) {
@@ -1201,17 +1389,28 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
     };
     const half = length / 2 - 0.2;
     for (const along of [-half, -half / 3, half / 3, half]) {
-      for (const across of supports) piece(p.roof, along, 1.28, across, 0.1, 2.84, 0.1);
+      for (const across of supports) {
+        piece(p.roof, along, 1.28, across, 0.1, 2.84, 0.1);
+        piece(p.wood, along, -0.055, across, 0.34, 0.05, 0.34);
+        piece(p.roof, along, -0.014, across, 0.23, 0.032, 0.23);
+      }
       piece(p.roof, along, 2.62, (minAcross + maxAcross) / 2, 0.12, 0.16, maxAcross - minAcross - 0.15);
     }
     for (const across of supports) {
       piece(p.roof, 0, 2.64, across, length - 0.15, 0.17, 0.14);
-      piece(p.teal, 0, 2.99, across, length, 0.48, 0.12);
       for (const along of [-half, half / 3]) {
         rod(p.roof, local(along, 0.25, across), local(along + half * 2 / 3, 2.5, across), 0.065);
       }
     }
     piece(p.roof, 0, 2.78, (minAcross + maxAcross) / 2, length, 0.18, maxAcross - minAcross);
+    piece(p.wood, 0, 2.89, (minAcross + maxAcross) / 2, length, 0.04, maxAcross - minAcross - 0.1);
+    for (const across of [minAcross + 0.06, maxAcross - 0.06]) {
+      piece(p.teal, 0, 2.99, across, length, 0.48, 0.12);
+      piece(p.roof, 0, 3.245, across, length, 0.035, 0.15);
+    }
+    for (const along of [-half * 2 / 3, 0, half * 2 / 3]) {
+      piece(p.roof, along, 2.64, (minAcross + maxAcross) / 2, 0.065, 0.1, maxAcross - minAcross - 0.15);
+    }
     for (const along of [-half * 2 / 3, 0, half * 2 / 3]) piece(p.line, along, 2.66, 0, 0.65, 0.06, 0.22);
   };
   shed(shedX, shedWalkZ, 7.3, 0, -1);
@@ -1291,7 +1490,18 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
     add(cylinder, p.stone, [x + 0.4, 1.29, z], [0.19, 0.25, 0.19]);
   }
 
-  return buildSignalLights(builder);
+  const signals = buildSignalLights(builder);
+  let disposed = false;
+  return {
+    group: signals.group,
+    setSignals: signals.setSignals,
+    dispose() {
+      if (disposed) return;
+      disposed = true;
+      windowPanel.dispose();
+      signals.dispose();
+    },
+  };
 }
 
 type LampColor = 'red' | 'amber' | 'green';
@@ -1395,7 +1605,8 @@ function buildSignalLights({ block, add, box, cylinder, palette: p }: Streetscap
     const counts = { red: 0, amber: 0, green: 0 };
     for (const head of heads) {
       const phase = phases.get(head.id) ?? 'clearance';
-      const color: LampColor = phase === head.axis ? 'green' : 'red';
+      const color: LampColor = phase === head.axis ? 'green' :
+        head.axis !== 'pedestrians' && phase === `${head.axis}-yellow` ? 'amber' : 'red';
       const matrix = head.lamps[color];
       if (matrix) batches[color].setMatrixAt(counts[color]++, matrix);
     }

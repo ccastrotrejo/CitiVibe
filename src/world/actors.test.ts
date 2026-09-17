@@ -7,6 +7,7 @@ import { PERSON_SPACE } from '../content/people';
 import { PARK_RESTING_VISITORS } from '../content/parkVisitors';
 import { LAMP_GEOMETRY, STREET_LAMPS } from '../content/lighting';
 import { ActorSimulation, type ActorState } from './actors';
+import { PARK_MEADOW_VISIT, PARK_READING_DESTINATION } from './parkActivities';
 
 const DT = 1 / 30;
 const outsidePark = ({ x, z }: { x: number; z: number }) => Math.abs(x) > PARK_BOUNDS.x || Math.abs(z) > PARK_BOUNDS.z;
@@ -171,6 +172,9 @@ describe('connected car-free park', () => {
     const expectedRunner = new Vector3();
     const expectedWalker = new Vector3();
     const next = new Vector3();
+    const meadowUsers = new Set<string>();
+    const readers = new Set<string>();
+    const retainedPhases = new Set<string>();
     for (let tick = 0; tick < 27_000; tick++) {
       simulation.step(DT);
       walkers.forEach((actor, index) => {
@@ -178,7 +182,28 @@ describe('connected car-free park', () => {
         const movement = next.distanceTo(previous[index]);
         if (movement >= 1.3 * DT) throw new Error(`Visitor jump: ${actor.id}, seed ${seed}, tick ${tick}.`);
         const route = PARK_ROUTES[index % PARK_ROUTES.length];
-        sampleParkRoute(route, actor.distance, expectedWalker);
+        if (actor.parkPath) PARK_MEADOW_VISIT.sample(actor.parkPath.distance, expectedWalker);
+        else if (actor.visit) {
+          const { entry, pocket } = actor.visit.destination;
+          expectedWalker.set(entry.x, 0, entry.z).lerp(new Vector3(pocket.x, 0, pocket.z),
+            actor.visit.along / Math.hypot(pocket.x - entry.x, pocket.z - entry.z));
+        } else sampleParkRoute(route, actor.distance, expectedWalker);
+        if (actor.parkPath) meadowUsers.add(actor.id);
+        if (actor.activity === 'reading') {
+          readers.add(actor.id);
+          expect(actor.position.x).toBeCloseTo(PARK_READING_DESTINATION.pocket.x, 8);
+          expect(actor.position.z).toBeCloseTo(PARK_READING_DESTINATION.pocket.z, 8);
+          expect(actor.sitting).toBeUndefined();
+        }
+        if (actor.visit && !retainedPhases.has(actor.visit.phase)) {
+          retainedPhases.add(actor.visit.phase);
+          const held = JSON.stringify(actor);
+          const elapsed = simulation.elapsed;
+          for (let redraw = 0; redraw < 10; redraw++) simulation.step(0, 1, undefined, true);
+          expect(JSON.stringify(actor)).toBe(held);
+          expect(simulation.elapsed).toBe(elapsed);
+          expect(simulation.activities.reserved(actor.visit.destination.id)).toBe(true);
+        }
         if (next.distanceTo(expectedWalker) > 1e-8 || actor.speed < 0 || actor.speed > 1.29) {
           throw new Error(`Visitor left its walking route or speed bound: ${actor.id}, seed ${seed}, tick ${tick}.`);
         }
@@ -224,10 +249,13 @@ describe('connected car-free park', () => {
         }
       }
     }
-    transitions.forEach((count) => expect(count).toBeGreaterThanOrEqual(4));
+    transitions.forEach((count, index) => expect(count, walkers[index].id).toBeGreaterThanOrEqual(4));
+    expect(meadowUsers.size).toBe(6);
+    expect(readers.size).toBeGreaterThan(0);
+    for (const phase of ['approaching', 'using', 'departing']) expect(retainedPhases.has(phase)).toBe(true);
     gates.forEach((counts, index) => {
       expect(new Set(counts.keys()), walkers[index].id).toEqual(new Set(index % 2 === 0 ? ['east', 'south'] : ['west', 'north']));
-      for (const count of counts.values()) expect(count).toBeGreaterThanOrEqual(2);
+      for (const count of counts.values()) expect(count, walkers[index].id).toBeGreaterThanOrEqual(2);
       expect(walkerDistance[index] / 900, walkers[index].id).toBeGreaterThan(0.8);
     });
     longestIdle.forEach((seconds) => expect(seconds).toBeLessThan(25));

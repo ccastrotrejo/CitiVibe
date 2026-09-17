@@ -41,7 +41,7 @@ export function buildPersonRig(group: THREE.Group, profile: PersonProfile, art: 
   pelvis.add(torso);
   const sport = profile.outfit === 'sport';
   const running = profile.context === 'runner';
-  const shortSleeve = sport || ['casual', 'scrubs', 'overalls'].includes(profile.outfit);
+  const shortSleeve = sport || ['casual', 'scrubs', 'overalls', 'fire-station-wear'].includes(profile.outfit);
   const boots = profile.outfit === 'fire-gear' || (profile.outfit === 'hi-vis' && profile.purpose === 'commute');
   const buildLeg = (): LegRig => {
     const hip = new THREE.Object3D();
@@ -124,6 +124,26 @@ export function buildPersonRig(group: THREE.Group, profile: PersonProfile, art: 
   } else if (profile.outfit === 'hoodie') {
     add(torso, 'Hood', profile.top, [0, 0.49, -0.12], [0.21, 0.15, 0.14], true);
     add(torso, 'Kangaroo pocket', profile.accent, [0, 0.1, 0.132], [0.23, 0.09, 0.02]);
+  } else if (profile.outfit === 'lab-coat') {
+    add(torso, 'Lab coat hem', profile.top, [0, -0.04, 0.035], [0.4, 0.21, 0.23]);
+    add(torso, 'Scrub shirt inset', profile.bottom, [0, 0.3, 0.132], [0.13, 0.31, 0.018]);
+    for (const side of [-1, 1]) {
+      const lapel = add(torso, 'Lab coat lapel', profile.top, [side * 0.08, 0.31, 0.145], [0.055, 0.28, 0.024]);
+      lapel.rotation.z = side * 0.2;
+      add(torso, 'Lab coat pocket', profile.accent, [side * 0.115, 0.035, 0.157], [0.09, 0.065, 0.018]);
+    }
+  } else if (profile.outfit === 'scrubs') {
+    for (const side of [-1, 1]) {
+      const collar = add(torso, 'Scrub V neck', profile.accent, [side * 0.039, 0.413, 0.133], [0.026, 0.1, 0.018]);
+      collar.rotation.z = side * 0.6;
+    }
+    add(torso, 'Scrub patch pocket', profile.accent, [0.11, 0.27, 0.135], [0.095, 0.085, 0.018]);
+  } else if (profile.outfit === 'fire-station-wear') {
+    for (const side of [-1, 1]) {
+      add(torso, 'Station shirt pocket', profile.accent, [side * 0.105, 0.29, 0.136], [0.09, 0.075, 0.018]);
+      add(torso, 'Station shoulder tab', profile.accent, [side * 0.135, 0.448, 0], [0.075, 0.025, 0.2]);
+    }
+    add(torso, 'Station shirt placket', profile.accent, [0, 0.28, 0.135], [0.023, 0.25, 0.018]);
   } else if (profile.outfit === 'coat' || profile.outfit === 'tunic' || profile.outfit === 'apron') {
     add(torso, 'Long clothing hem', profile.outfit === 'apron' ? profile.accent : profile.top,
       [0, -0.04, 0.055], [0.4, 0.21, 0.19]);

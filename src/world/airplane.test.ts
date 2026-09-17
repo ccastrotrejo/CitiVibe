@@ -39,11 +39,11 @@ function inventory(group: THREE.Group) {
   return { objects, geometries, materials, triangles, meshes };
 }
 
-function cameraFor(aspect: number, x: number, z: number, yaw: number, zoom: number): THREE.OrthographicCamera {
+function cameraFor(aspect: number, x: number, z: number, yaw: number, zoom: number, pitch = CAMERA_PROJECTION.defaultPitch): THREE.OrthographicCamera {
   const height = Math.max(CAMERA_PROJECTION.overviewHeight, CAMERA_PROJECTION.overviewWidth / aspect);
   const camera = new THREE.OrthographicCamera(-height * aspect / 2, height * aspect / 2, height / 2, -height / 2, 0.1, CAMERA_PROJECTION.far);
-  const radius = CAMERA_PROJECTION.distance * Math.cos(CAMERA_PROJECTION.defaultPitch);
-  camera.position.set(x + Math.sin(yaw) * radius, CAMERA_PROJECTION.distance * Math.sin(CAMERA_PROJECTION.defaultPitch), z + Math.cos(yaw) * radius);
+  const radius = CAMERA_PROJECTION.distance * Math.cos(pitch);
+  camera.position.set(x + Math.sin(yaw) * radius, CAMERA_PROJECTION.distance * Math.sin(pitch), z + Math.cos(yaw) * radius);
   camera.lookAt(x, 0, z);
   camera.zoom = zoom;
   camera.updateProjectionMatrix();
@@ -268,12 +268,12 @@ describe('AirplaneSimulation', () => {
     }
   });
 
-  it('crosses the overview and retained garden views; distant closeups need not show every flight', () => {
+  it('crosses the wide district and reservoir views; focused closeups need not show every flight', () => {
     const retainedViews = CAMERA_ANCHORS.filter(({ id }) =>
-      ['square-overview', 'pavilion-view', 'terrace-view', 'garden-view'].includes(id));
-    expect(retainedViews).toHaveLength(4);
+      ['square-overview', 'garden-view'].includes(id));
+    expect(retainedViews).toHaveLength(2);
     for (const { pose } of retainedViews) {
-      const frustum = frustumFor(cameraFor(16 / 9, pose.x, pose.z, pose.yaw, pose.zoom));
+      const frustum = frustumFor(cameraFor(16 / 9, pose.x, pose.z, pose.yaw, pose.zoom, pose.pitch));
       let visible = false;
       for (let distance = 0; distance <= AIRPLANE.routeLength; distance += 5) {
         const fraction = distance / AIRPLANE.routeLength;

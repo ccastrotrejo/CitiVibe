@@ -8,6 +8,7 @@ import {
   type BikeSharePhase, type BikeShareStation, type BikeShareTripState,
 } from '../content/bikeShare';
 import { PERSON_SPACE } from '../content/people';
+import { TRAFFIC_SERVICES, type TrafficServiceDefinition, type TrafficServiceState } from '../content/transitService';
 import type { ActorState } from './actors';
 import { StreetPedestrians } from './pedestrians';
 
@@ -21,6 +22,7 @@ export const TRAFFIC = {
   bicycleGap: 1.2,
   stopBuffer: 0.3,
   greenSeconds: 8,
+  yellowSeconds: 3,
   clearanceSeconds: 1,
   pedestrianSeconds: 3,
   /** A posted stop is only satisfied by a full halt held at the painted bar. */
@@ -92,6 +94,11 @@ interface Motion {
   bikeShare?: SharedBikeMotion;
   /** Seconds held motionless at a posted stop bar; reset by any movement. */
   stopHold: number;
+  service?: {
+    definition: TrafficServiceDefinition;
+    distance: number;
+    state: TrafficServiceState;
+  };
 }
 
 interface SharedBikeMotion {
@@ -129,7 +136,10 @@ const STOP_APPROACH_BUFFER = STOP_LINE_OFFSET - INTERSECTION_GATE + TRAFFIC.stop
 const QUARTER_TURN = Math.PI / 2;
 const ARC_SAMPLES = 256;
 const ARC_STEP = QUARTER_TURN / ARC_SAMPLES;
-const PHASES = ['north-south', 'clearance', 'east-west', 'clearance', 'pedestrians', 'clearance'] as const;
+const PHASES = [
+  'north-south', 'north-south-yellow', 'clearance',
+  'east-west', 'east-west-yellow', 'clearance', 'pedestrians', 'clearance',
+] as const;
 
 function wrap(value: number, length: number): number {
   return ((value % length) + length) % length;
@@ -600,6 +610,7 @@ function createActor(id: string, kind: ActorState['kind'], route: TrafficRoute, 
 export class CityTraffic {
   readonly actors: readonly ActorState[];
   readonly signals: readonly TrafficSignalState[];
+  readonly services: readonly TrafficServiceState[];
   elapsed = 0;
   private readonly junctions: Junction[];
   private readonly motions: Motion[];
@@ -615,7 +626,7 @@ export class CityTraffic {
       return {
         id, control, phase: stop ? 'stop' : index % 2 === 0 ? 'north-south' : 'east-west',
         walk: false, owner: null, elapsed: stop ? 0 : offset,
-        stage: index % 2 === 0 ? 0 : 2, driverTurn: false,
+        stage: index % 2 === 0 ? 0 : 3, driverTurn: false,
       };
     });
     this.signals = Object.freeze(this.junctions);
@@ -686,8 +697,19 @@ export class CityTraffic {
         actor.state = 'dwelling';
         actor.sharedBike = this.sharedBikeState(motion);
       }
+      const service = TRAFFIC_SERVICES.find(({ actorId }) => actorId === actor.id);
+      if (service) {
+        const stopLink = route.segments.find((candidate) => candidate.lane === service.lane);
+        if (!stopLink) throw new Error(`Missing service lane for ${actor.id}.`);
+        motion.service = {
+          definition: service,
+          distance: stopLink.start + (service.x - stopLink.x) * stopLink.dx + (service.z - stopLink.z) * stopLink.dz,
+          state: { id: service.id, actorId: actor.id, phase: 'circulating', remaining: 0, completedCycles: 0 },
+        };
+      }
       return motion;
     });
+    this.services = Object.freeze(this.motions.flatMap(({ service }) => service ? [service.state] : []));
     this.pedestrians = new StreetPedestrians(SIDEWALK_WALKING_ROUTES, seed);
     this.actors = Object.freeze([...this.motions.map(({ actor }) => actor), ...this.pedestrians.actors]);
     this.motions.forEach((motion) => this.updateIndicator(motion));
@@ -706,11 +728,12 @@ export class CityTraffic {
     const reserveBraking = traction === 1 ? braking : TRAFFIC.braking * 0.3;
     this.elapsed += seconds;
     this.reserveBikeCrossing(seconds, reserveBraking);
-    this.advanceSignals(seconds);
+    this.advanceSignals(seconds, reserveBraking);
     this.reserveIntersections(seconds, reserveBraking, speedFactor);
     this.planMovement(seconds, acceleration, braking, reserveBraking, speedFactor);
     for (const motion of this.motions) {
       this.move(motion);
+      this.updateService(motion);
       if (motion.bikeShare) {
         motion.bikeShare.travelDistance += motion.advance;
         const dockError = Math.min(
@@ -736,7 +759,7 @@ export class CityTraffic {
       }
     }
     this.publishWalkSignals();
-    this.pedestrians.step(seconds, this.signals, this.bikeCrossing ? JUNIPER_ACCESS_CROSSING : undefined);
+    this.pedestrians.step(seconds, this.signals, this.bikeCrossing ? JUNIPER_ACCESS_CROSSING : undefined, this.services);
   }
 
   private reserveBikeCrossing(dt: number, braking: number): void {
@@ -789,14 +812,31 @@ export class CityTraffic {
     }
   }
 
-  private advanceSignals(dt: number): void {
+  private advanceSignals(dt: number, braking: number): void {
     for (const [index, junction] of this.junctions.entries()) {
       if (junction.control !== 'signal') continue;
       junction.elapsed += dt;
-      const green = junction.stage === 0 || junction.stage === 2;
-      const duration = green ? TRAFFIC.greenSeconds : junction.stage === 4 ? TRAFFIC.pedestrianSeconds : TRAFFIC.clearanceSeconds;
-      if (junction.elapsed + EPSILON < duration || (!green && junction.owner !== null)) continue;
+      const green = junction.phase === 'north-south' || junction.phase === 'east-west';
+      const yellow = junction.phase === 'north-south-yellow' || junction.phase === 'east-west-yellow';
+      const duration = green ? TRAFFIC.greenSeconds : yellow ? TRAFFIC.yellowSeconds :
+        junction.phase === 'pedestrians' ? TRAFFIC.pedestrianSeconds : TRAFFIC.clearanceSeconds;
+      if (junction.elapsed + EPSILON < duration || (!green && !yellow && junction.owner !== null)) continue;
       if (junction.phase === 'clearance' && this.pedestrians.isCrossingOccupied(index)) continue;
+      if (green && junction.owner) {
+        const owner = junction.owner;
+        const segment = owner.route.segments[owner.segment];
+        const remaining = segment.start + segment.length - owner.actor.distance - owner.length / 2 - STOP_APPROACH_BUFFER;
+        // NY VTL 1111(b) warns that green is ending, not a blanket prohibition on yellow entry.
+        // This conservative controller admits nobody new; a reserved driver who can still
+        // stop relinquishes the permit, while a physically committed movement clears.
+        if (segment.kind === 'link' && segment.intersection === index &&
+          remaining >= owner.actor.speed ** 2 / (2 * braking) + owner.actor.speed * dt) {
+          junction.owner = null;
+          owner.permit = -1;
+          owner.releaseRemaining = 0;
+          owner.requestSince = this.elapsed;
+        }
+      }
       junction.stage = (junction.stage + 1) % PHASES.length;
       junction.phase = PHASES[junction.stage];
       junction.elapsed = 0;
@@ -827,7 +867,7 @@ export class CityTraffic {
       if (junction.owner) continue;
       const posted = junction.control === 'all-way-stop';
       if (posted ? this.pedestrians.isCrossingOccupied(index) :
-        junction.phase === 'clearance' || junction.phase === 'pedestrians') continue;
+        junction.phase !== 'north-south' && junction.phase !== 'east-west') continue;
       let chosen: Motion | null = null;
       for (const motion of this.motions) {
         if (motion.permit >= 0 || motion.requestSince < 0) continue;
@@ -931,6 +971,19 @@ export class CityTraffic {
     for (const motion of this.motions) {
       const actor = motion.actor;
       const sharedBike = motion.bikeShare;
+      const service = motion.service;
+      if (service?.state.phase === 'dwelling') {
+        service.state.remaining = Math.max(0, service.state.remaining - dt);
+        actor.speed = 0;
+        motion.advance = 0;
+        actor.state = 'dwelling';
+        if (actor.lighting) actor.lighting.braking = true;
+        if (service.state.remaining <= EPSILON) {
+          service.state.remaining = 0;
+          service.state.phase = 'departing';
+        }
+        continue;
+      }
       if (sharedBike && sharedBike.dockRemaining > 0) {
         sharedBike.dockRemaining = Math.max(0, sharedBike.dockRemaining - dt);
         actor.speed = 0;
@@ -941,6 +994,12 @@ export class CityTraffic {
       }
       const segment = motion.route.segments[motion.segment];
       let available = motion.route.length;
+      if (service && segment.lane === service.definition.lane && service.state.phase !== 'departing' &&
+        actor.distance <= service.distance + EPSILON) {
+        const toStop = Math.max(0, service.distance - actor.distance);
+        available = toStop;
+        if (toStop <= Math.max(18, service.definition.maneuverLength)) service.state.phase = 'approaching';
+      }
       const crossing = this.bikeCrossing;
       if (crossing) {
         if (crossing.motion === motion) {
@@ -993,6 +1052,12 @@ export class CityTraffic {
       const reserveTick = reserveBraking * dt;
       const safeSpeed = Math.sqrt(reserveTick ** 2 + 2 * reserveBraking * available) - reserveTick;
       let desired = Math.min(motion.desiredSpeed * speedFactor, safeSpeed);
+      if (service?.definition.kind === 'loading' && segment.lane === service.definition.lane) {
+        const toManeuver = Math.max(0, service.distance - service.definition.maneuverLength - actor.distance);
+        if (actor.distance <= service.distance + service.definition.maneuverLength) {
+          desired = Math.min(desired, Math.sqrt(reserveTick ** 2 + 1 + 2 * reserveBraking * toManeuver) - reserveTick);
+        }
+      }
       if (motion.bicycle) {
         if (segment.speedLimit !== undefined) desired = Math.min(desired, segment.speedLimit);
         if (segment.kind === 'link') {
@@ -1019,6 +1084,11 @@ export class CityTraffic {
 
   private updateIndicator(motion: Motion): void {
     if (!motion.actor.lighting) return;
+    if (motion.service?.definition.kind === 'loading' && motion.service.state.phase !== 'circulating') {
+      motion.actor.lighting.turn = motion.service.state.phase === 'departing' ? 'left' :
+        motion.service.state.phase === 'approaching' ? 'right' : null;
+      return;
+    }
     const segments = motion.route.segments;
     const current = segments[motion.segment];
     const junction = current.kind === 'junction' ? current : segments[(motion.segment + 1) % segments.length];
@@ -1062,6 +1132,35 @@ export class CityTraffic {
     while (index < segments.length - 1 && actor.distance >= segments[index + 1].start) index += 1;
     motion.segment = index;
     place(segments[index], actor.distance - segments[index].start, actor);
+    const service = motion.service;
+    if (service && segments[index].lane === service.definition.lane && service.definition.lateralOffset > 0) {
+      const { maneuverLength, lateralOffset } = service.definition;
+      const fromStop = actor.distance - service.distance;
+      if (Math.abs(fromStop) < maneuverLength) {
+        const t = 1 - Math.abs(fromStop) / maneuverLength;
+        const shift = lateralOffset * t * t * (3 - 2 * t);
+        const slope = lateralOffset * 6 * t * (1 - t) / maneuverLength * (fromStop <= 0 ? 1 : -1);
+        actor.position.x -= segments[index].dz * shift;
+        actor.position.z += segments[index].dx * shift;
+        actor.heading -= Math.atan(slope);
+      }
+    }
+  }
+
+  private updateService(motion: Motion): void {
+    const service = motion.service;
+    if (!service) return;
+    if (service.state.phase === 'approaching' && Math.abs(motion.actor.distance - service.distance) < EPSILON) {
+      service.state.phase = 'dwelling';
+      service.state.remaining = service.definition.dwellSeconds;
+      motion.actor.speed = 0;
+      motion.actor.state = 'dwelling';
+      if (motion.actor.lighting) motion.actor.lighting.braking = true;
+    } else if (service.state.phase === 'departing' &&
+      ahead(service.distance, motion.actor.distance, motion.route.length) >= service.definition.maneuverLength) {
+      service.state.phase = 'circulating';
+      service.state.completedCycles += 1;
+    }
   }
 
 }

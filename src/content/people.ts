@@ -1,3 +1,5 @@
+import { getCivicStaffAssignment, type CivicServiceId } from './civicServices';
+
 export type PersonContext = 'street' | 'park' | 'runner' | 'cyclist' | 'basketball' | 'pickleball' |
   'play-child' | 'play-guardian' | 'resting';
 export type AgeGroup = 'child' | 'teen' | 'young-adult' | 'adult' | 'older-adult';
@@ -5,7 +7,7 @@ export type Occupation = 'lawyer' | 'software-engineer' | 'analyst' | 'office-wo
   'police-officer' | 'healthcare-worker' | 'construction-worker' | 'courier' | 'chef' | 'gardener' |
   'teacher' | 'artist' | 'student' | 'retired' | 'resident';
 export type Outfit = 'suit' | 'office' | 'hoodie' | 'casual' | 'coat' | 'tunic' | 'overalls' |
-  'scrubs' | 'apron' | 'fire-gear' | 'police-uniform' | 'hi-vis' | 'sport';
+  'scrubs' | 'lab-coat' | 'apron' | 'fire-gear' | 'fire-station-wear' | 'police-uniform' | 'hi-vis' | 'sport';
 export type Hat = 'none' | 'cap' | 'beanie' | 'sun-hat' | 'brimmed' | 'hard-hat' | 'fire-helmet' |
   'police-cap' | 'cycle-helmet' | 'chef-hat';
 export type Bag = 'none' | 'backpack' | 'satchel' | 'briefcase' | 'tote';
@@ -16,6 +18,7 @@ export interface PersonProfile {
   readonly age: number;
   readonly ageGroup: AgeGroup;
   readonly occupation: Occupation;
+  readonly civicServiceId?: CivicServiceId;
   readonly purpose: 'commute' | 'stroll' | 'tour' | 'exercise' | 'play' | 'rest';
   readonly outfit: Outfit;
   readonly hat: Hat;
@@ -85,7 +88,7 @@ export function createPersonProfile(id: string, context: PersonContext): PersonP
   const [minAge, maxAge] = ages[ageGroup];
   const age = minAge + Math.floor(sample(id, 'age') * (maxAge - minAge + 1));
   const young = ageGroup === 'child' || ageGroup === 'teen';
-  const occupation = young ? 'student' : age > 65 && sample(id, 'retired') < 0.6 ? 'retired' :
+  let occupation: Occupation = young ? 'student' : age > 65 && sample(id, 'retired') < 0.6 ? 'retired' :
     sample(id, 'employed') < 0.84 ? pick('occupation', JOBS) : 'resident';
   const working = !young && occupation !== 'retired' && occupation !== 'resident';
   const purpose: PersonProfile['purpose'] = sport || context === 'cyclist' ? 'exercise' :
@@ -98,6 +101,7 @@ export function createPersonProfile(id: string, context: PersonContext): PersonP
     pick('bag', ['none', 'none', 'backpack', 'satchel', 'tote'] as const);
   let top: string = pick('top', CLOTHES);
   let bottom: string = pick('bottom', TROUSERS);
+  let accent: string = pick('accent', CLOTHES);
   let shoes = sport ? '#e9e7d9' : pick('shoes', ['#303735', '#76513c', '#e4dccc']);
   if (purpose === 'commute') {
     switch (occupation) {
@@ -119,6 +123,22 @@ export function createPersonProfile(id: string, context: PersonContext): PersonP
   }
   if (context === 'cyclist') hat = 'cycle-helmet';
   if (sport) hat = sample(id, 'sport-cap') < 0.35 ? 'cap' : 'none';
+  const civic = context === 'street' ? getCivicStaffAssignment(id) : undefined;
+  if (civic) {
+    if (young) throw new Error(`Civic employee ${id} must already be an adult.`);
+    occupation = civic.staff.occupation;
+    outfit = civic.staff.outfit;
+    bag = 'none';
+    hat = outfit === 'police-uniform' ? 'police-cap' :
+      outfit === 'fire-station-wear' && sample(id, 'station-cap') < 0.5 ? 'cap' : 'none';
+    const scrubs = pick('civic-scrubs', ['#548b8b', '#6286ac', '#638365']);
+    top = outfit === 'lab-coat' ? '#e7e9df' : outfit === 'scrubs' ? scrubs :
+      outfit === 'fire-station-wear' ? '#263b51' : '#303f58';
+    bottom = outfit === 'lab-coat' ? scrubs : top;
+    accent = outfit === 'lab-coat' || outfit === 'scrubs' ? '#b8cdc8' :
+      outfit === 'fire-station-wear' ? '#647d92' : '#adb4be';
+    shoes = '#303735';
+  }
   const stature = ageGroup === 'child' ? 1.12 + (age - 7) * 0.057 + sample(id, 'height') * 0.12 :
     ageGroup === 'teen' ? 1.44 + (age - 12) * 0.043 + sample(id, 'height') * 0.15 :
       1.53 + sample(id, 'height') * 0.4;
@@ -128,10 +148,11 @@ export function createPersonProfile(id: string, context: PersonContext): PersonP
       purpose === 'tour' ? 0.86 + sample(id, 'pace') * 0.24 : 0.94 + sample(id, 'pace') * 0.35;
   return Object.freeze({
     id, context, age, ageGroup, occupation, purpose, outfit, hat, bag,
+    ...(civic ? { civicServiceId: civic.service.id } : {}),
     hair: pick('hair', HAIR), glasses: sample(id, 'glasses') < 0.3,
     shorts: sport || (outfit === 'casual' && sample(id, 'shorts') < 0.45),
     stature, build: 0.84 + sample(id, 'build') * 0.24, skin: pick('skin', SKIN_TONES),
     hairColor: age > 59 && sample(id, 'gray') < 0.65 ? '#c5c1b4' : pick('hair-color', HAIR_COLORS),
-    top, bottom, accent: pick('accent', CLOTHES), shoes, pace,
+    top, bottom, accent, shoes, pace,
   });
 }

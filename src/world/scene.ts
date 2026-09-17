@@ -9,12 +9,13 @@ import { COURT_LAMPS, LAMP_GEOMETRY, PARK_LAMPS, STREET_LAMPS, validateLighting 
 import { BASKETBALL_COURT, COURT_PLAYERS, PICKLEBALL_COURT } from '../content/courts';
 import { CITY_EXTENT, TRAFFIC_ACTORS, type TrafficSignalState } from '../content/streets';
 import { BIKE_SHARE_STATIONS } from '../content/bikeShare';
+import { CIVIC_SERVICES } from '../content/civicServices';
 import type { ActorState } from './actors';
 import { ActorInstances } from './actorInstances';
 import { CourtActivity, type CourtPlayerRig } from './courtActivity';
 import { buildCentralPark } from './park';
 import { buildPavementMarkings } from './pavement';
-import { MURAL_WALLS, buildStreetscape, type StreetscapeBuilder } from './streetscape';
+import { MURAL_WALLS, STREET_BUILDINGS, buildStreetscape, type StreetscapeBuilder } from './streetscape';
 import { buildStreetSigns } from './streetSigns';
 import { buildStopSigns } from './stopSigns';
 import { validateFacadeContent } from '../content/facades';
@@ -25,11 +26,14 @@ import { buildVehicleRig, type VehicleArt } from './vehicle';
 import { buildSignLettering } from './signLettering';
 import { poseNeutral } from './locomotion';
 import { buildPersonRig, type PersonArt } from './person';
+import { buildReadingArt, isParkReader } from './parkActivities';
 import { PlayActivity } from './playActivity';
 import { captureWeatherSurface, type FoliageBatch } from './weatherArt';
 import type { WeatherSurface } from './weatherSurface';
 import { GROUND_LEVEL, GROUND_PUDDLES } from './groundWater';
 import type { VehicleLightingRig } from './vehicleLighting';
+import { createWindowLightingMaterial, WINDOW_USE, type WindowUse } from './windowLighting';
+import { applyCivicMaintenanceCapture } from './civicUtilities';
 
 /** One frame's worth of simulation state the scene needs to advance its owned activity. */
 export interface CityFrame {
@@ -68,7 +72,7 @@ export interface ArtInputs {
   seed: number;
 }
 
-/** Versioned art inputs, paired with CONTENT's stable route and landmark manifest. */
+/** Versioned art inputs, paired with CONTENT's stable route and guided-view manifest. */
 export const ART_INPUTS = {
   schemaVersion: 1,
   assetVersion: CONTENT.assetVersion,
@@ -97,23 +101,6 @@ function windowHash(x: number, y: number, z: number): number {
     hash = Math.imul(hash ^ ((value >> 16) & 0xffff), 16777619) >>> 0;
   }
   return hash / 0x100000000;
-}
-
-/**
- * Clone the glazing material and reinterpret its night emissive per instance: the shader keeps the
- * environment layer's day->night ramp (via the emissive magnitude) but recolours each window from a
- * per-instance attribute, so occupancy and light colour vary building to building.
- */
-function patchedWindowMaterial(source: THREE.MeshStandardMaterial): THREE.MeshStandardMaterial {
-  const clone = source.clone();
-  clone.onBeforeCompile = (shader) => {
-    shader.vertexShader = `attribute vec3 windowGlow;\nvarying vec3 vWindowGlow;\n${shader.vertexShader}`
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\n\tvWindowGlow = windowGlow;');
-    shader.fragmentShader = `varying vec3 vWindowGlow;\n${shader.fragmentShader}`
-      .replace('vec3 totalEmissiveRadiance = emissive;', 'vec3 totalEmissiveRadiance = vWindowGlow * length( emissive );');
-  };
-  clone.customProgramCacheKey = () => 'rainlight-window-glow';
-  return clone;
 }
 
 /** Original, deterministic Rainlight Square art; the caller owns actor movement. */
@@ -364,9 +351,11 @@ export function buildCityScene(): CityScene {
     });
     scene.add(group);
   }
+  let scheduledGlass: THREE.MeshStandardMaterial | undefined;
   for (const object of scene.children) {
     if (object instanceof THREE.InstancedMesh && object.material === palette.glass) {
       const glow = new Float32Array(object.count * 3);
+      const schedule = new Float32Array(object.count * 3);
       const instance = new THREE.Matrix4();
       const anchor = new THREE.Vector3();
       for (let index = 0; index < object.count; index++) {
@@ -377,14 +366,30 @@ export function buildCityScene(): CityScene {
         const tint = occupancy < 0.34 ? WINDOW_OFF
           : WINDOW_TINTS[hue < 0.4 ? 0 : hue < 0.68 ? 1 : hue < 0.85 ? 2 : hue < 0.95 ? 3 : 4];
         glow.set(tint, index * 3);
+        const building = STREET_BUILDINGS.find((candidate) =>
+          Math.abs(anchor.x - candidate.x) <= candidate.width / 2 + 0.6 &&
+          Math.abs(anchor.z - candidate.z) <= candidate.depth / 2 + 0.6);
+        if (building) {
+          const floor = Math.max(0, Math.floor((anchor.y - 0.35) / building.architecture.floorHeight));
+          const service = CIVIC_SERVICES.find(({ buildingId }) => buildingId === building.id);
+          let use: WindowUse = 'residential';
+          if (service) use = service.kind === 'hospital' ? 'hospital' : 'station';
+          else if (building.use === 'office') use = 'office';
+          else if (building.use === 'mixed-use' && floor === 0) use = 'storefront';
+          schedule.set([WINDOW_USE[use], windowHash(building.x, 0, building.z) * 1.5 - 0.75,
+            windowHash(building.x, floor, building.z)], index * 3);
+        }
       }
       const glazing = geometry(object.geometry.clone());
       glazing.setAttribute('windowGlow', new THREE.InstancedBufferAttribute(glow, 3));
+      glazing.setAttribute('windowSchedule', new THREE.InstancedBufferAttribute(schedule, 3));
       object.geometry = glazing;
-      object.material = material(patchedWindowMaterial(palette.glass));
+      scheduledGlass ??= material(createWindowLightingMaterial(palette.glass));
+      object.material = scheduledGlass;
     }
   }
   const weatherSurface = captureWeatherSurface(scene);
+  applyCivicMaintenanceCapture(weatherSurface);
   const snowMeshes: THREE.Mesh[] = [];
   scene.traverse((object) => {
     if (object instanceof THREE.Mesh && !Array.isArray(object.material) &&
@@ -427,6 +432,7 @@ export function buildCityScene(): CityScene {
     const walker = actorGroup(definition.id, running ? 'Park runner' : 'Park walker');
     neighborhoodActors.push(walker);
     const rig = buildPersonRig(walker, createPersonProfile(definition.id, running ? 'runner' : 'park'), personArt);
+    if (isParkReader(definition.id)) buildReadingArt(rig, personArt);
     walker.userData.rig = rig;
     poseNeutral(rig);
   }

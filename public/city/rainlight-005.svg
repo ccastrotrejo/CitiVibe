@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900" viewBox="0 0 1200 900" role="img" aria-labelledby="title description">
-  <title id="title">Rainlight Square and its park</title>
-  <desc id="description">Original static illustration of a fictional NYC-inspired miniature city, not a map of New York. Six avenues and six cross streets frame twenty-four blocks and a car-free park with a reservoir running loop, lawns, woodland, lake and pale bridge, fountain terrace and tree-lined mall. Two-way protected cycling tracks follow the park edges. Neighbors fill the sidewalks and play on full-size basketball and pickleball courts south of the park.</desc>
-  <metadata>Original LivingCity vectors, 2026-09-13. Asset rainlight-005. No imported photographs, models, maps or fonts. Simplified companion illustration, not an exact renderer export. Focus points: rainlight-pavilion 533.4,511.635; terrace-steps 585.6,507.36; reed-garden 699,432.975; juniper-court 363,583.075; crosstown-steps 969.8,431.835.</metadata>
+  <title id="title">Rainlight Square: neighborhood and park</title>
+  <desc id="description">Original static companion illustration of a fictional NYC-inspired miniature city, not a live view or a map of New York. Masonry homes, loft offices and ground-floor shops line the avenues, with a hospital, fire station and police station and staff outside. A car-free park retains its reservoir running loop, lawns, woodland, lake and pale bridge, fountain terrace and tree-lined mall. Two-way protected cycling tracks follow the park edges. Neighbors fill the sidewalks and play on full-size basketball and pickleball courts south of the park.</desc>
+  <metadata>Original LivingCity vectors, revised 2026-09-16. Asset rainlight-005. No imported photographs, models, maps or fonts. Simplified companion illustration, not an exact renderer export. Retains the original park and street graph.</metadata>
   <defs>
     <g id="building">
       <path d="M-13 0 0 7 13 0V-37L0-30-13-37Z" fill="currentColor"/>
@@ -11,9 +11,46 @@
       <path d="M-10-30-2-26M-10-20-2-16M-10-10-2-6M3-25 11-29M3-15 11-19M3-5 11-9" stroke="#304d4e" stroke-width="4" stroke-dasharray="3 2"/>
       <path d="M-13-23 0-16 13-23M-13-13 0-6 13-13" stroke="#d5c4a6" stroke-width="1" fill="none"/>
     </g>
+    <g id="shop-building">
+      <use href="#building"/>
+      <path d="M-11-12-1-7V3L-11-2ZM2-7 11-12V-2L2 3Z" fill="#354f53" stroke="#d5c4a6" stroke-width=".6"/>
+      <path d="M-6-9V.5M6-9V.5" stroke="#d5c4a6" stroke-width=".7"/>
+      <path d="M-13-13 0-6 13-13" fill="none" stroke="#568581" stroke-width="2.5"/>
+    </g>
+    <g id="loft-building">
+      <use href="#building"/>
+      <path d="M-10-32-2-28V-9L-10-13ZM3-28 11-32V-13L3-9Z" fill="#354f53" stroke="#c9c8b8" stroke-width=".9"/>
+      <path d="M-10-25-2-21M-10-19-2-15M3-21 11-25M3-15 11-19" stroke="#c9c8b8" stroke-width="1.2"/>
+      <path d="M-14-37 0-30 14-37" fill="none" stroke="#b9bdac" stroke-width="2"/>
+    </g>
+    <g id="hospital-building">
+      <use href="#loft-building"/>
+      <path d="M-12-14 0-8 12-14" fill="none" stroke="#256897" stroke-width="3"/>
+      <path d="M-9-26V-19M-5-24V-17M-9-22.5-5-20.5" stroke="#f4e7cb" stroke-width="1.3" fill="none"/>
+    </g>
+    <g id="fire-building">
+      <use href="#building"/>
+      <path d="M-11-16-1-11V3L-11-2Z" fill="#80553e" stroke="#e1dcca" stroke-width=".8"/>
+      <path d="M-11-12-1-7M-11-9-1-4M-11-6-1-1" stroke="#bc745b" stroke-width="1"/>
+      <path d="M3-8 9-11V-2L3 1Z" fill="#354f53"/>
+    </g>
+    <g id="police-building">
+      <use href="#loft-building"/>
+      <path d="M-12-12 0-6 12-12" fill="none" stroke="#256897" stroke-width="3"/>
+      <path d="M-7-9-2-6V3L-7.5 0Z" fill="#f0dec0"/>
+    </g>
     <g id="tree"><path d="M0 0V-16" stroke="#896e4f" stroke-width="2"/><path d="M-8-12-9-22-2-29 7-25 10-16 3-9Z" fill="#77915f"/><path d="M-9-22-2-29 7-25 0-17Z" fill="#a1b67c"/></g>
     <g id="runner"><circle cy="-7" r="1.6" fill="#d6ad86"/><path d="M0-5-1-1-4 2M-1-1 2 0 4 3M-3-3 0-4 3-2" fill="none" stroke="#db8b57" stroke-width="1.8"/></g>
     <g id="world-building" transform="matrix(.25 -.25 .526315789 .526315789 0 0)"><use href="#building"/></g>
+    <g id="world-shop" transform="matrix(.25 -.25 .526315789 .526315789 0 0)"><use href="#shop-building"/></g>
+    <g id="world-loft" transform="matrix(.25 -.25 .526315789 .526315789 0 0)"><use href="#loft-building"/></g>
+    <g id="world-hospital" transform="matrix(.25 -.25 .526315789 .526315789 0 0)"><use href="#hospital-building"/></g>
+    <g id="world-fire-station" transform="matrix(.25 -.25 .526315789 .526315789 0 0)"><use href="#fire-building"/></g>
+    <g id="world-police-station" transform="matrix(.25 -.25 .526315789 .526315789 0 0)"><use href="#police-building"/></g>
+    <g id="world-staff" transform="matrix(.2 -.2 .421052632 .421052632 0 0)">
+      <circle cy="-7" r="1.6" fill="#b88764"/>
+      <path d="M0-5V-1M-2 3 0-1 2 3M-3-4H3" fill="none" stroke="currentColor" stroke-width="1.8"/>
+    </g>
     <g id="world-tree" transform="matrix(.25 -.25 .526315789 .526315789 0 0)"><use href="#tree"/></g>
     <g id="world-runner" transform="matrix(.2 -.2 .421052632 .421052632 0 0)"><use href="#runner"/></g>
     <g id="world-player" transform="matrix(.2 -.2 .421052632 .421052632 0 0)"><circle cy="-7" r="1.6" fill="#d6ad86"/><path d="M0-5V-1M-2 3 0-1 2 3M-3-5 0-3 3-5" fill="none" stroke="#bc745b" stroke-width="1.6"/></g>
@@ -34,15 +71,15 @@
     </g>
     <g id="crossing"><path d="M-5-6H5M-5 6H5M-6-5V5M6-5V5" fill="none" stroke="#f4e7cb" stroke-width="1.2" stroke-dasharray=".8 .6"/></g>
     <g id="crossing-row"><use href="#crossing" x="-102"/><use href="#crossing" x="-76"/><use href="#crossing" x="-46"/><use href="#crossing" x="46"/><use href="#crossing" x="76"/><use href="#crossing" x="102"/></g>
-    <g id="edge-blocks"><use href="#world-building" x="-89" y="-4"/><use href="#world-building" x="-89" y="4"/><use href="#world-building" x="-61" y="-4"/><use href="#world-building" x="-61" y="4"/><use href="#world-building" x="61" y="-4"/><use href="#world-building" x="61" y="4"/><use href="#world-building" x="89" y="-4"/><use href="#world-building" x="89" y="4"/></g>
     <g id="wide-block"><use href="#world-building" x="-34"/><use href="#world-building" x="-17"/><use href="#world-building"/><use href="#world-building" x="17"/><use href="#world-building" x="34"/></g>
-    <g id="long-block"><use href="#world-building" y="-79"/><use href="#world-building" y="-61"/><use href="#world-building" y="-43"/><use href="#world-building" y="-25"/><use href="#world-building" y="-7"/><use href="#world-building" y="11"/><use href="#world-building" y="29"/><use href="#world-building" y="47"/><use href="#world-building" y="65"/><use href="#world-building" y="83"/></g>
+    <g id="long-block"><use href="#world-building" y="-79"/><use href="#world-shop" y="-61"/><use href="#world-shop" y="-43"/><use href="#world-loft" y="-25"/><use href="#world-loft" y="-7"/><use href="#world-building" y="11"/><use href="#world-building" y="29"/><use href="#world-shop" y="47"/><use href="#world-shop" y="65"/><use href="#world-building" y="83"/></g>
   </defs>
   <rect width="1200" height="900" fill="#dfe5df"/>
   <g transform="matrix(2 .95 -2 .95 600 480)">
     <rect x="-110" y="-170" width="220" height="340" fill="#c2ccba"/>
     <path d="M-102-170V170M-76-170V170M-46-170V170M46-170V170M76-170V170M102-170V170M-110-162H110M-110-132H110M-110-95H110M-110 95H110M-110 132H110M-110 162H110" stroke="#e1dfd1" stroke-width="14"/>
     <path d="M-102-170V170M-76-170V170M-46-170V170M46-170V170M76-170V170M102-170V170M-110-162H110M-110-132H110M-110-95H110M-110 95H110M-110 132H110M-110 162H110" stroke="#74847c" stroke-width="10"/>
+    <path d="M-102-155V-139M-76-124V-103M-46-87V87M46-87V87M76 103V124M102 139V155M-38-132H38M-38 132H38" stroke="#e7b94d" stroke-width=".18" fill="none"/>
     <path d="M-106-170V170M-98-170V170M-80-170V170M-72-170V170M-50-170V170M-42-170V170M42-170V170M50-170V170M72-170V170M80-170V170M98-170V170M106-170V170M-110-166H110M-110-158H110M-110-136H110M-110-128H110M-110 128H110M-110 136H110M-110 158H110M-110 166H110" stroke="#568581" stroke-width="1.28"/>
     <path d="M-110-91.05H110M-110 91.05H110" stroke="#568581" stroke-width="2.1"/>
     <path d="M-110-91.05H110M-110 91.05H110" stroke="#e7b94d" stroke-width=".1" stroke-dasharray="2 2"/>
@@ -88,7 +125,21 @@
     <use data-metro="south-frontage-entrance" href="#metro-entry" transform="translate(16 123.1) rotate(-90)"/>
     <use href="#bike" transform="translate(0 -90.55) rotate(90)"/><use href="#bike" transform="translate(0 -91.55) rotate(-90)"/>
     <use href="#bike" transform="translate(0 91.55) rotate(90)"/><use href="#bike" transform="translate(0 90.55) rotate(-90)"/>
-    <g color="#b58b6e"><use href="#edge-blocks" y="-147"/><use href="#wide-block" y="-147"/><use href="#edge-blocks" y="147"/><use href="#wide-block" y="147"/></g>
+    <g color="#b58b6e">
+      <use href="#world-building" x="-89" y="-151"/><use href="#world-building" x="-89" y="-143"/>
+      <use href="#world-fire-station" x="-61" y="-147"/>
+      <use href="#world-building" x="61" y="-151"/><use href="#world-building" x="61" y="-143"/>
+      <use href="#world-building" x="89" y="-151"/><use href="#world-building" x="89" y="-143"/>
+      <use href="#world-building" x="-34" y="-147"/><use href="#world-building" x="-17" y="-147"/>
+      <use href="#world-hospital" x="7.8" y="-147"/><use href="#world-building" x="22" y="-147"/><use href="#world-building" x="34" y="-147"/>
+      <use href="#world-building" x="-89" y="143"/><use href="#world-building" x="-89" y="151"/>
+      <use href="#world-building" x="-61" y="143"/><use href="#world-building" x="-61" y="151"/>
+      <use href="#world-police-station" x="61" y="147"/>
+      <use href="#world-building" x="89" y="143"/><use href="#world-building" x="89" y="151"/>
+      <use href="#wide-block" y="147"/>
+    </g>
+    <g color="#256897"><use href="#world-staff" x="6.8" y="-138.2"/><use href="#world-staff" x="8.8" y="-138.2"/></g>
+    <g color="#354f53"><use href="#world-staff" x="-57.8" y="-138.2"/><use href="#world-staff" x="-60" y="-138.2"/><use href="#world-staff" x="60" y="155.8"/><use href="#world-staff" x="62" y="155.8"/></g>
     <g color="#cfc4a6">
       <use href="#wide-block" y="-113.5"/>
       <use href="#world-building" x="32" y="106.5"/><use href="#world-building" x="32" y="118.5"/>

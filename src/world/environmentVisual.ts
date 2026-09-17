@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { CAMERA_PROJECTION } from '../content/city';
 import { CITY_EXTENT } from '../content/streets';
 import { PARK_RESERVOIR } from '../content/park';
+import { STEAM_STACKS } from '../content/civicUtilities';
 import type { EnvironmentColor, EnvironmentFrame } from './environment';
 import { SurfaceVisual } from './surfaceVisual';
 import { FoliageWind } from './weatherArt';
@@ -10,6 +11,8 @@ import { RAIN_COUNT, SNOW_COUNT, SPLASH_COUNT, WeatherPhysics, waterWaveSpeed } 
 import { WeatherSurface } from './weatherSurface';
 import { SnowVolumeVisual } from './snowVolumeVisual';
 import { GroundWaterVisual } from './groundWaterVisual';
+import { getWindowPhase, setWindowPhase } from './windowLighting';
+import { prepareVaporMaterial, SteamVisual } from './steamVisual';
 
 export interface EnvironmentVisualOptions {
   reducedMotion: boolean;
@@ -51,6 +54,7 @@ export class EnvironmentVisual {
     transparent: true, opacity: 0.1, depthWrite: false,
   });
   private readonly clouds: { mesh: THREE.Mesh; x: number; z: number }[] = [];
+  private readonly steam: SteamVisual;
   private readonly rainPositions = new Float32Array(RAIN_COUNT * 6);
   private readonly snowPositions = new Float32Array(SNOW_COUNT * 3);
   private readonly ringGeometry = new THREE.RingGeometry(0.8, 1, 16);
@@ -73,6 +77,7 @@ export class EnvironmentVisual {
     material: THREE.MeshStandardMaterial;
     emissive: THREE.Color;
     intensity: number;
+    phase: number | undefined;
   }[] = [];
   private readonly backdrops: { material: THREE.MeshBasicMaterial; color: THREE.Color }[] = [];
   private readonly nightLights: {
@@ -120,7 +125,10 @@ export class EnvironmentVisual {
         }
         if (!(material instanceof THREE.MeshStandardMaterial) || material.userData.window !== true || seen.has(material)) continue;
         seen.add(material);
-        this.windows.push({ material, emissive: material.emissive.clone(), intensity: material.emissiveIntensity });
+        this.windows.push({
+          material, emissive: material.emissive.clone(), intensity: material.emissiveIntensity,
+          phase: getWindowPhase(material),
+        });
       }
     });
     const pixels = new Uint8Array(16 * 16 * 4);
@@ -149,6 +157,10 @@ export class EnvironmentVisual {
     this.ripples.frustumCulled = false;
     this.group.name = 'Environment effects';
     this.group.add(this.rain, this.snow, this.splashes, this.ripples, this.snowVolume.group, this.groundWater.group);
+    prepareVaporMaterial(this.cloudMaterial, this.cloudGeometry);
+    this.steam = new SteamVisual(STEAM_STACKS.map(({ id, x, z, surfaceY, height }) =>
+      ({ id, x, z, baseY: surfaceY, height })), this.cloudGeometry, this.cloudMaterial);
+    this.group.add(this.steam.mesh);
     let seed = 2401;
     const random = () => {
       seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
@@ -184,6 +196,7 @@ export class EnvironmentVisual {
     for (const { material } of this.windows) {
       copyColor(material.emissive, frame.palette.window);
       material.emissiveIntensity = frame.glow;
+      setWindowPhase(material, frame.phase);
     }
     for (const { material, color, max } of this.nightLights) {
       material.emissive.copy(color);
@@ -228,6 +241,7 @@ export class EnvironmentVisual {
       cloud.mesh.position.x = (cloud.x + CLOUD_X + (options.reducedMotion ? 0 : physics.cloudOffset.x)) % (CLOUD_X * 2) - CLOUD_X;
       cloud.mesh.position.z = (cloud.z + CLOUD_Z + (options.reducedMotion ? 0 : physics.cloudOffset.z)) % (CLOUD_Z * 2) - CLOUD_Z;
     }
+    this.steam.update(physics.time, physics.wind, frame.temperatureC, options.reducedMotion, options.lightweight);
     this.splashes.visible = !options.reducedMotion && rainStrength > 0.001;
     this.splashMaterial.opacity = Math.min(0.6, rainStrength * 0.35);
     this.splashes.count = options.lightweight ? 16 : SPLASH_COUNT;
@@ -275,6 +289,7 @@ export class EnvironmentVisual {
     this.group.removeFromParent();
     this.snowVolume.dispose();
     this.groundWater.dispose();
+    this.steam.dispose();
     this.surfaces.dispose();
     for (const { mesh, transforms } of this.foliage) {
       transforms.forEach((matrix, index) => mesh.setMatrixAt(index, matrix));
@@ -299,9 +314,10 @@ export class EnvironmentVisual {
       light.intensity = intensity;
       if (light instanceof THREE.HemisphereLight && ground) light.groundColor.copy(ground);
     }
-    for (const { material, emissive, intensity } of this.windows) {
+    for (const { material, emissive, intensity, phase } of this.windows) {
       material.emissive.copy(emissive);
       material.emissiveIntensity = intensity;
+      if (phase !== undefined) setWindowPhase(material, phase);
     }
     for (const { material, emissive, intensity } of this.nightLights) {
       material.emissive.copy(emissive);

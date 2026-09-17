@@ -8,6 +8,22 @@ export interface MetroEntrance {
   yaw: number;
 }
 
+export const METRO_ACCESS_NOTE = 'Scenic subway stairs only; no working station or step-free underground connection is modeled.';
+
+/** Several mouths can suggest one fictional station; these are not real transit routes. */
+export const METRO_STATIONS = [
+  { id: 'north-gate', name: 'North Gate', marker: 'N', entrances: ['crosstown-entrance', 'north-frontage-entrance'] },
+  { id: 'west-walk', name: 'West Walk', marker: 'W', entrances: ['west-entrance', 'west-north-entrance', 'west-middle-entrance'] },
+  { id: 'east-walk', name: 'East Walk', marker: 'E', entrances: ['east-north-entrance', 'east-south-entrance'] },
+  { id: 'south-gate', name: 'South Gate', marker: 'S', entrances: ['south-frontage-entrance'] },
+] as const;
+
+export function metroStationFor(entranceId: string) {
+  const station = METRO_STATIONS.find(({ entrances }) => (entrances as readonly string[]).includes(entranceId));
+  if (!station) throw new Error(`No scenic station grouping for ${entranceId}.`);
+  return station;
+}
+
 /** Clear stairwell dimensions; surfaceY matches the adjacent sidewalk pavement. */
 export const METRO_GEOMETRY = {
   openingWidth: 1.9,

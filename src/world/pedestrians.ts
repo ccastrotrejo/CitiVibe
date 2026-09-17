@@ -3,8 +3,14 @@ import { bikeAccessStopDistance, type BikeAccessBarrier } from '../content/bikeS
 import { INTERSECTIONS, TRAFFIC_ACTORS, type TrafficSignalState } from '../content/streets';
 import type { ActorState } from './actors';
 import { sampleTrafficRoute, SIDEWALK_WALKING_CORNER_INSET, type TrafficRoute } from './traffic';
+import { DestinationActivities } from './destinationActivities';
+import { storefrontActivity, type StreetActivityStop } from './streetActivities';
+import { canWalkTo } from './parkVisitors';
+import { civicActivities } from './civicActivities';
+import type { TrafficServiceState } from '../content/transitService';
+import { serviceActivities, serviceVisitAllowed, serviceVisitReady, SERVICE_VISITOR_ID, SERVICE_VISIT_ID } from './serviceActivities';
 
-export const PEDESTRIAN_BEHAVIOR = { maxCrossingWait: 12, maxBlockPopulation: 11, landingClearance: 2, minRest: 1.5, maxRest: 6 } as const;
+export const PEDESTRIAN_BEHAVIOR = { maxCrossingWait: 12, maxBlockPopulation: 11, landingClearance: 2 } as const;
 const EPSILON = 1e-7;
 const wrap = (distance: number, length: number) => ((distance % length) + length) % length;
 
@@ -32,13 +38,14 @@ interface Walker {
   randomState: number;
   pace: number;
   wait: number;
-  rest: number;
-  stopAt: number;
+  activityCooldown: number;
   corner: number;
   crossing: WalkingCrossing | null;
   crossingDistance: number;
   next: Pick<ActorState, 'position' | 'heading'>;
   advance: number;
+  activityStepped: boolean;
+  workplace?: StreetActivityStop;
 }
 
 /** Each flow joins its corner entry to the neighboring same-direction lane's exit. */
@@ -74,10 +81,10 @@ function random(walker: Walker): number {
   return walker.randomState / 0x100000000;
 }
 
-function corridorDistance(crossing: WalkingCrossing, position: ActorState['position']): number {
+function corridorDistance(crossing: WalkingCrossing, position: ActorState['position'], clearedDistance = 0): number {
   const x = position.x - crossing.x;
   const z = position.z - crossing.z;
-  const along = Math.max(0, Math.min(crossing.length + PEDESTRIAN_BEHAVIOR.landingClearance,
+  const along = Math.max(clearedDistance, Math.min(crossing.length + PEDESTRIAN_BEHAVIOR.landingClearance,
     x * crossing.dx + z * crossing.dz));
   return Math.hypot(x - crossing.dx * along, z - crossing.dz * along);
 }
@@ -86,6 +93,12 @@ function corridorDistance(crossing: WalkingCrossing, position: ActorState['posit
 export class StreetPedestrians {
   readonly actors: readonly ActorState[];
   readonly crossings: readonly WalkingCrossing[];
+  readonly activities = new DestinationActivities();
+  readonly activityStop: StreetActivityStop;
+  readonly activityStops: readonly StreetActivityStop[];
+  private readonly activityActors: ActorState[] = [];
+  private readonly activityMergeGates = new Map<string, readonly number[]>();
+  private readonly stopsById: ReadonlyMap<string, StreetActivityStop>;
   private readonly walkers: Walker[];
   private readonly groups: Walker[][];
   private readonly reservations: (Walker | null)[] = INTERSECTIONS.map(() => null);
@@ -93,6 +106,20 @@ export class StreetPedestrians {
   private readonly exits: (WalkingCrossing | undefined)[][][];
 
   constructor(private readonly routes: readonly (readonly TrafficRoute[])[], seed: number) {
+    this.activityStop = storefrontActivity(routes);
+    this.activityStops = Object.freeze([this.activityStop, ...civicActivities(routes), ...serviceActivities(routes)]);
+    this.stopsById = new Map(this.activityStops.map((stop) => [stop.destination.id, stop]));
+    for (const stop of this.stopsById.values()) {
+      this.activityMergeGates.set(stop.destination.id, routes[stop.block].map((route) => {
+        const { entry } = stop.destination;
+        const segment = route.segments.find((segment) => segment.kind === 'link' &&
+          Math.abs((entry.x - segment.x) * segment.dz - (entry.z - segment.z) * segment.dx) < 1.1 &&
+          (entry.x - segment.x) * segment.dx + (entry.z - segment.z) * segment.dz > 0 &&
+          (entry.x - segment.x) * segment.dx + (entry.z - segment.z) * segment.dz < segment.length)!;
+        const along = (entry.x - segment.x) * segment.dx + (entry.z - segment.z) * segment.dz;
+        return segment.start + Math.max(PEDESTRIAN_BEHAVIOR.landingClearance, along - 2.1);
+      }));
+    }
     this.crossings = makeWalkingCrossings(routes);
     this.exits = routes.map((lanes, block) => lanes.map((route, lane) => route.segments.map((_, corner) =>
       this.crossings.find((crossing) => crossing.from === block && crossing.lane === lane && crossing.corner === corner))));
@@ -125,8 +152,10 @@ export class StreetPedestrians {
       };
       const walker: Walker = {
         actor, profile, block, lane, destination: block, randomState: (seed ^ Math.imul(index + 1, 2654435761)) >>> 0,
-        pace: profile.pace, wait: 0, rest: 0, stopAt: -1, corner: -1, crossing: null,
-        crossingDistance: 0, next: { position: { x: 0, y: 0, z: 0 }, heading: 0 }, advance: 0,
+        pace: profile.pace, wait: 0, activityCooldown: 0, corner: -1, crossing: null,
+        crossingDistance: 0, next: { position: { x: 0, y: 0, z: 0 }, heading: 0 }, advance: 0, activityStepped: false,
+        workplace: this.activityStops.find((stop) => stop.lane === lane &&
+          stop.destination.id === (id === SERVICE_VISITOR_ID ? SERVICE_VISIT_ID : `${profile.civicServiceId}-staff`)),
       };
       actor.distance += random(walker);
       actor.travelDistance = actor.distance;
@@ -143,6 +172,11 @@ export class StreetPedestrians {
   }
 
   private chooseDestination(walker: Walker): void {
+    if (walker.workplace) {
+      walker.destination = walker.workplace.block;
+      walker.pace = walker.profile.pace * (0.9 + random(walker) * 0.1);
+      return;
+    }
     const choices = this.hops[walker.block].flatMap((hops, block) => hops > 0 && hops <= 3 ? [block] : []);
     walker.destination = choices[Math.floor(random(walker) * choices.length)];
     walker.pace = walker.profile.pace * (0.9 + random(walker) * 0.1);
@@ -156,16 +190,39 @@ export class StreetPedestrians {
       corridorDistance(crossing, other.actor.position) >= PERSON_SPACE.headway);
   }
 
-  step(dt: number, signals: readonly TrafficSignalState[], bikeAccess?: BikeAccessBarrier): void {
+  step(dt: number, signals: readonly TrafficSignalState[], bikeAccess?: BikeAccessBarrier,
+    services: readonly TrafficServiceState[] = []): void {
+    if (!Number.isFinite(dt) || dt < 0) throw new RangeError('Pedestrian delta must be finite and nonnegative.');
+    if (dt === 0) return;
+    dt = Math.min(dt, 1 / 30);
+    this.activityActors.length = 0;
+    for (const { actor } of this.walkers) if (actor.visit) this.activityActors.push(actor);
+    const returning = this.activityActors.filter(({ visit }) => visit?.phase === 'departing' || visit?.phase === 'merging');
     for (const walker of this.walkers) {
       const { actor } = walker;
       walker.advance = 0;
-      if (walker.rest > 0) {
-        walker.rest = Math.max(0, walker.rest - dt);
-        actor.activityTime = (actor.activityTime ?? 0) + dt;
-        actor.speed = 0;
-        actor.state = 'dwelling';
-        if (walker.rest === 0) this.chooseDestination(walker);
+      walker.activityStepped = false;
+      if (actor.visit) {
+        walker.activityStepped = true;
+        const neighbors = this.groups[walker.block].map(({ actor }) => actor);
+        const entry = actor.visit.destination.entry;
+        const facing = actor.visit.destination.heading;
+        const departureAllowed = returning.includes(actor) && neighbors.every((other) => other === actor ||
+          Math.hypot(other.position.x - entry.x, other.position.z - entry.z) > 3.5 ||
+          Math.abs((other.position.x - entry.x) * Math.cos(facing) -
+            (other.position.z - entry.z) * Math.sin(facing)) >= 2.1 - EPSILON);
+        this.activities.step(actor, dt, walker.pace, neighbors,
+          !actor.weather?.cautious && (!actor.weather || actor.weather.equipment === 'dry') &&
+          serviceVisitAllowed(actor.visit.destination, services, actor.visit.phase), departureAllowed,
+          serviceVisitReady(actor.visit.destination, services));
+        if (actor.visit.phase === 'merging') {
+          sampleTrafficRoute(this.routes[walker.block][walker.lane], actor.distance + 0.2, walker.next);
+          if (canWalkTo(actor, actor.position, walker.next.heading, neighbors) &&
+            canWalkTo(actor, walker.next.position, walker.next.heading, neighbors)) {
+            this.activities.finish(actor);
+            actor.heading = walker.next.heading;
+          }
+        }
         continue;
       }
       actor.activity = walker.crossing ? 'crossing' : 'walking';
@@ -202,21 +259,30 @@ export class StreetPedestrians {
           }
         } else if (wantsCrossing) available = Math.min(available, toCorner);
         for (const other of this.groups[walker.block]) {
-          if (other === walker || other.crossing || other.lane !== walker.lane) continue;
+          if (other === walker || other.crossing || other.actor.visit || other.lane !== walker.lane) continue;
           available = Math.min(available, Math.max(0,
             wrap(other.actor.distance - actor.distance, route.length) - PERSON_SPACE.headway));
         }
-        if (walker.stopAt >= 0) {
-          const toStop = wrap(walker.stopAt - actor.distance, route.length);
+        for (const returningActor of returning) {
+          const id = returningActor.visit?.destination.id;
+          if (!id || walker.block !== this.stopsById.get(id)!.block) continue;
+          const gate = this.activityMergeGates.get(id)![walker.lane];
+          const toGate = Math.abs(gate - actor.distance) < EPSILON ? 0 : wrap(gate - actor.distance, route.length);
+          available = Math.min(available, toGate);
+        }
+        const stop = walker.workplace ?? this.activityStop;
+        if (walker.activityCooldown <= 0 && walker.block === stop.block && walker.lane === stop.lane &&
+          !actor.weather?.cautious && (!actor.weather || actor.weather.equipment === 'dry') &&
+          serviceVisitAllowed(stop.destination, services)) {
+          const distance = wrap(stop.distance - actor.distance, route.length);
+          const toStop = route.length - distance < EPSILON ? 0 : distance;
           available = Math.min(available, toStop);
           if (toStop < EPSILON) {
-            walker.stopAt = -1;
-            walker.rest = PEDESTRIAN_BEHAVIOR.minRest + random(walker) *
-              (PEDESTRIAN_BEHAVIOR.maxRest - PEDESTRIAN_BEHAVIOR.minRest);
-            actor.activity = walker.profile.purpose === 'tour' || random(walker) < 0.5 ? 'looking-around' : 'resting';
-            actor.state = 'dwelling';
-            actor.speed = 0;
-            continue;
+            walker.activityCooldown = route.length;
+            if (this.activities.begin(actor, stop.destination, this.groups[walker.block].map(({ actor }) => actor))) {
+              this.activityActors.push(actor);
+              continue;
+            }
           }
         }
       }
@@ -227,13 +293,17 @@ export class StreetPedestrians {
     }
     // A reservation admitted later in this tick must also constrain earlier planned walkers.
     for (const walker of this.walkers) {
-      if (walker.rest > 0 || walker.actor.state === 'dwelling' && walker.advance === 0) continue;
+      if (walker.actor.visit || walker.activityStepped) continue;
       if (!walker.crossing) for (const reservation of this.reservations) {
-        if (reservation?.crossing && corridorDistance(reservation.crossing, walker.next.position) < PERSON_SPACE.headway &&
-          corridorDistance(reservation.crossing, walker.next.position) < corridorDistance(reservation.crossing, walker.actor.position)) {
+        // The departed tail is clear; the moving crosser and its downstream landing remain reserved.
+        if (reservation?.crossing &&
+          corridorDistance(reservation.crossing, walker.next.position, reservation.crossingDistance) < PERSON_SPACE.headway &&
+          corridorDistance(reservation.crossing, walker.next.position, reservation.crossingDistance) <
+            corridorDistance(reservation.crossing, walker.actor.position, reservation.crossingDistance)) {
           walker.advance = 0;
         }
       }
+      if (!canWalkTo(walker.actor, walker.next.position, walker.next.heading, this.activityActors)) walker.advance = 0;
       this.move(walker, dt);
     }
   }
@@ -255,6 +325,7 @@ export class StreetPedestrians {
     actor.speed = walker.advance / dt;
     actor.state = walker.advance > EPSILON ? 'moving' : 'waiting';
     actor.travelDistance = (actor.travelDistance ?? 0) + walker.advance;
+    walker.activityCooldown = Math.max(0, walker.activityCooldown - walker.advance);
     if (crossing) {
       walker.crossingDistance += walker.advance;
       if (walker.crossingDistance < crossing.length + PEDESTRIAN_BEHAVIOR.landingClearance) return;
@@ -268,10 +339,7 @@ export class StreetPedestrians {
       walker.corner = -1;
       this.reservations[crossing.intersection] = null;
       if (walker.block === walker.destination) {
-        const route = this.routes[walker.block][walker.lane];
-        const link = route.segments.find((segment) => segment.start === crossing.arrival);
-        if (!link) throw new Error('Missing pedestrian landing link.');
-        walker.stopAt = wrap(link.start + link.length * (0.4 + random(walker) * 0.2), route.length);
+        this.chooseDestination(walker);
       }
     } else {
       actor.distance = wrap(actor.distance + walker.advance, actor.routeLength);

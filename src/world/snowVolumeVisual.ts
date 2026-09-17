@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { WeatherPhysics } from './weatherPhysics';
 import { WEATHER_EXTENT } from './weatherPhysics';
+import { CIVIC_MAINTENANCE_GLSL } from './civicMaintenance';
 
 /** Displaced shells share source geometry, but own their materials and instance buffers. */
 export class SnowVolumeVisual {
@@ -62,10 +63,13 @@ export class SnowVolumeVisual {
             `).replace('#include <worldpos_vertex>', 'vec4 worldPosition = snowWorld;');
           shader.fragmentShader = `
             uniform sampler2D weatherHeight;
+            uniform float snowRetention;
             varying vec3 vSnowBase;
             varying float vSnowUp;
+            ${CIVIC_MAINTENANCE_GLSL}
             ${shader.fragmentShader}`.replace('#include <clipping_planes_fragment>', `
               #include <clipping_planes_fragment>
+              if (civicSnowRetention(vSnowBase, snowRetention) == 0.0) discard;
               vec2 snowUv = (vSnowBase.xz + ${WEATHER_EXTENT.toFixed(1)}) / ${(WEATHER_EXTENT * 2).toFixed(1)};
               float snowTop = texture2D(weatherHeight, snowUv).r;
               float snowCap = smoothstep(0.25, 0.65, vSnowUp) * smoothstep(snowTop - 0.55, snowTop - 0.1, vSnowBase.y);
@@ -76,7 +80,7 @@ export class SnowVolumeVisual {
         };
         color.onBeforeCompile = compile;
         shadow.onBeforeCompile = compile;
-        color.customProgramCacheKey = shadow.customProgramCacheKey = () => 'snow-volume-2';
+        color.customProgramCacheKey = shadow.customProgramCacheKey = () => 'snow-volume-3';
         material = { color, shadow };
         this.materials.set(retention, material);
       }

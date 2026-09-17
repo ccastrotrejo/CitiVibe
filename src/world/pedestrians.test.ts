@@ -84,11 +84,11 @@ describe('connected pedestrian trips', () => {
       return SIDEWALK_WALKING_ROUTES[index % STREET_BLOCKS.length][lane];
     });
     for (let tick = 0; tick < 5400; tick++) {
-      const previous = pedestrians.actors.map(({ position }) => ({ x: position.x, z: position.z }));
+      const previous = pedestrians.actors.map(({ position, visit }) => ({ x: position.x, z: position.z, visiting: !!visit }));
       pedestrians.step(DT, signals);
       const moving = new Map<string, number[]>();
       pedestrians.actors.forEach((actor, index) => {
-        if (actor.speed < 0.1) return;
+        if (actor.speed < 0.1 || actor.visit || previous[index].visiting) return;
         const route = routes[index];
         const segment = route.segments.find((segment) =>
           actor.distance >= segment.start && actor.distance < segment.start + segment.length)!;
@@ -221,7 +221,9 @@ describe('connected pedestrian trips', () => {
         if (actor.state === 'dwelling') {
           restTimes[index] += DT;
           rested.add(actor.id);
-          if (actor.speed !== 0 || restTimes[index] > PEDESTRIAN_BEHAVIOR.maxRest + DT * 2) throw new Error('Unbounded rest');
+          if (actor.speed !== 0 || restTimes[index] > (actor.visit?.destination.duration ?? 0) + DT * 2) {
+            throw new Error('Unbounded rest');
+          }
         } else if (restTimes[index] > 0) {
           durations.push(restTimes[index]);
           restTimes[index] = 0;
@@ -234,12 +236,13 @@ describe('connected pedestrian trips', () => {
     }
     // Long blocks and full destinations can defer a trip; most people should still cross in this window.
     expect(crossed.size).toBeGreaterThan(actors.length / 2);
-    // Keep the previous 36-person arrival minimum: the eight-person destination cap has not grown.
-    expect(rested.size).toBeGreaterThan(36);
-    expect(activities).toEqual(new Set(['walking', 'waiting-to-cross', 'crossing', 'looking-around', 'resting']));
+    // Only a physically reached off-line window pocket admits a dwell.
+    expect(rested.size).toBeGreaterThan(0);
+    expect(activities).toEqual(new Set(['walking', 'waiting-to-cross', 'crossing', 'window-shopping', 'civic-duty', 'resting']));
     expect(streets.size).toBe(8);
     expect(sawClearance).toBe(true);
-    expect(new Set(durations.map((value) => value.toFixed(1))).size).toBeGreaterThan(15);
+    expect(durations.every((value) => [3.2, 4.5, 5.5].some((expected) =>
+      value >= expected - DT && value <= expected + DT * 2))).toBe(true);
   }, 30_000);
 
   it('retains active crossing reservations, choices and timers on zero-time redraws', () => {
@@ -257,6 +260,35 @@ describe('connected pedestrian trips', () => {
     traffic.step(DT);
     reference.step(DT);
     expect(traffic).toEqual(reference);
+  });
+
+  it('releases a cleared departure behind a moving crosser while retaining its signal and landing reservation', () => {
+    const traffic = new CityTraffic(91);
+    let followedClearedTail = false;
+    for (let tick = 0; tick < 1800 && !followedClearedTail; tick++) {
+      traffic.step(DT);
+      for (const crosser of traffic.pedestrians.actors.filter(({ activity }) => activity === 'crossing')) {
+        const crossing = traffic.pedestrians.crossings.find((path) => {
+          const along = (crosser.position.x - path.x) * path.dx + (crosser.position.z - path.z) * path.dz;
+          return along > 0 && along < path.length &&
+            Math.abs((crosser.position.x - path.x) * path.dz - (crosser.position.z - path.z) * path.dx) < 1e-7;
+        });
+        if (!crossing) continue;
+        for (const follower of traffic.pedestrians.actors) {
+          if (follower.visit || follower.activity === 'crossing' || follower.speed === 0) continue;
+          const along = (follower.position.x - crossing.x) * crossing.dx +
+            (follower.position.z - crossing.z) * crossing.dz;
+          const lateral = Math.abs((follower.position.x - crossing.x) * crossing.dz -
+            (follower.position.z - crossing.z) * crossing.dx);
+          if (along >= 0 || along <= -PERSON_SPACE.headway + 1e-7 || lateral > 1e-7) continue;
+          expect(traffic.pedestrians.isCrossingOccupied(crossing.intersection)).toBe(true);
+          expect(Math.hypot(follower.position.x - crosser.position.x, follower.position.z - crosser.position.z))
+            .toBeGreaterThanOrEqual(PERSON_SPACE.headway - 1e-7);
+          followedClearedTail = true;
+        }
+      }
+    }
+    expect(followedClearedTail).toBe(true);
   });
 
   it('walks on after a denied crossing, including corners rounded just below their exact distance', () => {
