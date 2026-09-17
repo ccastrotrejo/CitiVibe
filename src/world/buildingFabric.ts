@@ -3,6 +3,8 @@ import type * as THREE from 'three';
 import type { StreetBlock, StreetBuilding, StreetscapeBuilder } from './streetscape';
 
 export type BuildingFace = 'west' | 'east' | 'north' | 'south';
+type FacadePiece = (surface: THREE.Material, along: number, y: number, outward: number,
+  width: number, height: number, depth: number) => void;
 export const PARTY_WALL_JOINT = 0.06;
 /** Retain the diagonal view into the east-south stairwell, as well as actual bicycle access. */
 export const STREET_WALL_OPENINGS = [
@@ -85,12 +87,26 @@ export function faceName(axis: 'x' | 'z', side: number): BuildingFace {
   return axis === 'x' ? (side < 0 ? 'west' : 'east') : (side < 0 ? 'north' : 'south');
 }
 
+/** Projected metal crowns belong to street elevations, never shared lot-line walls. */
+export function buildStreetCornice(
+  building: StreetBuilding, p: StreetscapeBuilder['palette'], piece: FacadePiece,
+): void {
+  if (building.fabricType !== 'tenement' && building.fabricType !== 'metal-loft') return;
+  const span = buildingFrontSpan(building);
+  const top = 0.3 + building.floors * building.architecture.floorHeight;
+  piece(p.rubber, 0, top - 0.08, 0.1, span - 0.12, 0.12, 0.18);
+  const brackets = Math.max(2, Math.floor(span / 2.4));
+  for (let index = 0; index < brackets; index++) {
+    const along = (index - (brackets - 1) / 2) * (span - 0.65) / brackets;
+    piece(p.rubber, along, top - 0.08, 0.16, 0.14, 0.24, 0.28);
+  }
+}
+
 /** Original transomed market, recessed cafe, quieter bookshop and broad office lobby. */
 export function buildCommercialFront(
   building: StreetBuilding,
   p: StreetscapeBuilder['palette'],
-  piece: (surface: THREE.Material, along: number, y: number, outward: number,
-    width: number, height: number, depth: number) => void,
+  piece: FacadePiece,
 ): void {
   const span = buildingFrontSpan(building);
   const shop = building.storefront;
