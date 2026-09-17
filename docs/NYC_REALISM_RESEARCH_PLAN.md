@@ -25,7 +25,7 @@ The final clearance refinement protects both actual walking lanes through their 
 | R07 | Refined reveals, sills and trim use a shared correctly oriented pane instead of redundant glazing solids. |
 | R08 | Roof access bulkheads sit on the membrane, with compatible tank/plant/chimney/garden and service details. |
 | R09 | Opposing motor centerlines are yellow; crosswalks and stop bars remain white and cycling meanings are retained. |
-| R10 | Curb-run end markings replace individual painted parking stalls and repeated pavement P marks. The twelve parked-car poses stay unchanged. |
+| R10 | Curb-run end markings initially replaced individual parking outlines and pavement P marks. The 2026-09-17 user correction restores all twelve three-sided white bay outlines; curb ticks and restrained signs remain, without pavement P marks. Parked-car poses stay unchanged. |
 | R11 | Sparse pavement joints, patches and seams provide surface scale without a district-wide grunge texture. |
 | R12 | Frontage roles, ground detail and furnishing composition distinguish street character without changing the road graph. |
 | R13 | Interior furnishing pockets include full walking, use and approach envelopes, rather than clearance against a single nominal path centerline. |

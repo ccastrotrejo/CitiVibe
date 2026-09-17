@@ -82,7 +82,7 @@ describe('original curbside furniture', () => {
     }
   });
 
-  it('retains unpainted curb reservations and restrained signs without entering driving lanes or crossings', () => {
+  it('retains parking bay reservations and restrained signs without entering driving lanes or crossings', () => {
     expect(PARKING_BAYS).toHaveLength(12);
     expect(PARKING_SIGNS).toHaveLength(4);
     expect(CURB_RUN_ENDS).toHaveLength(4);
@@ -152,7 +152,9 @@ describe('original curbside furniture', () => {
       expect(parts.filter(({ material }) => material === glass)).toHaveLength(28);
       expect(parts.filter(({ shape }) => shape === lettering.food)).toHaveLength(8);
       expect(parts.filter(({ shape }) => shape === lettering.parking)).toHaveLength(0);
-      expect(parts.length).toBeLessThan(1800);
+      // Includes main's expanded civic utilities and the 36 restored paint strips;
+      // scene.test.ts retains the unchanged whole-scene triangle/draw/material limits.
+      expect(parts.length).toBeLessThan(2300);
       for (const part of parts) {
         part.shape.computeBoundingBox();
         const bounds = part.shape.boundingBox!.clone().applyMatrix4(part.matrix);
