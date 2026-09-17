@@ -58,6 +58,7 @@ describe('interior civic furniture relocation', () => {
     const owned = new Set<string>();
     const box = new THREE.BoxGeometry();
     const cylinder = new THREE.CylinderGeometry(1, 1, 1, 10);
+    const wheel = new THREE.CylinderGeometry(0.38, 0.38, 0.2, 12);
     const crown = new THREE.DodecahedronGeometry();
     const material = new THREE.MeshStandardMaterial();
     const lettering = { food: buildSignLettering('FOOD', 2.8, 0.48), parking: buildSignLettering('P', 0.4, 0.52) };
@@ -82,9 +83,14 @@ describe('interior civic furniture relocation', () => {
       },
     };
     try {
-      buildStreetFurniture(builder, material, material, lettering);
+      buildStreetFurniture(builder, material, material, lettering, {
+        box, cylinder, wheel, taperedShell: box, wheelArch: box, taxiLettering: lettering.parking,
+        personArt: { box, head: crown, material }, civicBlue: material,
+        vehiclePaint: material, vehicleGlass: material, lampGlow: material,
+        beaconRed: material, beaconBlue: material, palette,
+      });
     } finally {
-      [box, cylinder, crown, material, lettering.food, lettering.parking].forEach((resource) => resource.dispose());
+      [box, cylinder, wheel, crown, material, lettering.food, lettering.parking].forEach((resource) => resource.dispose());
     }
     world = buildCityScene();
     world.scene.updateMatrixWorld(true);

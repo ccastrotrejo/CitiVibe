@@ -179,6 +179,33 @@ export function buildCityScene(): CityScene {
   const crown = geometry(new THREE.DodecahedronGeometry(1));
   const personArt: PersonArt = { box, head: geometry(new THREE.IcosahedronGeometry(1)), material: paint('#ffffff') };
   personArt.material.name = 'Shared person colors';
+  const wheel = geometry(new THREE.CylinderGeometry(0.38, 0.38, 0.2, 12));
+  const taperedShell = geometry(new THREE.BoxGeometry());
+  const shellPositions = taperedShell.getAttribute('position');
+  for (let index = 0; index < shellPositions.count; index++) {
+    if (shellPositions.getY(index) <= 0) continue;
+    shellPositions.setX(index, shellPositions.getX(index) * 0.9);
+    shellPositions.setZ(index, shellPositions.getZ(index) * 0.8 - 0.06);
+  }
+  taperedShell.computeVertexNormals();
+  const archVertices: number[] = [];
+  const archIndices: number[] = [];
+  for (let step = 0; step <= 3; step++) {
+    const angle = step / 3 * Math.PI;
+    for (const radius of [1, 1.16]) archVertices.push(0, Math.sin(angle) * radius, Math.cos(angle) * radius);
+    if (step < 3) {
+      const index = step * 2;
+      archIndices.push(index, index + 2, index + 1, index + 1, index + 2, index + 3);
+    }
+  }
+  const wheelArch = geometry(new THREE.BufferGeometry());
+  wheelArch.setAttribute('position', new THREE.Float32BufferAttribute(archVertices, 3));
+  wheelArch.setIndex(archIndices);
+  wheelArch.computeVertexNormals();
+  const vehicleArt: VehicleArt = {
+    box, cylinder, wheel, taperedShell, wheelArch, personArt, civicBlue, vehicleGlass, lampGlow, palette, beaconRed, beaconBlue,
+    vehiclePaint: palette.facade, taxiLettering: geometry(buildSignLettering('TAXI', 0.5, 0.13)),
+  };
   const dummy = new THREE.Object3D();
 
   function batcher(parent: THREE.Object3D) {
@@ -310,7 +337,7 @@ export function buildCityScene(): CityScene {
   buildStreetFurniture(builder, civicBlue, vehicleGlass, {
     food: geometry(buildSignLettering('FOOD', 2.8, 0.48)),
     parking: geometry(buildSignLettering('P', 0.4, 0.52)),
-  });
+  }, vehicleArt);
   const bikeShare = buildBikeShare(builder, personArt, civicBlue);
   const { streetHeight, parkHeight, poleRadius, armLength, armHeight, headSize, headDrop,
     parkGlobeRadius } = LAMP_GEOMETRY;
@@ -411,7 +438,6 @@ export function buildCityScene(): CityScene {
   }
   // Actors are posable rigs: static shells stay batched, while feet, wheels, and
   // vehicle bodies are separate named pivots the locomotion layer drives per frame.
-  const wheel = geometry(new THREE.CylinderGeometry(0.38, 0.38, 0.2, 12));
   const limb = (
     shape: THREE.BufferGeometry, surface: THREE.Material,
     position: readonly [number, number, number], scale: readonly [number, number, number],
@@ -437,10 +463,7 @@ export function buildCityScene(): CityScene {
     poseNeutral(rig);
   }
 
-  const vehicleArt: VehicleArt = {
-    box, cylinder, wheel, personArt, civicBlue, vehicleGlass, lampGlow, palette, beaconRed, beaconBlue,
-  };
-  for (const [index, definition] of TRAFFIC_ACTORS.entries()) {
+  for (const definition of TRAFFIC_ACTORS) {
     const group = actorGroup(definition.id, `Neighborhood ${definition.vehicleType ?? definition.kind}`);
     neighborhoodActors.push(group);
     if (definition.kind === 'pedestrian') {
@@ -449,7 +472,7 @@ export function buildCityScene(): CityScene {
       poseNeutral(rig);
       continue;
     }
-    vehicleLights.push(buildVehicleRig(group, definition, index, vehicleArt));
+    vehicleLights.push(buildVehicleRig(group, definition, vehicleArt));
   }
   const courtPlayers: CourtPlayerRig[] = COURT_PLAYERS.map((definition) => {
     const group = new THREE.Group();

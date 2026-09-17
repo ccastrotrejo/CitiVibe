@@ -17,7 +17,7 @@ export interface CurbVehicle extends StreetProp {
 export const CURB_VEHICLES: readonly CurbVehicle[] = [-1, 1].flatMap((side) =>
   [-21, -14, -7, 7, 14, 21].map((x, index) => ({
     id: `parked-car-${side}-${index}`, kind: 'parked-car' as const,
-    x, z: side * 98.85, yaw: -side * Math.PI / 2, width: 1.5, length: 3.4 + index % 2 * 0.3,
+    x, z: side * 98.85, yaw: -side * Math.PI / 2, width: 1.65, length: 2.8,
   })));
 
 export const PARKING_BAYS = CURB_VEHICLES.map((vehicle) => ({

@@ -170,6 +170,7 @@ describe('shared connected street graph', () => {
       ambulanceBox: { length: 4.5, width: 1.76 },
       firetruck: { length: 4.6, width: 1.78 },
       fireSuv: { length: 2.7, width: 1.6 },
+      policeSuv: { length: 2.7, width: 1.6 },
     };
     TRAFFIC_ACTORS.forEach(({ vehicleType }, index) => {
       if (vehicleType) {
@@ -217,6 +218,8 @@ describe('shared connected street graph', () => {
     // Emergency vehicles re-skin same-length cars in place: each keeps the collision footprint
     // of the regular vehicle it replaced, so no seeded placement shifts and safety holds.
     const emergencyExpectations = [
+      { id: 'city-vehicle-1', vehicleType: 'policeSuv', matches: 'sedan' },
+      { id: 'city-vehicle-25', vehicleType: 'policeSuv', matches: 'sedan' },
       { id: 'city-ambulance-1', vehicleType: 'ambulanceBox', matches: 'truck' },
       { id: 'city-ambulance-2', vehicleType: 'ambulanceBox', matches: 'truck' },
       { id: 'city-ambulance-3', vehicleType: 'ambulanceVan', matches: 'van' },
@@ -235,7 +238,7 @@ describe('shared connected street graph', () => {
     expect(TRAFFIC_ACTORS.filter(({ id }) => id.startsWith('city-ambulance-') || id.startsWith('city-firetruck-'))).toHaveLength(8);
     expect(new Set(TRAFFIC_ACTORS.map(({ vehicleType }) => vehicleType).filter(Boolean)))
       .toEqual(new Set(['sedan', 'taxi', 'van', 'truck', 'bus', 'bicycle',
-        'ambulanceVan', 'ambulanceBox', 'firetruck', 'fireSuv']));
+        'ambulanceVan', 'ambulanceBox', 'firetruck', 'fireSuv', 'policeSuv']));
   });
 
   it('uses shared directed links in a connected network, not disconnected decorative circuits', () => {
@@ -706,7 +709,7 @@ describe('CityTraffic', () => {
       }
     }
     expect(stopped).toEqual(new Set(['sedan', 'taxi', 'van', 'truck', 'bus', 'bicycle',
-      'ambulanceVan', 'ambulanceBox', 'firetruck', 'fireSuv']));
+      'ambulanceVan', 'ambulanceBox', 'firetruck', 'fireSuv', 'policeSuv']));
   });
 
   it('shows moving cyclists passing safely in opposite directions on each paired track', () => {
