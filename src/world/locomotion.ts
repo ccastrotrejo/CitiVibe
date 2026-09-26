@@ -59,6 +59,48 @@ export const WALKER = {
 
 export const RUNNER = { stride: 1.55, duty: 0.4, stepHeight: 0.22, hipY: 0.76, bobAmp: 0.025, armSwing: 0.7, trunkLean: 0.16 } as const;
 
+/** Stable per-person gait character; neutral values reproduce the shared baseline gait. */
+export interface GaitTraits {
+  readonly stride: number;
+  readonly arm: number;
+  readonly bob: number;
+  readonly lean: number;
+  /** Cadence phase offset, in gait cycles. */
+  readonly phase: number;
+}
+
+export const NEUTRAL_GAIT: GaitTraits = Object.freeze({ stride: 1, arm: 1, bob: 1, lean: 1, phase: 0 });
+
+function traitSample(id: string, feature: string): number {
+  let hash = 2166136261;
+  for (const char of `${id}:gait:${feature}`) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619);
+  hash ^= hash >>> 16;
+  hash = Math.imul(hash, 0x7feb352d);
+  hash ^= hash >>> 15;
+  return (hash >>> 0) / 0x100000000;
+}
+
+/** ID-seeded stride, arm, bob, lean and cadence-phase character (no wall time or ambient randomness). */
+export function createGaitTraits(id: string): GaitTraits {
+  return Object.freeze({
+    stride: 0.92 + traitSample(id, 'stride') * 0.16,
+    arm: 0.85 + traitSample(id, 'arm') * 0.3,
+    bob: 0.75 + traitSample(id, 'bob') * 0.5,
+    lean: 0.75 + traitSample(id, 'lean') * 0.5,
+    phase: traitSample(id, 'phase'),
+  });
+}
+
+/**
+ * Rig-local stride for a running-capable figure. `run` blends the walking and
+ * running gaits (0 walk, 1 run); the simulation integrates cycles with this same
+ * length so stance feet stay ground-locked while pace and gait change.
+ */
+export function blendedStride(localSpeed: number, run: number, traits: GaitTraits = NEUTRAL_GAIT): number {
+  const walk = strideLength(localSpeed);
+  return (walk + (RUNNER.stride - walk) * clamp(run, 0, 1)) * traits.stride;
+}
+
 /** Vehicle wheel radii and attitude tuning. */
 export const VEHICLE = {
   busWheelRadius: 0.38,
@@ -110,6 +152,8 @@ export type ActorRig = WalkerRig | VehicleRig;
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 const frac = (value: number) => ((value % 1) + 1) % 1;
 const smoothstep = (u: number) => u * u * (3 - 2 * u);
+/** Linear blend that returns either endpoint exactly, keeping pure walk/run poses bit-identical. */
+const mix = (from: number, to: number, t: number) => t <= 0 ? from : t >= 1 ? to : from + (to - from) * t;
 
 /** Comfortable stride length grows roughly linearly with speed, then clamps. */
 export function strideLength(speed: number): number {
@@ -172,6 +216,28 @@ export interface WalkerPose {
   /** 1 seated, 0 standing; the simulation holds translation during intermediate values. */
   sitting?: number;
   weather?: PersonWeatherState;
+  /** Optional per-person gait character; omitted callers keep the neutral baseline. */
+  traits?: GaitTraits;
+  /**
+   * Optional integrated running gait (world-metre stride, cycle count and 0..1
+   * run blend). Used only for animated, non-cautious runners.
+   */
+  gait?: { readonly cycle: number; readonly stride: number; readonly run: number };
+}
+
+let footZ = 0;
+let footY = 0;
+/** Allocation-free foot trajectory shared by blended walk/run cycles. */
+function blendedFoot(phase: number, stride: number, duty: number, stepHeight: number): void {
+  const amplitude = duty * stride / 2;
+  if (phase < duty) {
+    footZ = amplitude - phase * stride;
+    footY = 0;
+    return;
+  }
+  const swing = (phase - duty) / (1 - duty);
+  footZ = -amplitude + smoothstep(swing) * 2 * amplitude;
+  footY = stepHeight * Math.sin(Math.PI * swing);
 }
 
 /** Pose an articulated pedestrian rig from its travelled distance. */
@@ -186,20 +252,26 @@ export function poseWalkerRig(rig: WalkerRig, pose: WalkerPose): void {
   const blend = reading || observingWindow || civicDuty || resting || sitting > 0 ||
     (pose.sitting !== undefined && pose.speed === 0) ? 0 : pose.blend;
   // Solve in rig-local metres so shorter legs take shorter steps, without skating.
-  const distance = pose.distance / (rig.scale ?? 1);
-  const speed = pose.speed / (rig.scale ?? 1);
+  const scale = rig.scale ?? 1;
+  const distance = pose.distance / scale;
+  const speed = pose.speed / scale;
   const running = pose.running && !reducedMotion && !pose.weather?.cautious;
-  const stride = running ? RUNNER.stride : strideLength(speed);
-  const cyclePhase = gaitPhase(distance, stride);
-  const bob = reducedMotion ? 0 : running
-    ? RUNNER.bobAmp * Math.cos(2 * TAU * (cyclePhase - 0.45))
-    : WALKER.bobAmp * -Math.cos(2 * TAU * cyclePhase);
-  const pelvisY = WALKER.hipY - 0.36 * sitting + ((running ? RUNNER.hipY - WALKER.hipY : 0) + bob) * blend;
+  // Reduced motion keeps the shared, calmer baseline gait for everyone.
+  const traits = reducedMotion ? NEUTRAL_GAIT : pose.traits ?? NEUTRAL_GAIT;
+  const integrated = running ? pose.gait : undefined;
+  const run = integrated ? clamp(integrated.run, 0, 1) : running ? 1 : 0;
+  const stride = integrated ? integrated.stride / scale
+    : (running ? RUNNER.stride : strideLength(speed)) * traits.stride;
+  const cycle = (integrated ? integrated.cycle : distance / stride) + traits.phase;
+  const cyclePhase = frac(cycle);
+  const bob = reducedMotion ? 0 : traits.bob * mix(WALKER.bobAmp * -Math.cos(2 * TAU * cyclePhase),
+    RUNNER.bobAmp * Math.cos(2 * TAU * (cyclePhase - 0.45)), run);
+  const pelvisY = WALKER.hipY - 0.36 * sitting + (mix(0, RUNNER.hipY - WALKER.hipY, run) + bob) * blend;
   rig.pelvis.position.y = pelvisY;
   // Shift the hips over planted feet, rather than dragging the feet forward to sit.
   rig.pelvis.position.z = -0.2 * sitting;
 
-  rig.torso.rotation.x = (running ? RUNNER.trunkLean : WALKER.trunkLean) * blend * (reducedMotion ? 0.4 : 1)
+  rig.torso.rotation.x = mix(WALKER.trunkLean, RUNNER.trunkLean, run) * traits.lean * blend * (reducedMotion ? 0.4 : 1)
     + 0.08 * sitting + 0.96 * sitting * (1 - sitting);
   rig.torso.rotation.z = reducedMotion || blend === 0 ? 0 : WALKER.listAmp * Math.sin(TAU * cyclePhase) * blend;
   rig.torso.position.x = reducedMotion || blend === 0 ? 0 : WALKER.swayAmp * Math.sin(TAU * cyclePhase) * blend;
@@ -209,12 +281,12 @@ export function poseWalkerRig(rig: WalkerRig, pose: WalkerPose): void {
     rig.torso.rotation.y = 0.12 * Math.sin(Math.PI * Math.min(1, (pose.activityTime ?? 0) / 2.5));
   }
 
+  const duty = mix(DUTY, RUNNER.duty, run);
+  const stepHeight = mix(WALKER.stepHeight, RUNNER.stepHeight, run);
   for (let leg = 0; leg < 2; leg += 1) {
-    const phase = gaitPhase(distance, stride, leg === 1 ? 0.5 : 0);
-    const foot = running ? runningFootTrajectory(phase) : footTrajectory(phase, stride);
-    const footZ = foot.z * blend - rig.pelvis.position.z;
-    const footY = foot.y * blend;
-    const { hip, knee } = solveLeg(footZ, pelvisY - footY);
+    blendedFoot(frac(cycle + (leg === 1 ? 0.5 : 0)), stride, duty, stepHeight);
+    const targetZ = footZ * blend - rig.pelvis.position.z;
+    const { hip, knee } = solveLeg(targetZ, pelvisY - footY * blend);
     rig.legs[leg].hip.rotation.x = -hip;
     rig.legs[leg].knee.rotation.x = knee;
     // Keep the sole flat on the ground (plantigrade): the knee node's world tilt
@@ -222,9 +294,9 @@ export function poseWalkerRig(rig: WalkerRig, pose: WalkerPose): void {
     rig.legs[leg].ankle.rotation.x = hip - knee;
   }
 
-  const swing = (reducedMotion ? 0.4 : 1) * (running ? RUNNER.armSwing : WALKER.armSwing) * blend;
+  const swing = (reducedMotion ? 0.4 : 1) * mix(WALKER.armSwing, RUNNER.armSwing, run) * traits.arm * blend;
   rig.arms[0].rotation.x = swing * Math.cos(TAU * cyclePhase) - 0.45 * sitting;
-  rig.arms[1].rotation.x = swing * Math.cos(TAU * gaitPhase(distance, stride, 0.5)) - 0.45 * sitting;
+  rig.arms[1].rotation.x = swing * Math.cos(TAU * frac(cycle + 0.5)) - 0.45 * sitting;
   if (reading) {
     rig.arms[0].rotation.x = -0.95;
     rig.arms[1].rotation.x = -0.95;
@@ -286,6 +358,7 @@ interface Memory {
   roll: number;
   steer: number;
   drop: number;
+  traits: GaitTraits;
 }
 
 /**
@@ -314,7 +387,7 @@ export class Locomotion {
       if (rig.kind === 'walker') {
         poseWalkerRig(rig, { distance: actor.travelDistance ?? actor.distance, speed: actor.speed, blend: memory.blend, reducedMotion,
           running: actor.gait === 'run', activity: actor.activity, activityTime: actor.activityTime,
-          sitting: actor.sitting, weather: actor.weather });
+          sitting: actor.sitting, weather: actor.weather, traits: memory.traits, gait: actor.runner });
       } else {
         poseVehicleRig(rig, { distance: actor.distance, pitch: memory.pitch, roll: memory.roll,
           steer: memory.steer, drop: memory.drop });
@@ -325,7 +398,8 @@ export class Locomotion {
   private remember(actor: ActorState): Memory {
     let entry = this.memory.get(actor.id);
     if (!entry) {
-      entry = { blend: 0, speed: actor.speed, heading: actor.heading, pitch: 0, roll: 0, steer: 0, drop: 0 };
+      entry = { blend: 0, speed: actor.speed, heading: actor.heading, pitch: 0, roll: 0, steer: 0, drop: 0,
+        traits: createGaitTraits(actor.id) };
       this.memory.set(actor.id, entry);
     }
     return entry;
@@ -351,6 +425,8 @@ export class Locomotion {
         pose.activityTime = actor.activityTime;
         pose.sitting = actor.sitting;
         pose.weather = actor.weather;
+        pose.traits = memory.traits;
+        pose.gait = actor.runner;
         poseWalkerRig(rig, pose);
         continue;
       }

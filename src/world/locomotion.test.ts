@@ -3,9 +3,10 @@ import * as THREE from 'three';
 import { ActorSimulation } from './actors';
 import { buildCityScene } from './scene';
 import type { CityScene } from './scene';
+import { PARK_ACTORS } from '../content/park';
 import {
-  Locomotion, RUNNER, VEHICLE, WALKER, footTrajectory, gaitPhase, poseVehicleRig, poseWalkerRig,
-  runningFootTrajectory, solveLeg, strideLength,
+  Locomotion, NEUTRAL_GAIT, RUNNER, VEHICLE, WALKER, createGaitTraits, footTrajectory, gaitPhase, poseVehicleRig,
+  poseWalkerRig, runningFootTrajectory, solveLeg, strideLength,
 } from './locomotion';
 import type { VehicleRig, WalkerRig } from './locomotion';
 
@@ -290,6 +291,120 @@ describe('distinct running gait', () => {
     const paused = ankleWorld(group, rig, 1);
     new Locomotion().update(new ActorSimulation().actors, world.actors, 0, false);
     expect(ankleWorld(group, rig, 1)).toEqual(paused);
+  });
+});
+
+describe('individual gait character', () => {
+  it('derives stable, bounded and distinct traits from each person ID', () => {
+    const ids = PARK_ACTORS.map(({ id }) => id);
+    const traits = ids.map(createGaitTraits);
+    expect(ids.map(createGaitTraits)).toEqual(traits);
+    for (const trait of traits) {
+      expect(trait.stride).toBeGreaterThanOrEqual(0.92);
+      expect(trait.stride).toBeLessThanOrEqual(1.08);
+      expect(trait.arm).toBeGreaterThanOrEqual(0.85);
+      expect(trait.arm).toBeLessThanOrEqual(1.15);
+      expect(trait.bob).toBeGreaterThanOrEqual(0.75);
+      expect(trait.lean).toBeLessThanOrEqual(1.25);
+      expect(trait.phase).toBeGreaterThanOrEqual(0);
+      expect(trait.phase).toBeLessThan(1);
+    }
+    expect(new Set(traits.map(({ stride }) => stride)).size).toBe(ids.length);
+    expect(new Set(traits.map(({ phase }) => phase)).size).toBe(ids.length);
+    expect(Math.max(...traits.map(({ stride }) => stride)) - Math.min(...traits.map(({ stride }) => stride))).toBeGreaterThan(0.1);
+  });
+
+  it('moves two people in the same state differently, but keeps reduced motion on the shared baseline', () => {
+    const world = scene();
+    const driver = new Locomotion();
+    const actors = ['runner-3', 'runner-4', 'walker-3', 'walker-4'].map((id) => {
+      const actor = new ActorSimulation().getActor(id)!;
+      Object.assign(actor, { speed: actor.gait === 'run' ? 2.5 : 1.1, state: 'moving', travelDistance: 37.2 });
+      if (actor.runner) Object.assign(actor.runner, { cycle: 12.3, stride: 1.7, run: 1 });
+      return actor;
+    });
+    const joints = (id: string) => {
+      const rig = world.actors.get(id)!.userData.rig as WalkerRig;
+      return [rig.legs[0].hip.rotation.x, rig.legs[0].knee.rotation.x, rig.arms[0].rotation.x,
+        rig.pelvis.position.y, rig.torso.rotation.x];
+    };
+    for (let frame = 0; frame < 30; frame++) driver.update(actors, world.actors, 1 / 30, false);
+    expect(joints('runner-3')).not.toEqual(joints('runner-4'));
+    expect(joints('walker-3')).not.toEqual(joints('walker-4'));
+    driver.update(actors, world.actors, 1 / 30, true);
+    for (const actor of actors) {
+      const rig = world.actors.get(actor.id)!.userData.rig as WalkerRig;
+      const blend = 1 - (1 - Math.min(1, WALKER.blendRate / 30)) ** 31;
+      const reduced = joints(actor.id);
+      poseWalkerRig(rig, { distance: actor.travelDistance!, speed: actor.speed, blend, reducedMotion: true,
+        running: actor.gait === 'run' });
+      expect(reduced).toEqual(joints(actor.id));
+      poseWalkerRig(rig, { distance: actor.travelDistance!, speed: actor.speed, blend, reducedMotion: true,
+        running: actor.gait === 'run', traits: createGaitTraits(actor.id), gait: actor.runner });
+      expect(joints(actor.id)).toEqual(reduced);
+    }
+  });
+
+  it('blends between running and cooldown walking without joint pops', () => {
+    const world = scene();
+    const rig = world.actors.get('runner-5')!.userData.rig as WalkerRig;
+    const traits = createGaitTraits('runner-5');
+    let previous: number[] | null = null;
+    for (let step = 0; step <= 200; step++) {
+      const run = 1 - step / 200;
+      poseWalkerRig(rig, { distance: 0, speed: 2.4 - run * 0, blend: 1, reducedMotion: false, running: true, traits,
+        gait: { cycle: 40.3 + step * 0.004, stride: 1.6 - 0.5 * (1 - run), run } });
+      const now = [rig.legs[0].hip.rotation.x, rig.legs[0].knee.rotation.x, rig.legs[1].hip.rotation.x,
+        rig.legs[1].knee.rotation.x, rig.pelvis.position.y, rig.torso.rotation.x, rig.arms[0].rotation.x];
+      if (previous) now.forEach((value, index) => expect(Math.abs(value - previous![index])).toBeLessThan(0.05));
+      previous = now;
+    }
+    expect(rig.torso.rotation.x).toBeCloseTo(WALKER.trunkLean * traits.lean, 9);
+  });
+
+  it('keeps live simulated runner stance feet planted through pace, lane and gait changes', () => {
+    const world = scene();
+    const simulation = new ActorSimulation(42);
+    const driver = new Locomotion();
+    const runners = simulation.actors.filter(({ gait }) => gait === 'run');
+    const stance = new Map<string, { cycle: number; start: THREE.Vector3 }>();
+    let checked = 0;
+    let worst = 0;
+    for (let tick = 0; tick < 3600; tick++) {
+      simulation.step(1 / 30);
+      for (const actor of runners) {
+        const group = world.actors.get(actor.id)!;
+        group.position.set(actor.position.x, 0, actor.position.z);
+        group.rotation.y = actor.heading;
+      }
+      driver.update(runners, world.actors, 1 / 30, false);
+      for (const actor of runners) {
+        const rig = world.actors.get(actor.id)!.userData.rig as WalkerRig;
+        const runner = actor.runner!;
+        const cycle = runner.cycle + createGaitTraits(actor.id).phase;
+        const phase = cycle - Math.floor(cycle);
+        const duty = 0.6 + (RUNNER.duty - 0.6) * runner.run;
+        const current = stance.get(actor.id);
+        // Skip the initial start-up blend, where every figure eases from standing into its stride.
+        if (tick > 60 && phase > 0.03 && phase < duty - 0.03 && actor.speed > 1 && runner.run > 0.999) {
+          const foot = ankleWorld(world.actors.get(actor.id)!, rig, 0);
+          expect(foot.y).toBeLessThan(0.002);
+          if (current && current.cycle === Math.floor(cycle)) {
+            worst = Math.max(worst, Math.hypot(foot.x - current.start.x, foot.z - current.start.z));
+            checked++;
+          } else stance.set(actor.id, { cycle: Math.floor(cycle), start: foot });
+        } else stance.delete(actor.id);
+      }
+    }
+    expect(checked).toBeGreaterThan(2000);
+    // Only heading changes on the curved reservoir track rotate the planted sole slightly.
+    expect(worst).toBeLessThan(0.02);
+    const rig = world.actors.get('runner-7')!.userData.rig as WalkerRig;
+    const retained = [rig.legs[0].hip.rotation.x, rig.legs[1].knee.rotation.x, rig.pelvis.position.y];
+    poseWalkerRig(rig, { distance: 0, speed: 0, blend: 0, reducedMotion: false });
+    driver.restore(runners, world.actors, false);
+    expect([rig.legs[0].hip.rotation.x, rig.legs[1].knee.rotation.x, rig.pelvis.position.y]).toEqual(retained);
+    expect(NEUTRAL_GAIT).toEqual({ stride: 1, arm: 1, bob: 1, lean: 1, phase: 0 });
   });
 });
 

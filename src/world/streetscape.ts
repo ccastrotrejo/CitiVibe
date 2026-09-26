@@ -579,6 +579,26 @@ function streetSpans(extent: number, crossings: readonly number[], gap: number) 
   return spans;
 }
 
+/**
+ * Trim wrapping a volume projects past exposed faces but tucks just inside lot-line faces,
+ * so it never shares a plane with the wall it decorates (visible depth fighting). The inset
+ * scales with projection so stacked cornice, cap and band trims never share a plane either.
+ */
+function lotLineTrim(
+  block: StreetscapeBuilder['block'], x: number, z: number, width: number, depth: number,
+  attached: readonly BuildingFace[],
+) {
+  return (surface: THREE.Material, y: number, height: number, extraX: number, extraZ: number, tint?: string) => {
+    const reach = (face: BuildingFace, extra: number) => attached.includes(face) ? -0.005 - extra / 20 : extra / 2;
+    const west = reach('west', extraX);
+    const east = reach('east', extraX);
+    const north = reach('north', extraZ);
+    const south = reach('south', extraZ);
+    block(surface, x + (east - west) / 2, y, z + (south - north) / 2,
+      width + west + east, height, depth + north + south, 0, tint);
+  };
+}
+
 /** Build original noncommercial peripheral streets; no actors, clocks or point lights. */
 export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = builder.palette.taxi): Streetscape {
   validateStreetscape();
@@ -800,8 +820,7 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
     // A lot-line wall is only exposed on the main volume, so setbacks keep their windows.
     const party = base < 1 ? building.partyWall : null;
     const attached = base < 1 ? building.attached : [];
-    const trimX = attached.some((face) => face === 'west' || face === 'east') ? 0 : 1;
-    const trimZ = attached.some((face) => face === 'north' || face === 'south') ? 0 : 1;
+    const trimBlock = lotLineTrim(block, x, z, width, depth, attached);
     if (base === 0.3 && building.use !== 'residential') {
       const thresholdTop = building.civicService === 'fire-station' ? 2.66 : 2.32;
       const { axis, side } = building.front;
@@ -916,13 +935,12 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
         }
       }
       if (continuousBands || floor < 2) {
-        block(brownstone ? p.copperEdge : metal ? p.roof : p.stone, x, base + floor * floorHeight + 0.12, z,
-          width + 0.08 * trimX, 0.12, depth + 0.08 * trimZ);
+        trimBlock(brownstone ? p.copperEdge : metal ? p.roof : p.stone, base + floor * floorHeight + 0.12, 0.12,
+          0.08, 0.08);
       }
     }
-    block(cornice, x, base + height + 0.03, z,
-      width + (brownstone ? 0.65 : 0.45) * trimX, brownstone ? 0.26 : 0.18, depth + 0.45 * trimZ);
-    block(masonry, x, base + height + 0.2, z, width + 0.12 * trimX, 0.2, depth + 0.12 * trimZ, 0, tone);
+    trimBlock(cornice, base + height + 0.03, brownstone ? 0.26 : 0.18, brownstone ? 0.65 : 0.45, 0.45);
+    trimBlock(masonry, base + height + 0.2, 0.2, 0.12, 0.12, tone);
     if (brownstone) {
       for (const offset of [-0.36, -0.12, 0.12, 0.36]) {
         const point = buildingFrontPoint(building, buildingFrontSpan(building) * offset, 0.16);
@@ -932,8 +950,9 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
     }
     block(p.roof, x, base + height + 0.31, z, width - 0.35, 0.06, depth - 0.35);
     for (const side of [-1, 1]) {
-      block(metal ? p.roof : p.paving, x, base + height + 0.34 + parapetHeight / 2,
-        z + side * (depth / 2 - 0.1), width + 0.2 * trimX, parapetHeight, 0.19);
+      const run = lotLineTrim(block, x, z + side * (depth / 2 - 0.1), width, 0.19,
+        attached.filter((face) => face === 'west' || face === 'east'));
+      run(metal ? p.roof : p.paving, base + height + 0.34 + parapetHeight / 2, parapetHeight, 0.2, 0);
       block(metal ? p.roof : p.paving, x + side * (width / 2 - 0.04), base + height + 0.34 + parapetHeight / 2,
         z, attached.includes(faceName('x', side)) ? 0.075 : 0.19, parapetHeight, depth);
     }
@@ -957,8 +976,12 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
       rod(surface, [start.x, a[1], start.z], [end.x, b[1], end.z], thickness);
     };
     const iron = brownstone ? p.rubber : p.copperEdge;
-    recessedBuildingBlock(block, building.loadingRecess)(brownstone ? p.copperEdge : p.stone, x, brownstone ? 0.4 : 0.17, z,
-      width, brownstone ? 0.8 : 0.34, depth);
+    // The plinth steps 1 cm back inside the service recess so its cut faces never meet the wall's.
+    const plinthRecess = building.loadingRecess && { ...building.loadingRecess,
+      minX: building.loadingRecess.minX - 0.01, maxX: building.loadingRecess.maxX + 0.01,
+      backZ: building.loadingRecess.backZ + 0.01 };
+    lotLineTrim(recessedBuildingBlock(block, plinthRecess), x, z, width, depth, building.attached)(
+      brownstone ? p.copperEdge : p.stone, brownstone ? 0.4 : 0.17, brownstone ? 0.8 : 0.34, 0.06, 0.06);
     facade(building, width, depth, 0.3, floors);
     const roofY = height + setbackFloors * floorHeight + 0.34;
     const roofWidth = width - (setbackFloors ? 1.4 : 0);
@@ -1420,9 +1443,10 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
     }
     piece(p.roof, 0, 2.78, (minAcross + maxAcross) / 2, length, 0.18, maxAcross - minAcross);
     piece(p.wood, 0, 2.89, (minAcross + maxAcross) / 2, length, 0.04, maxAcross - minAcross - 0.1);
-    for (const across of [minAcross + 0.06, maxAcross - 0.06]) {
-      piece(p.teal, 0, 2.99, across, length, 0.48, 0.12);
-      piece(p.roof, 0, 3.245, across, length, 0.035, 0.15);
+    // Fascia boards stand 1 cm proud of the deck edges so the two never share a plane.
+    for (const across of [minAcross + 0.05, maxAcross - 0.05]) {
+      piece(p.teal, 0, 2.99, across, length + 0.02, 0.48, 0.12);
+      piece(p.roof, 0, 3.245, across, length + 0.02, 0.035, 0.15);
     }
     for (const along of [-half * 2 / 3, 0, half * 2 / 3]) {
       piece(p.roof, along, 2.64, (minAcross + maxAcross) / 2, 0.065, 0.1, maxAcross - minAcross - 0.15);

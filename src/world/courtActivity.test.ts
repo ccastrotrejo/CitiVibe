@@ -1,9 +1,13 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Box3, BoxGeometry, Group, Mesh, MeshBasicMaterial, Object3D, Vector3 } from 'three';
-import { BASKETBALL_COURT as BASKETBALL, COURT_PLAYERS, PICKLEBALL_COURT as PICKLEBALL } from '../content/courts';
+import { BASKETBALL_COURT as BASKETBALL, COURT_PLAYERS, PICKLEBALL_COURT as PICKLEBALL, netHeightAt } from '../content/courts';
 import { SIDEWALK_HALF_WIDTH, STREET_BLOCKS } from '../content/streets';
-import { CourtActivity, COURT_TIMING as T, type CourtPlayerRig } from './courtActivity';
+import {
+  CourtActivity, COURT_TIMING as T, createBasketballPossessionPlan, createPickleballRallyPlan, pickleballRallyIndex,
+  pickleballRallyStart, planBasketballPossession, planPickleballRally, type BasketballPossessionPlan, type CourtPlayerRig,
+  type PickleballId, type PickleballRallyPlan,
+} from './courtActivity';
 import { WALKER, type LegRig, type WalkerRig } from './locomotion';
 
 interface CourtFixture {
@@ -103,13 +107,59 @@ function basketballBounceTime(value: CourtFixture, groundLift = 0): number {
   return T.rim + (velocity + Math.sqrt(velocity ** 2 + 2 * 9.81 * fall)) / 9.81;
 }
 
-function pickleballBounceX(value: CourtFixture, shot: number, groundLift = 0): number {
-  value.update((shot + 1) * T.pickleballShot, false, groundLift);
-  const receiver = value.rigs.find(({ definition }) => definition.id ===
-    (shot % 2 === 0 ? 'pickleball-east' : 'pickleball-west'))!;
-  const receiverX = contact(receiver, 0.65).x;
-  const distance = Math.max(PICKLEBALL.kitchenDepth + 0.4, Math.abs(receiverX - PICKLEBALL.x) - 1.25);
-  return PICKLEBALL.x + (shot % 2 === 0 ? 1 : -1) * distance;
+const RIM_Y = BASKETBALL.surfaceY + BASKETBALL.hoopHeight;
+const otherPickleballer = (id: PickleballId): PickleballId => id === 'pickleball-west' ? 'pickleball-east' : 'pickleball-west';
+
+function rig(value: CourtFixture, id: string): CourtPlayerRig {
+  return value.rigs.find(({ definition }) => definition.id === id)!;
+}
+
+function paddle(value: CourtFixture, id: PickleballId): Vector3 {
+  return rig(value, id).group.getObjectByName('Pickleball paddle')!.getWorldPosition(new Vector3());
+}
+
+/** Possession-local floor landing after the rim, recomputed from the actual release hand for makes. */
+function basketballLandTime(value: CourtFixture, plan: BasketballPossessionPlan, groundLift = 0): number {
+  if (plan.outcome !== 'make') return plan.rim + plan.kick;
+  const base = plan.index * T.basketballPeriod;
+  value.update(base + plan.shotRelease, false, groundLift);
+  const release = contact(rig(value, 'court-shooter'));
+  const duration = plan.rim - plan.shotRelease;
+  const velocity = (RIM_Y - release.y - 9.81 * duration ** 2 / 2) / duration;
+  const fall = RIM_Y - (BASKETBALL.surfaceY + groundLift + BASKETBALL.ballRadius);
+  return plan.rim + (velocity + Math.sqrt(velocity ** 2 + 2 * 9.81 * fall)) / 9.81;
+}
+
+interface PickleballShot {
+  striker: PickleballId;
+  receiver: PickleballId;
+  strike: number;
+  bounce: number;
+  next: number;
+}
+
+function pickleballShots(plan: PickleballRallyPlan): PickleballShot[] {
+  return Array.from({ length: plan.shots }, (_, shot) => {
+    const striker = shot % 2 === 0 ? plan.server : otherPickleballer(plan.server);
+    const strike = plan.start + plan.strikeTimes[shot];
+    const next = plan.start + plan.strikeTimes[shot + 1];
+    return { striker, receiver: otherPickleballer(striker), strike, next, bounce: strike + (next - strike) * plan.bounceFractions[shot] };
+  });
+}
+
+/** Ball x is linear in time before the bounce, so bisection finds the exact net crossing. */
+function netCrossing(value: CourtFixture, shot: PickleballShot, groundLift = 0): number {
+  let low = shot.strike;
+  let high = shot.bounce;
+  const west = shot.striker === 'pickleball-west';
+  for (let step = 0; step < 60; step += 1) {
+    const middle = (low + high) / 2;
+    value.update(middle, false, groundLift);
+    if ((value.pickleball.position.x < PICKLEBALL.x) === west) low = middle;
+    else high = middle;
+  }
+  value.update(low, false, groundLift);
+  return low;
 }
 
 afterEach(() => fixtures.splice(0).forEach((value) => value.dispose()));
@@ -183,28 +233,50 @@ describe('Juniper court activities', () => {
     expect(basketball.position).toEqual(initial);
   });
 
-  it('hits the actual moving paddles, clears the net with the full ball, and bounces on each side', () => {
+  it('hits the moving paddles on every seeded shot, clears the net and bounces beyond the kitchen', () => {
     const value = fixture();
-    const { pickleball, rigs, update } = value;
-    const contactZ: number[] = [];
-    for (let shot = 0; shot < 40; shot += 1) {
-      const time = shot * T.pickleballShot;
-      const bounceX = pickleballBounceX(value, shot);
-      const player = rigs.find(({ definition }) => definition.id === (shot % 2 === 0 ? 'pickleball-west' : 'pickleball-east'))!;
-      update(time, false);
-      const paddle = player.group.getObjectByName('Pickleball paddle')!;
-      expect(pickleball.position.distanceTo(paddle.getWorldPosition(new Vector3()))).toBeLessThan(1e-8);
-      contactZ.push(pickleball.position.z);
-      const startX = pickleball.position.x;
-      update(time + T.pickleballBounce * (PICKLEBALL.x - startX) / (bounceX - startX), false);
-      expect(pickleball.position.x).toBeCloseTo(PICKLEBALL.x, 8);
-      expect(pickleball.position.y - PICKLEBALL.ballRadius).toBeGreaterThan(PICKLEBALL.surfaceY + PICKLEBALL.netHeight);
-      update(time + T.pickleballBounce, false);
-      expect(pickleball.position.x).toBeCloseTo(bounceX, 8);
-      expect(pickleball.position.y).toBeCloseTo(PICKLEBALL.surfaceY + PICKLEBALL.ballRadius, 8);
-      expect(Math.abs(bounceX - PICKLEBALL.x)).toBeGreaterThan(PICKLEBALL.kitchenDepth);
+    const { pickleball, update } = value;
+    const plan = createPickleballRallyPlan();
+    const counts = new Set<number>();
+    const depths = [0, 0];
+    const offsets: number[] = [];
+    for (let index = 0; index < 60; index += 1) {
+      planPickleballRally(index, plan);
+      expect(plan.start).toBe(pickleballRallyStart(index));
+      expect(plan.start + plan.duration).toBe(pickleballRallyStart(index + 1));
+      expect(plan.shots).toBeGreaterThanOrEqual(3);
+      expect(plan.shots).toBeLessThanOrEqual(8);
+      expect(plan.pause).toBeGreaterThanOrEqual(1);
+      expect(plan.pause).toBeLessThanOrEqual(2.8 + 1e-9);
+      expect(plan.holder).toBe(planPickleballRally(index + 1).server);
+      counts.add(plan.shots);
+      update(plan.start, false);
+      expect(pickleball.position.distanceTo(paddle(value, plan.server))).toBeLessThan(1e-8);
+      pickleballShots(plan).forEach((shot, index) => {
+        expect(shot.next - shot.strike).toBeGreaterThanOrEqual(T.pickleballStrokeMin - 1e-9);
+        expect(shot.next - shot.strike).toBeLessThanOrEqual(T.pickleballStrokeMax + 1e-9);
+        depths[plan.deep[index]] += 1;
+        update(shot.strike, false);
+        expect(pickleball.position.distanceTo(paddle(value, shot.striker)), `rally ${plan.index} shot ${index}`).toBeLessThan(1e-8);
+        offsets.push(rig(value, shot.striker).group.position.z - PICKLEBALL.z - rig(value, shot.striker).definition.z);
+        netCrossing(value, shot);
+        expect(pickleball.position.x).toBeCloseTo(PICKLEBALL.x, 6);
+        expect(pickleball.position.y - PICKLEBALL.ballRadius).toBeGreaterThan(PICKLEBALL.surfaceY + PICKLEBALL.netHeight);
+        expect(pickleball.position.y - PICKLEBALL.ballRadius)
+          .toBeGreaterThan(PICKLEBALL.surfaceY + netHeightAt(pickleball.position.z - PICKLEBALL.z));
+        update(shot.bounce, false);
+        expect(pickleball.position.y).toBeCloseTo(PICKLEBALL.surfaceY + PICKLEBALL.ballRadius, 8);
+        expect(Math.sign(pickleball.position.x - PICKLEBALL.x)).toBe(shot.striker === 'pickleball-west' ? 1 : -1);
+        expect(Math.abs(pickleball.position.x - PICKLEBALL.x)).toBeGreaterThan(PICKLEBALL.kitchenDepth);
+      });
+      for (const time of [plan.strikeTimes[plan.shots], plan.strikeTimes[plan.shots] + plan.pause / 2, plan.duration - 1e-6]) {
+        update(plan.start + time, false);
+        expect(pickleball.position.distanceTo(paddle(value, plan.holder))).toBeLessThan(1e-8);
+      }
     }
-    expect(Math.abs(contactZ[0] - contactZ[2])).toBeGreaterThan(1.3);
+    expect(counts.size).toBeGreaterThanOrEqual(5);
+    expect(Math.min(...depths)).toBeGreaterThan(20);
+    expect(Math.max(...offsets) - Math.min(...offsets)).toBeGreaterThan(1.5);
   });
 
   it.each([0, 0.45])('moves grounded full bodies and bounded balls for 168 seconds with %sm snow', (groundLift) => {
@@ -302,21 +374,25 @@ describe('Juniper court activities', () => {
     expect(snowy.basketball.position.toArray()).toEqual([
       BASKETBALL.x + BASKETBALL.hoopOffset, BASKETBALL.surfaceY + BASKETBALL.hoopHeight, BASKETBALL.z,
     ]);
-    for (let shot = 0; shot < 8; shot += 1) {
-      const time = shot * T.pickleballShot;
-      const bounceX = pickleballBounceX(snowy, shot, groundLift);
-      snowy.update(time, false, groundLift);
-      const index = shot % 2;
-      const player = snowy.rigs.find(({ definition }) => definition.id === (index === 0 ? 'pickleball-west' : 'pickleball-east'))!;
-      const paddle = player.group.getObjectByName('Pickleball paddle')!;
-      expect(snowy.pickleball.position.distanceTo(paddle.getWorldPosition(new Vector3()))).toBeLessThan(1e-8);
-      const netTime = time + T.pickleballBounce * (PICKLEBALL.x - snowy.pickleball.position.x) / (bounceX - snowy.pickleball.position.x);
-      snowy.update(netTime, false, groundLift);
-      dry.update(netTime, false);
-      expect(snowy.pickleball.position.y).toBeCloseTo(dry.pickleball.position.y, 8);
-      expect(snowy.pickleball.position.y - PICKLEBALL.ballRadius).toBeGreaterThan(PICKLEBALL.surfaceY + PICKLEBALL.netHeight);
-      snowy.update(time + T.pickleballBounce, false, groundLift);
-      expect(snowy.pickleball.position.y).toBeCloseTo(PICKLEBALL.surfaceY + groundLift + PICKLEBALL.ballRadius, 8);
+    for (let index = 0; index < 4; index += 1) {
+      const plan = planPickleballRally(index);
+      for (const shot of pickleballShots(plan)) {
+        snowy.update(shot.strike, false, groundLift);
+        expect(snowy.pickleball.position.distanceTo(paddle(snowy, shot.striker))).toBeLessThan(1e-8);
+        const netTime = netCrossing(snowy, shot, groundLift);
+        dry.update(netTime, false);
+        expect(snowy.pickleball.position.y).toBeCloseTo(dry.pickleball.position.y, 8);
+        expect(snowy.pickleball.position.y - PICKLEBALL.ballRadius).toBeGreaterThan(PICKLEBALL.surfaceY + PICKLEBALL.netHeight);
+        snowy.update(shot.bounce, false, groundLift);
+        expect(snowy.pickleball.position.y).toBeCloseTo(PICKLEBALL.surfaceY + groundLift + PICKLEBALL.ballRadius, 8);
+      }
+    }
+    for (let possession = 1; possession < 12; possession += 1) {
+      const plan = planBasketballPossession(possession);
+      snowy.update(possession * T.basketballPeriod + plan.rim, false, groundLift);
+      expect(snowy.basketball.position.distanceTo(new Vector3(plan.targetX, RIM_Y, plan.targetZ))).toBeLessThan(1e-8);
+      snowy.update(possession * T.basketballPeriod + basketballLandTime(snowy, plan, groundLift), false, groundLift);
+      expect(snowy.basketball.position.y).toBeCloseTo(BASKETBALL.surfaceY + groundLift + BASKETBALL.ballRadius, 7);
     }
   });
 
@@ -348,21 +424,28 @@ describe('Juniper court activities', () => {
 
   it.each([0, 0.45])('has no position jumps at contacts, bounces or loop seams with %sm snow', (groundLift) => {
     const value = fixture();
-    const boundaries = [0, T.passStart, T.passEnd, T.shotRelease, T.rim, basketballBounceTime(value, groundLift),
-      T.reboundCatch, T.returnStart, T.returnEnd, T.basketballPeriod];
-    for (let stroke = 0; stroke <= 4; stroke += 1) {
-      boundaries.push(stroke * T.pickleballShot, stroke * T.pickleballShot + T.pickleballBounce);
+    const boundaries: number[] = [];
+    for (let possession = 0; possession < 12; possession += 1) {
+      const plan = planBasketballPossession(possession);
+      const base = possession * T.basketballPeriod;
+      for (const time of [0, plan.passStart, plan.passEnd, plan.shotRelease, plan.rim, basketballLandTime(value, plan, groundLift),
+        plan.reboundCatch, plan.returnStart, plan.returnEnd]) boundaries.push(base + time);
+    }
+    for (let index = 0; index < 27; index += 1) {
+      const plan = planPickleballRally(index);
+      boundaries.push(plan.start, plan.start + plan.strikeTimes[plan.shots]);
+      for (const shot of pickleballShots(plan)) boundaries.push(shot.strike, shot.bounce);
     }
     const delta = 1e-6;
     for (const boundary of boundaries) {
-      value.update(168 + boundary - delta, false, groundLift);
+      value.update(Math.max(0, boundary - delta), false, groundLift);
       const players = value.players.map(({ position }) => position.clone());
       const basketball = value.basketball.position.clone();
       const pickleball = value.pickleball.position.clone();
-      value.update(168 + boundary + delta, false, groundLift);
+      value.update(boundary + delta, false, groundLift);
       value.players.forEach(({ position }, index) => expect(position.distanceTo(players[index])).toBeLessThan(4 * delta + 1e-8));
-      expect(value.basketball.position.distanceTo(basketball)).toBeLessThan(24 * delta + 1e-8);
-      expect(value.pickleball.position.distanceTo(pickleball)).toBeLessThan(24 * delta + 1e-8);
+      expect(value.basketball.position.distanceTo(basketball), `basketball at ${boundary}`).toBeLessThan(24 * delta + 1e-8);
+      expect(value.pickleball.position.distanceTo(pickleball), `pickleball at ${boundary}`).toBeLessThan(24 * delta + 1e-8);
     }
   });
 
@@ -407,12 +490,219 @@ describe('Juniper court activities', () => {
     expect(snapshot(objects(first))).toEqual(still);
     first.update(73.35, false);
     expect(snapshot(objects(first))).toEqual(before);
+    const basketballObjects = [...first.players.slice(0, 4), first.basketball];
+    const pickleballObjects = [...first.players.slice(4), first.pickleball];
     first.update(0, false);
-    const initial = snapshot(objects(first));
+    const initial = snapshot(basketballObjects);
+    const serve = snapshot(pickleballObjects);
+    const westServe = Array.from({ length: 40 }, (_, index) => planPickleballRally(index + 1))
+      .find(({ server }) => server === 'pickleball-west')!;
+    const close = (actual: number[][][], expected: number[][][]) => actual.forEach((parts, index) => parts.forEach((values, part) =>
+      values.forEach((value, component) => expect(value).toBeCloseTo(expected[index][part][component], 9))));
     first.update(168, false);
-    const repeated = snapshot(objects(first));
-    repeated.forEach((parts, index) => parts.forEach((values, part) =>
-      values.forEach((value, component) => expect(value).toBeCloseTo(initial[index][part][component], 9))));
+    close(snapshot(basketballObjects), initial);
+    first.update(westServe.start, false);
+    close(snapshot(pickleballObjects), serve);
+  });
+
+  it('seeds possession outcomes, timing, resets and effort without changing the reference possession', () => {
+    const plan = createBasketballPossessionPlan();
+    const outcomes = new Map<string, number>();
+    const releases: number[] = [];
+    const shooterScales: number[] = [];
+    let resets = 0;
+    expect(planBasketballPossession(0)).toMatchObject({
+      outcome: 'make', reset: false, passStart: T.passStart, passEnd: T.passEnd, shotRelease: T.shotRelease,
+      reboundCatch: T.reboundCatch, returnStart: T.returnStart, returnEnd: T.returnEnd,
+    });
+    expect(planBasketballPossession(0).rim).toBeCloseTo(T.rim, 12);
+    for (let index = 0; index < 30; index += 1) {
+      planBasketballPossession(index, plan);
+      expect(planBasketballPossession(index)).toEqual(plan);
+      outcomes.set(plan.outcome, (outcomes.get(plan.outcome) ?? 0) + 1);
+      releases.push(plan.shotRelease - plan.passEnd);
+      shooterScales.push(plan.scale['court-shooter']);
+      if (plan.reset) resets += 1;
+      expect(plan.passStart).toBeGreaterThanOrEqual(T.passStart);
+      expect(plan.shotRelease - plan.passEnd).toBeGreaterThanOrEqual(0.4 - 1e-9);
+      expect(plan.returnEnd).toBeLessThan(T.basketballPeriod - 8);
+      for (const scale of Object.values(plan.scale)) {
+        expect(scale).toBeGreaterThanOrEqual(0.8);
+        expect(scale).toBeLessThanOrEqual(1.15);
+      }
+      const rimOffset = Math.hypot(plan.targetX - BASKETBALL.x - BASKETBALL.hoopOffset, plan.targetZ - BASKETBALL.z);
+      expect(rimOffset).toBeLessThanOrEqual(BASKETBALL.rimRadius + 0.1);
+      if (plan.outcome === 'make') expect(rimOffset).toBe(0);
+      else expect(rimOffset).toBeGreaterThan(BASKETBALL.rimRadius * 0.9);
+    }
+    expect([...outcomes.keys()].sort()).toEqual(['make', 'rim-out', 'short']);
+    expect(Math.min(...outcomes.values())).toBeGreaterThanOrEqual(4);
+    expect(resets).toBeGreaterThan(0);
+    expect(Math.max(...releases) - Math.min(...releases)).toBeGreaterThan(0.4);
+    expect(Math.max(...shooterScales) - Math.min(...shooterScales)).toBeGreaterThan(0.15);
+  });
+
+  it.each([0, 0.45])('keeps every seeded possession on moving hands, fixed rim contacts and ballistic caroms with %sm snow', (groundLift) => {
+    const value = fixture();
+    const { basketball, update } = value;
+    const delta = 1e-4;
+    for (let index = 0; index < 30; index += 1) {
+      const plan = planBasketballPossession(index);
+      const base = index * T.basketballPeriod;
+      for (const [time, id] of [[0, 'court-passer'], [plan.passStart, 'court-passer'], [plan.passEnd, 'court-shooter'],
+        [(plan.passEnd + plan.shotRelease) / 2, 'court-shooter'], [plan.shotRelease, 'court-shooter'],
+        [plan.reboundCatch, 'court-rebounder'], [plan.reboundCatch + 1, 'court-rebounder'], [plan.returnStart, 'court-rebounder'],
+        [plan.returnEnd, 'court-passer'], [T.basketballPeriod - 1e-7, 'court-passer']] as const) {
+        update(base + time, false, groundLift);
+        expect(basketball.position.distanceTo(contact(rig(value, id))), `possession ${index} ${id} at ${time}`).toBeLessThan(1e-6);
+      }
+      update(base + plan.rim, false, groundLift);
+      expect(basketball.position.distanceTo(new Vector3(plan.targetX, RIM_Y, plan.targetZ))).toBeLessThan(1e-8);
+      const land = basketballLandTime(value, plan, groundLift);
+      update(base + land, false, groundLift);
+      expect(basketball.position.y).toBeCloseTo(BASKETBALL.surfaceY + groundLift + BASKETBALL.ballRadius, 7);
+      if (plan.outcome !== 'make') {
+        expect(basketball.position.x).toBeCloseTo(plan.landingX, 7);
+        expect(basketball.position.z).toBeCloseTo(plan.landingZ, 7);
+        expect(Math.hypot(plan.landingX - BASKETBALL.x - BASKETBALL.hoopOffset, plan.landingZ - BASKETBALL.z)).toBeGreaterThan(0.6);
+      }
+      expect(plan.reboundCatch - land).toBeGreaterThan(0.6);
+      for (const time of [(plan.shotRelease + plan.rim) / 2, (plan.rim + land) / 2, (land + plan.reboundCatch) / 2]) {
+        update(base + time - delta, false, groundLift);
+        const before = basketball.position.y;
+        update(base + time, false, groundLift);
+        const center = basketball.position.y;
+        update(base + time + delta, false, groundLift);
+        expect((basketball.position.y - 2 * center + before) / delta ** 2).toBeCloseTo(-9.81, 2);
+      }
+    }
+  });
+
+  it('keeps both balls continuous and in a hand or flight across many possessions and rallies', () => {
+    const value = fixture();
+    const { basketball, pickleball, players, update } = value;
+    const priorBalls = [basketball.position.clone(), pickleball.position.clone()];
+    const priorPlayers = players.map(({ position }) => position.clone());
+    let possessionSeams = 0;
+    let rallySeams = 0;
+    let rally = 0;
+    for (let tick = 1; tick <= 360 * 120; tick += 1) {
+      const time = tick / 120;
+      update(time, false);
+      expect(basketball.position.distanceTo(priorBalls[0]), `basketball at ${time}`).toBeLessThan(0.1);
+      expect(pickleball.position.distanceTo(priorBalls[1]), `pickleball at ${time}`).toBeLessThan(0.1);
+      players.forEach(({ position, name }, index) => expect(position.distanceTo(priorPlayers[index]), name).toBeLessThan(2 / 120));
+      priorBalls[0].copy(basketball.position);
+      priorBalls[1].copy(pickleball.position);
+      players.forEach(({ position }, index) => priorPlayers[index].copy(position));
+      if (tick % (T.basketballPeriod * 120) === 0) {
+        possessionSeams += 1;
+        expect(basketball.position.distanceTo(contact(rig(value, 'court-passer')))).toBeLessThan(1e-8);
+      }
+      const current = pickleballRallyIndex(time);
+      if (current !== rally) {
+        expect(current).toBe(rally + 1);
+        rally = current;
+        rallySeams += 1;
+        const plan = planPickleballRally(current);
+        expect(time).toBeGreaterThanOrEqual(plan.start);
+        update(plan.start, false);
+        expect(pickleball.position.distanceTo(paddle(value, plan.server))).toBeLessThan(1e-8);
+        update(plan.start - 1e-7, false);
+        expect(pickleball.position.distanceTo(paddle(value, planPickleballRally(current - 1).holder))).toBeLessThan(1e-6);
+        update(time, false);
+      }
+    }
+    expect(possessionSeams).toBe(15);
+    expect(rallySeams).toBeGreaterThan(30);
+  }, 30_000);
+
+  it('does not phase-lock players between consecutive possessions and rallies', () => {
+    const value = fixture();
+    const sample = (time: number) => {
+      value.update(time, false);
+      return value.rigs.map(({ group, rig: walker }) =>
+        [group.position.x, group.position.z, walker.arms[0].rotation.x, walker.arms[1].rotation.z, walker.torso.rotation.y]);
+    };
+    for (let index = 1; index < 12; index += 1) {
+      let difference = 0;
+      for (const local of [3, 5.5, 6.8, 8, 9.5, 11, 15, 19]) {
+        const current = sample(index * T.basketballPeriod + local).slice(0, 4);
+        const next = sample((index + 1) * T.basketballPeriod + local).slice(0, 4);
+        current.forEach((values, player) => values.forEach((component, part) =>
+          (difference = Math.max(difference, Math.abs(component - next[player][part])))));
+      }
+      expect(difference, `possession ${index}`).toBeGreaterThan(0.05);
+    }
+    for (let index = 0; index < 12; index += 1) {
+      const current = planPickleballRally(index);
+      const next = planPickleballRally(index + 1);
+      let difference = 0;
+      for (const local of [1.5, 3, 4.5, 6]) {
+        const a = [...sample(current.start + local).slice(4).flat(), ...value.pickleball.position.toArray()];
+        const b = [...sample(next.start + local).slice(4).flat(), ...value.pickleball.position.toArray()];
+        a.forEach((component, part) => (difference = Math.max(difference, Math.abs(component - b[part]))));
+      }
+      expect(difference, `rally ${index}`).toBeGreaterThan(0.05);
+    }
+  });
+
+  it('adds brief celebrations, dejection, contests, rebound reads and reset surveys', () => {
+    const value = fixture();
+    const shooter = rig(value, 'court-shooter').rig;
+    const defender = rig(value, 'court-defender').rig;
+    const rebounder = rig(value, 'court-rebounder').rig;
+    const passer = rig(value, 'court-passer').rig;
+    const plans = Array.from({ length: 30 }, (_, index) => planBasketballPossession(index));
+    const make = plans.find(({ outcome, index }) => outcome === 'make' && index > 0)!;
+    const miss = plans.find(({ outcome }) => outcome !== 'make')!;
+    const reset = plans.find(({ reset: surveying }) => surveying)!;
+    value.update(make.index * T.basketballPeriod + make.rim + 0.9, false);
+    expect(shooter.arms[0].rotation.x).toBeLessThan(-2.3);
+    expect(shooter.arms[0].rotation.z).toBe(0);
+    value.update(miss.index * T.basketballPeriod + miss.rim + 1.5, false);
+    expect(shooter.arms[0].rotation.x).toBeGreaterThan(-0.5);
+    expect(shooter.arms[1].rotation.z).toBeGreaterThan(0.4);
+    expect(shooter.arms[0].rotation.z).toBeLessThan(-0.4);
+    value.update(miss.index * T.basketballPeriod + miss.shotRelease + 1, false);
+    expect(defender.torso.rotation.y).toBeGreaterThan(0.3);
+    expect(defender.arms[0].rotation.x).toBeLessThan(-1.5);
+    value.update(miss.index * T.basketballPeriod + miss.reboundCatch, false);
+    expect(rebounder.arms[0].rotation.x).toBeCloseTo(-2.4, 8);
+    value.update(miss.index * T.basketballPeriod + miss.reboundCatch + 2, false);
+    expect(rebounder.arms[0].rotation.x).toBeCloseTo(-1.2, 8);
+    let survey = 0;
+    for (let local = 0; local < reset.passStart; local += 0.1) {
+      value.update(reset.index * T.basketballPeriod + local, false);
+      survey = Math.max(survey, Math.abs(passer.torso.rotation.y));
+      expect(value.basketball.position.x).toBeCloseTo(contact(rig(value, 'court-passer')).x, 8);
+    }
+    expect(survey).toBeGreaterThan(0.15);
+    for (const index of [1, 7, 23]) {
+      value.update(index * T.basketballPeriod, false);
+      for (const walker of [shooter, defender, rebounder, passer]) {
+        expect(walker.torso.rotation.y).toBe(0);
+        expect(walker.arms[0].rotation.z).toBe(0);
+      }
+    }
+  });
+
+  it('reconstructs identical poses from elapsed time regardless of update history', () => {
+    const sequential = fixture();
+    const jumped = fixture();
+    const objects = (value: CourtFixture) => [...value.players, value.basketball, value.pickleball];
+    for (let tick = 0; tick <= 200 * 60; tick += 1) sequential.update(tick / 60, false);
+    jumped.update(9000.25, false);
+    jumped.update(37.1, false, 0.2);
+    jumped.update(200, false);
+    expect(snapshot(objects(jumped))).toEqual(snapshot(objects(sequential)));
+    for (const time of [1234.5, 86_400.75]) {
+      sequential.update(time, false);
+      jumped.update(time + 50, false);
+      jumped.update(time, false);
+      expect(snapshot(objects(jumped))).toEqual(snapshot(objects(sequential)));
+    }
+    expect(planPickleballRally(41)).toEqual(planPickleballRally(41));
   });
 
   it('does not consult ambient randomness or wall time during updates', () => {

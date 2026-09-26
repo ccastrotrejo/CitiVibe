@@ -5,7 +5,7 @@ import { createPersonProfile, PERSON_SPACE, type PersonProfile } from '../conten
 import { CIVIC_SERVICES } from '../content/civicServices';
 import { TRAFFIC_ACTORS } from '../content/streets';
 import { ActorInstances } from './actorInstances';
-import { poseNeutral, poseWalkerRig, RUNNER, strideLength, type WalkerRig } from './locomotion';
+import { blendedStride, createGaitTraits, poseNeutral, poseWalkerRig, RUNNER, strideLength, type WalkerRig } from './locomotion';
 import { buildPersonRig, type PersonArt } from './person';
 import { CityTraffic } from './traffic';
 
@@ -111,6 +111,35 @@ describe('varied articulated people', () => {
           expect(point.y).toBeCloseTo(support, 7);
           expect(point.z).toBeCloseTo(points[0].z, 7);
         }
+      }
+    }
+  });
+
+  it('keeps individual gait traits ground-locked and inside the pedestrian envelope', () => {
+    for (const context of ['street', 'runner'] as const) for (let index = 1; index <= 60; index++) {
+      const profile = createPersonProfile(`trait-${context}-${index}`, context);
+      const traits = createGaitTraits(profile.id);
+      const { group, rig } = person(profile);
+      const running = context === 'runner';
+      const scale = rig.scale!;
+      // Runners use the simulation's integrated cycle; walkers keep distance-derived phase.
+      const stride = (running ? blendedStride(profile.pace / scale, 1, traits) : strideLength(profile.pace / scale) * traits.stride) * scale;
+      const duty = running ? RUNNER.duty : 0.6;
+      const planted: THREE.Vector3[] = [];
+      for (let phase = 0; phase < 1; phase += 0.02) {
+        const distance = (phase - traits.phase + 1) * stride;
+        group.position.set(0, 0, distance);
+        poseWalkerRig(rig, { distance, speed: profile.pace, blend: 1, reducedMotion: false, running, traits,
+          gait: running ? { cycle: distance / stride, stride, run: 1 } : undefined });
+        const bounds = new THREE.Box3().setFromObject(group);
+        expect(Math.max(Math.abs(bounds.min.x), Math.abs(bounds.max.x)), profile.id).toBeLessThan(PERSON_SPACE.width / 2);
+        expect(Math.max(Math.abs(bounds.min.z - distance), Math.abs(bounds.max.z - distance)), profile.id)
+          .toBeLessThan(PERSON_SPACE.length / 2);
+        if (phase > 0.01 && phase < duty - 0.01) planted.push(ankle(group, rig, 0));
+      }
+      for (const point of planted) {
+        expect(point.y, profile.id).toBeCloseTo(0, 7);
+        expect(point.z, profile.id).toBeCloseTo(planted[0].z, 7);
       }
     }
   });

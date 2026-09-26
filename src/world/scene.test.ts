@@ -374,7 +374,8 @@ describe('original car-free park district', () => {
     const shadow = sun.shadow.getFrustum();
     const shadowTexel = (sun.shadow.camera.right - sun.shadow.camera.left) / sun.shadow.mapSize.x;
     const worldDepthBias = -sun.shadow.bias * (sun.shadow.camera.far - sun.shadow.camera.near);
-    expect(worldDepthBias / shadowTexel).toBeCloseTo(1.25);
+    expect(worldDepthBias / shadowTexel).toBeCloseTo(1.25 * sun.shadow.radius);
+    expect(sun.shadow.radius).toBe(2);
     expect(worldDepthBias).toBeLessThan(0.7);
     expect(sun.shadow.normalBias).toBe(0.06);
     const pose = CAMERA_ANCHORS[0].pose;
