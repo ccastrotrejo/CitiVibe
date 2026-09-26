@@ -119,14 +119,18 @@ function positions(mesh: THREE.InstancedMesh) {
   return result;
 }
 
+/** Wrapping trims tuck up to ~3 cm per side inside lot-line walls instead of sharing their plane. */
+const LOT_LINE_INSET = 0.08;
+
 function buildingParts(parts: Part[], building: StreetBuilding) {
   const isBase = ({ position, scale }: Part, candidate: StreetBuilding) => {
     const minX = candidate.x - candidate.width / 2;
     const width = candidate.loadingRecess ? candidate.loadingRecess.minX - minX : candidate.width;
     const x = candidate.loadingRecess ? minX + width / 2 : candidate.x;
-    return Math.abs(position[0] - x) < 1e-8 && Math.abs(position[2] - candidate.z) < 1e-8 &&
+    // The plinth projects a few centimetres past exposed walls so it never shares their plane.
+    return Math.abs(position[0] - x) < 0.05 && Math.abs(position[2] - candidate.z) < 0.05 &&
       position[1] === (candidate.brownstone ? 0.4 : 0.17) &&
-      Math.abs(scale[0] - width) < 1e-8 && Math.abs(scale[2] - candidate.depth) < 1e-8;
+      Math.abs(scale[0] - width) < 0.1 && Math.abs(scale[2] - candidate.depth) < 0.1;
   };
   const start = parts.findIndex((part) => isBase(part, building));
   expect(start).toBeGreaterThanOrEqual(0);
@@ -651,18 +655,18 @@ describe('original connected-city streetscape', () => {
         const y = 0.3 + floor * building.architecture.floorHeight + 0.12;
         expect(art.filter(({ position, scale }) =>
           Math.abs(position[1] - y) < 1e-8 && scale[1] === 0.12 &&
-          scale[0] >= building.width && scale[2] >= building.depth), building.id).toHaveLength(0);
+          scale[0] >= building.width - LOT_LINE_INSET && scale[2] >= building.depth - LOT_LINE_INSET), building.id).toHaveLength(0);
       }
       const baseBandY = 0.3 + building.architecture.floorHeight + 0.12;
       expect(art.some(({ position, scale }) =>
         Math.abs(position[1] - baseBandY) < 1e-8 && scale[1] === 0.12 &&
-        scale[0] >= building.width && scale[2] >= building.depth)).toBe(true);
+        scale[0] >= building.width - LOT_LINE_INSET && scale[2] >= building.depth - LOT_LINE_INSET)).toBe(true);
       if (building.fabricType === 'tenement') {
         expect(building.architecture.windowHeight / building.architecture.windowWidth).toBeGreaterThan(1.2);
         const roofY = 0.3 + building.floors * building.architecture.floorHeight;
         expect(art.some(({ surface, position, scale }) =>
           surface === builder.palette.rubber && Math.abs(position[1] - roofY - 0.03) < 1e-8 &&
-          scale[0] >= building.width && scale[2] >= building.depth)).toBe(true);
+          scale[0] >= building.width - LOT_LINE_INSET && scale[2] >= building.depth - LOT_LINE_INSET)).toBe(true);
       }
     }
   });
@@ -840,9 +844,12 @@ describe('original connected-city streetscape', () => {
         local(position).out > 0 && local(position).out < 1.1 && scale[0] === 0.045);
       expect(rails).toHaveLength(6);
       const corniceY = building.floors * building.architecture.floorHeight + 0.3;
+      // Cornices project 0.325 m past exposed walls and tuck just inside lot-line walls.
+      const reach = (face: 'east' | 'west') => building.attached.includes(face) ? -0.005 - 0.65 / 20 : 0.325;
       expect(art.some(({ surface, position, scale }) => surface === builder.palette.copperEdge &&
-        position[0] === building.x && Math.abs(position[1] - corniceY - 0.03) < 0.001 &&
-        scale[0] === building.width + (building.attached.some((face) => face === 'east' || face === 'west') ? 0 : 0.65) &&
+        Math.abs(position[0] - building.x - (reach('east') - reach('west')) / 2) < 1e-8 &&
+        Math.abs(position[1] - corniceY - 0.03) < 0.001 &&
+        Math.abs(scale[0] - building.width - reach('east') - reach('west')) < 1e-8 &&
         scale[1] === 0.26)).toBe(true);
       expect(art.filter(({ surface, position, scale }) => surface === builder.palette.copperEdge &&
         Math.abs(local(position).along) < span / 2 && Math.abs(local(position).out - 0.16) < 1e-8 &&

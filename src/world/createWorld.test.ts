@@ -256,7 +256,17 @@ describe('runtime ownership and suspension', () => {
     world.command({ type: 'navigate', zoom: 0.1 });
     tick(0);
     expect(gpu.shadowMap.needsUpdate).toBe(false);
+    // Continuous weather revisions are throttled rather than re-rendering shadows every frame.
     tick(34);
+    tick(68);
+    expect(gpu.shadowMap.needsUpdate).toBe(false);
+    tick(102);
+    tick(136);
+    expect(gpu.shadowMap.needsUpdate).toBe(true);
+    gpu.shadowMap.needsUpdate = false;
+    tick(170);
+    expect(gpu.shadowMap.needsUpdate).toBe(false);
+    world.command({ type: 'set-weather', weather: 'rain' });
     expect(gpu.shadowMap.needsUpdate).toBe(true);
     gpu.shadowMap.needsUpdate = false;
     world.command({ type: 'set-reduced-motion', reduced: true });

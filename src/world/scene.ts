@@ -34,6 +34,7 @@ import { GROUND_LEVEL, GROUND_PUDDLES } from './groundWater';
 import type { VehicleLightingRig } from './vehicleLighting';
 import { createWindowLightingMaterial, WINDOW_USE, type WindowUse } from './windowLighting';
 import { applyCivicMaintenanceCapture } from './civicUtilities';
+import { applySurfaceDetail } from './surfaceDetail';
 
 /** One frame's worth of simulation state the scene needs to advance its owned activity. */
 export interface CityFrame {
@@ -54,6 +55,8 @@ export interface CityScene {
   vehicleLights: VehicleLightingRig[];
   /** Advance every scene-owned activity in the one order they must run. */
   frame(state: CityFrame): void;
+  /** Refresh world matrices once before rendering; instanced rigs were already resolved by `frame`. */
+  prepareRender(): void;
   dispose(): void;
 }
 
@@ -173,6 +176,9 @@ export function buildCityScene(): CityScene {
     surface.userData.weatherSurface = true;
   }
   palette.road.userData.snowRetention = 0.45;
+  applySurfaceDetail(palette.paving, 'sidewalk');
+  applySurfaceDetail(palette.road, 'asphalt');
+  applySurfaceDetail(palette.facade, 'masonry');
   palette.line.userData.snowRetention = 0.45;
   const box = geometry(new THREE.BoxGeometry());
   const cylinder = geometry(new THREE.CylinderGeometry(1, 1, 1, 10));
@@ -517,6 +523,8 @@ export function buildCityScene(): CityScene {
   }
   const actorInstances = new ActorInstances(neighborhoodActors);
   scene.add(actorInstances.group);
+  // The renderer would otherwise recompute every hidden rig part a second time each frame.
+  scene.matrixWorldAutoUpdate = false;
   const bus = actors.get(CITY.busId)!;
   actors.forEach((actor) => actor.traverse((part) => { part.castShadow = false; }));
 
@@ -524,14 +532,19 @@ export function buildCityScene(): CityScene {
   const sun = new THREE.DirectionalLight('#fff1d6', 3);
   sun.position.set(-130, 200, 140);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(1024, 1024);
-  const shadowExtent = Math.max(CITY_EXTENT.x, CITY_EXTENT.z) * 1.6;
+  // Throttled refreshes make a sharper map affordable: ~0.21 m texels instead of ~0.53 m.
+  sun.shadow.mapSize.set(2048, 2048);
+  // Two-texel PCF keeps soft, stable edges at the finer resolution instead of stair steps.
+  sun.shadow.radius = 2;
+  // Encloses the ~206 m radius of every city corner up to 38 m high from any sun direction.
+  const shadowExtent = Math.max(CITY_EXTENT.x, CITY_EXTENT.z) * 1.25;
   Object.assign(sun.shadow.camera, { left: -shadowExtent, right: shadowExtent, top: shadowExtent, bottom: -shadowExtent, near: 1, far: 700 });
   sun.shadow.camera.updateProjectionMatrix();
   sun.shadow.normalBias = 0.06;
   // PCF samples span more world space after the district expansion.
   const shadowTexel = shadowExtent * 2 / sun.shadow.mapSize.x;
-  sun.shadow.bias = -1.25 * shadowTexel / (sun.shadow.camera.far - sun.shadow.camera.near);
+  // The depth offset spans the whole PCF kernel so wider filtering never reintroduces acne.
+  sun.shadow.bias = -1.25 * shadowTexel * sun.shadow.radius / (sun.shadow.camera.far - sun.shadow.camera.near);
   scene.add(sun);
   scene.updateMatrixWorld(true);
 
@@ -560,6 +573,12 @@ export function buildCityScene(): CityScene {
         stationRiders[index]?.scale.setScalar(!reducedMotion && phase === 'riding' ? 1 : 0);
       }
       actorInstances.update();
+    },
+    prepareRender() {
+      if (disposed) return;
+      for (const child of scene.children) {
+        if (!actorInstances.roots.has(child)) child.updateMatrixWorld();
+      }
     },
     dispose() {
       if (disposed) return;

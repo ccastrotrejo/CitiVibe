@@ -1,5 +1,5 @@
 import { Vector3 } from 'three';
-import { PARK_ACTORS, PARK_ROUTES, PARK_RUNNING_ROUTE, sampleParkRoute } from '../content/park';
+import { PARK_ACTORS, PARK_PATHS, PARK_ROUTES, PARK_RUNNING_ROUTE, sampleParkRoute } from '../content/park';
 import type { Position } from '../content/city';
 import { createPersonProfile, PERSON_SPACE } from '../content/people';
 import type { BikeShareTripState } from '../content/bikeShare';
@@ -8,6 +8,32 @@ import { PeopleWeather, type PeopleWeatherInput, type PersonWeatherState } from 
 import { canWalkTo, ParkVisitors } from './parkVisitors';
 import { DestinationActivities, type DestinationVisit } from './destinationActivities';
 import { isParkReader, PARK_MEADOW_VISIT, PARK_READING_DESTINATION, PARK_READING_ENTRY } from './parkActivities';
+import { blendedStride, createGaitTraits, type GaitTraits } from './locomotion';
+
+/**
+ * Retained park-runner state. Every field advances only on simulation ticks, so
+ * pause, hidden-tab catch-up limits and GPU recovery replay the same runner.
+ */
+export interface RunnerState {
+  /** 1 running, 0 cooldown walking; ramps at a bounded rate between them. */
+  effort: number;
+  /** Seconds of cooldown walking still owed; 0 while running. */
+  cooldown: number;
+  /** Travel distance at which the next cooldown begins. */
+  nextCooldown: number;
+  /** Travel distance when fatigue last reset after a cooldown. */
+  recovered: number;
+  rests: number;
+  /** 0 keep-right lane, 1 passing lane; eased between lanes over travelled distance. */
+  lane: number;
+  laneTarget: 0 | 1;
+  /** Signed offset from the track centerline, positive to the runner's left. */
+  lateral: number;
+  /** Integrated gait cycles, world-metre stride and 0..1 run blend for locomotion. */
+  cycle: number;
+  stride: number;
+  run: number;
+}
 
 export interface ActorState {
   id: string;
@@ -26,12 +52,91 @@ export interface ActorState {
   weather?: PersonWeatherState;
   sitting?: number;
   sharedBike?: BikeShareTripState;
+  runner?: RunnerState;
   speed: number;
   routeLength: number;
   lighting?: { turn: 'left' | 'right' | null; braking: boolean };
 }
 
 export const ACTIVITY = { seed: 2401, maxStep: 1 / 30 } as const;
+
+/** Authored runner envelope and etiquette tuning (miniature choices, not measured running data). */
+export const RUNNER_PACE = {
+  /** Largest combined surge/drift multiplier on a runner's profile pace. */
+  maxFactor: 1.09,
+  walkMin: 1.35,
+  walkRange: 0.3,
+  rampSeconds: 3.5,
+  restMinSeconds: 10,
+  restRangeSeconds: 15,
+  restMinLaps: 1.6,
+  restRangeLaps: 2.2,
+  /** Distance travelled while easing fully across to the other lane. */
+  laneChange: 6,
+  followGap: 2.6,
+  followGain: 0.8,
+  passLook: 6,
+  passMargin: 0.08,
+} as const;
+
+const TAU = Math.PI * 2;
+const RUNNING_TRACK = PARK_PATHS.find(({ id }) => id === 'reservoir-track')!;
+/** Two keep-right/passing lanes fit only if side-by-side bodies clear personal space. */
+export const RUNNER_LANE_OFFSET = (RUNNING_TRACK.width - PERSON_SPACE.width) / 2;
+const LANE_CLEAR = PERSON_SPACE.clearance + 0.01;
+const LANES = 2 * RUNNER_LANE_OFFSET >= LANE_CLEAR;
+const laneLateral = (lane: number) => LANES ? RUNNER_LANE_OFFSET * (2 * lane * lane * (3 - 2 * lane) - 1) : 0;
+
+function runnerSample(id: string, feature: string): number {
+  let hash = 2166136261;
+  for (const char of `${id}:runner:${feature}`) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619);
+  hash ^= hash >>> 16;
+  hash = Math.imul(hash, 0x7feb352d);
+  hash ^= hash >>> 15;
+  return (hash >>> 0) / 0x100000000;
+}
+
+interface RunnerPace {
+  readonly id: string;
+  readonly base: number;
+  readonly walk: number;
+  readonly surgeAmp: number;
+  readonly surgePeriod: number;
+  readonly surgePhase: number;
+  readonly driftAmp: number;
+  readonly driftPeriod: number;
+  readonly driftPhase: number;
+  readonly fatigueAmp: number;
+  readonly fatigueDistance: number;
+  /** Matches the non-court person rig scale, so world strides map to rig-local strides. */
+  readonly scale: number;
+  readonly traits: GaitTraits;
+}
+
+function createRunnerPace(id: string, base: number, stature: number): RunnerPace {
+  return {
+    id, base, walk: RUNNER_PACE.walkMin + runnerSample(id, 'walk') * RUNNER_PACE.walkRange,
+    surgeAmp: 0.03 + runnerSample(id, 'surge') * 0.03,
+    surgePeriod: 140 + runnerSample(id, 'surge-period') * 200,
+    surgePhase: runnerSample(id, 'surge-phase'),
+    driftAmp: 0.015 + runnerSample(id, 'drift') * 0.015,
+    driftPeriod: 500 + runnerSample(id, 'drift-period') * 500,
+    driftPhase: runnerSample(id, 'drift-phase'),
+    fatigueAmp: 0.03 + runnerSample(id, 'fatigue') * 0.05,
+    fatigueDistance: 500 + runnerSample(id, 'fatigue-distance') * 500,
+    scale: stature / 1.7,
+    traits: createGaitTraits(id),
+  };
+}
+
+/** Running pace from travelled distance: interval surges, slow drift and fatigue since the last cooldown. */
+function runningPace(pace: RunnerPace, runner: RunnerState, travel: number): number {
+  const surge = Math.sin(TAU * (travel / pace.surgePeriod + pace.surgePhase));
+  const drift = Math.sin(TAU * (travel / pace.driftPeriod + pace.driftPhase));
+  const tired = Math.min(1, Math.max(0, (travel - runner.recovered) / pace.fatigueDistance));
+  return pace.base * (1 + pace.surgeAmp * (surge > 0 ? surge * surge : 0) + pace.driftAmp * drift -
+    pace.fatigueAmp * tired * tired * (3 - 2 * tired));
+}
 
 interface ParkVisitor {
   actor: ActorState;
@@ -44,6 +149,8 @@ interface ParkVisitor {
   meadowDistance: number | null;
   nextHeading: number;
   activityStepped: boolean;
+  readonly pace?: RunnerPace;
+  nextLane: number;
 }
 
 /** Street traffic stays outside the park; park visitors walk through gates to city sidewalks. */
@@ -77,27 +184,41 @@ export class ActorSimulation {
       const group = PARK_ACTORS.filter((actor) => actor.gait === gait);
       const ordinal = group.findIndex((actor) => actor.id === id);
       let distance = (ordinal + random() * 0.3) / group.length * route.length;
+      const lateral = running ? laneLateral(0) : 0;
       const position = new Vector3();
+      let heading = 0;
       let placed = false;
       for (let attempt = 0; attempt < 32; attempt++) {
         sampleParkRoute(route, distance, position);
+        sampleParkRoute(route, distance + 0.2, this.lookAhead);
+        heading = Math.atan2(this.lookAhead.x - position.x, this.lookAhead.z - position.z);
+        position.x += Math.cos(heading) * lateral;
+        position.z -= Math.sin(heading) * lateral;
         if (occupied.every((other) => other.distanceTo(position) > PERSON_SPACE.headway)) { placed = true; break; }
         distance = (distance + 3) % route.length;
       }
       if (!placed) throw new Error('Unable to place park visitors with safe spacing.');
       occupied.push(position);
       const actor: ActorState = {
-        id, kind: 'pedestrian', gait, position, heading: 0,
+        id, kind: 'pedestrian', gait, position, heading,
         state: 'moving', distance, travelDistance: distance, speed: 0, routeLength: route.length,
       };
-      sampleParkRoute(route, distance + 0.2, this.lookAhead);
-      actor.heading = Math.atan2(this.lookAhead.x - position.x, this.lookAhead.z - position.z);
+      const pace = running ? createRunnerPace(id, person.pace, person.stature) : undefined;
+      if (pace) {
+        actor.runner = {
+          effort: 1, cooldown: 0, rests: 0,
+          nextCooldown: distance + route.length * (0.4 + runnerSample(id, 'first-rest') * 2.4),
+          recovered: distance - runnerSample(id, 'initial-fatigue') * pace.fatigueDistance,
+          lane: 0, laneTarget: 0, lateral, cycle: 0, stride: 0, run: 1,
+        };
+        actor.runner.stride = pace.scale * blendedStride(runningPace(pace, actor.runner, distance) / pace.scale, 1, pace.traits);
+      }
       return {
         actor, route, next: position.clone(), desiredSpeed: person.pace,
         advance: 0,
         untilReading: isParkReader(id) ? (PARK_READING_ENTRY - distance + route.length) % route.length : Infinity,
         untilMeadow: !running && index % 10 === 0 ? (PARK_MEADOW_VISIT.entry - distance + route.length) % route.length : Infinity,
-        meadowDistance: null, nextHeading: actor.heading, activityStepped: false,
+        meadowDistance: null, nextHeading: actor.heading, activityStepped: false, pace, nextLane: 0,
       };
     });
     for (const walker of this.walkers) {
@@ -110,6 +231,42 @@ export class ActorSimulation {
     this.parkNeighbors = [...this.parkActors, ...this.resting.actors];
     this.actors = Object.freeze([...this.parkActors, ...this.traffic.actors, ...this.resting.actors]);
     this.weather = new PeopleWeather(this.actors);
+  }
+
+  /** Advance a runner's retained cooldown/effort envelope by one tick and return its desired dry-weather pace. */
+  private paceRunner(pace: RunnerPace, runner: RunnerState, travel: number, dt: number): number {
+    if (runner.cooldown === 0 && travel >= runner.nextCooldown) {
+      runner.cooldown = RUNNER_PACE.restMinSeconds + runnerSample(pace.id, `rest-time:${runner.rests}`) * RUNNER_PACE.restRangeSeconds;
+    }
+    if (runner.cooldown > 0) {
+      runner.effort = Math.max(0, runner.effort - dt / RUNNER_PACE.rampSeconds);
+      if (runner.effort === 0) {
+        runner.cooldown = Math.max(0, runner.cooldown - dt);
+        if (runner.cooldown === 0) {
+          runner.rests += 1;
+          runner.recovered = travel;
+          runner.nextCooldown = travel + PARK_RUNNING_ROUTE.length * (RUNNER_PACE.restMinLaps +
+            runnerSample(pace.id, `rest-gap:${runner.rests}`) * RUNNER_PACE.restRangeLaps);
+        }
+      }
+    } else runner.effort = Math.min(1, runner.effort + dt / RUNNER_PACE.rampSeconds);
+    const run = runner.effort * runner.effort * (3 - 2 * runner.effort);
+    const desired = pace.walk + (runningPace(pace, runner, travel) - pace.walk) * run;
+    runner.run = run;
+    return desired;
+  }
+
+  /** Whether a lane is free of other runners within an along-track window around this runner. */
+  private laneClear(walker: ParkVisitor, lane: 0 | 1, behind: number, ahead: number): boolean {
+    const target = laneLateral(lane);
+    const length = walker.route.length;
+    for (const other of this.routeGroups.get(walker.route)!) {
+      const lateral = other.actor.runner?.lateral;
+      if (other === walker || lateral === undefined || Math.abs(lateral - target) >= LANE_CLEAR) continue;
+      const signed = ((other.actor.distance - walker.actor.distance) % length + length * 1.5) % length - length / 2;
+      if (signed > -behind && signed < ahead) return false;
+    }
+    return true;
   }
 
   getActor(id: string): ActorState | undefined {
@@ -190,6 +347,13 @@ export class ActorSimulation {
           available = Math.min(available, ahead);
         }
       }
+      const runner = actor.runner;
+      let desired = walker.desiredSpeed;
+      let leader: ParkVisitor | null = null;
+      let leaderGap = Infinity;
+      if (runner && walker.pace) desired = this.paceRunner(walker.pace, runner, actor.travelDistance ?? 0, dt);
+      desired *= actor.weather?.pace ?? 1;
+      if (runner && walker.pace) runner.stride = walker.pace.scale * blendedStride(desired / walker.pace.scale, runner.run, walker.pace.traits);
       for (const other of this.routeGroups.get(walker.route)!) {
         if (other === walker || other.actor.visit ||
           (other.meadowDistance === null) !== (walker.meadowDistance === null)) continue;
@@ -198,10 +362,29 @@ export class ActorSimulation {
           if (gap >= 0) available = Math.min(available, Math.max(0, gap - PERSON_SPACE.headway));
           continue;
         }
+        // Runners in fully separated lanes pass side by side; radial clearance below still applies.
+        if (runner && other.actor.runner && Math.abs(runner.lateral - other.actor.runner.lateral) >= LANE_CLEAR) continue;
         const gap = (other.actor.distance - walker.actor.distance + walker.route.length) % walker.route.length;
         available = Math.min(available, Math.max(0, gap - PERSON_SPACE.headway));
+        if (gap < leaderGap) { leaderGap = gap; leader = other; }
       }
-      walker.advance = Math.min(walker.desiredSpeed * (walker.actor.weather?.pace ?? 1) * dt, available);
+      walker.nextLane = runner?.lane ?? 0;
+      if (runner && leader && leaderGap < RUNNER_PACE.passLook) {
+        const leaderSpeed = leader.actor.speed;
+        // Lane changes start only from a settled lane, so heading eases without reversal snaps.
+        if (LANES && runner.laneTarget === 0 && runner.lane === 0 && leaderSpeed < desired - RUNNER_PACE.passMargin &&
+          this.laneClear(walker, 1, 4, leaderGap + 3)) runner.laneTarget = 1;
+        // Keep a comfortable gap and match the leader's pace until the passing lane opens.
+        desired = Math.min(desired, Math.max(0, leaderSpeed + (leaderGap - RUNNER_PACE.followGap) * RUNNER_PACE.followGain));
+      }
+      if (runner && runner.laneTarget === 1 && runner.lane === 1 &&
+        this.laneClear(walker, 0, PERSON_SPACE.headway + 1.2, RUNNER_PACE.passLook)) runner.laneTarget = 0;
+      walker.advance = Math.min(desired * dt, available);
+      if (runner && runner.lane !== runner.laneTarget) {
+        // Diagonal lane easing shares the runner's ground speed rather than adding to it.
+        const slope = RUNNER_LANE_OFFSET * 12 * runner.lane * (1 - runner.lane) / RUNNER_PACE.laneChange;
+        walker.advance /= Math.hypot(1, slope);
+      }
       if (walker.meadowDistance !== null) {
         PARK_MEADOW_VISIT.sample(walker.meadowDistance + walker.advance, walker.next);
         PARK_MEADOW_VISIT.sample(walker.meadowDistance + walker.advance + 0.2, this.lookAhead);
@@ -211,6 +394,14 @@ export class ActorSimulation {
       }
       walker.nextHeading = Math.hypot(this.lookAhead.x - walker.next.x, this.lookAhead.z - walker.next.z) > 1e-7
         ? Math.atan2(this.lookAhead.x - walker.next.x, this.lookAhead.z - walker.next.z) : actor.heading;
+      if (runner) {
+        const step = walker.advance / RUNNER_PACE.laneChange;
+        walker.nextLane = runner.laneTarget === 1 ? Math.min(1, runner.lane + step) : Math.max(0, runner.lane - step);
+        const lateral = laneLateral(walker.nextLane);
+        walker.next.x += Math.cos(walker.nextHeading) * lateral;
+        walker.next.z -= Math.sin(walker.nextHeading) * lateral;
+        if (walker.advance > 0) walker.nextHeading += Math.atan2(lateral - runner.lateral, walker.advance);
+      }
       if (!canWalkTo(walker.actor, walker.next, walker.actor.heading, this.resting.actors)) walker.advance = 0;
       const { position } = actor;
       const nextX = walker.next.x, nextZ = walker.next.z;
@@ -235,6 +426,20 @@ export class ActorSimulation {
       actor.speed = walker.advance / dt;
       actor.state = walker.advance > 0 ? 'moving' : 'waiting';
       if (walker.advance === 0) continue;
+      const { runner } = actor;
+      if (runner) {
+        // Lanes bend with the track, so gait and pace use the true ground displacement.
+        const moved = Math.hypot(walker.next.x - actor.position.x, walker.next.z - actor.position.z);
+        actor.speed = moved / dt;
+        actor.travelDistance = (actor.travelDistance ?? 0) + moved;
+        runner.cycle += moved / runner.stride;
+        runner.lane = walker.nextLane;
+        runner.lateral = laneLateral(runner.lane);
+        actor.distance = (actor.distance + walker.advance) % actor.routeLength;
+        Object.assign(actor.position, { x: walker.next.x, y: 0, z: walker.next.z });
+        actor.heading = walker.nextHeading;
+        continue;
+      }
       actor.travelDistance = (actor.travelDistance ?? 0) + walker.advance;
       if (walker.meadowDistance !== null) {
         walker.meadowDistance += walker.advance;

@@ -1,5 +1,17 @@
 # Art and assets
 
+## Procedural surface finishes and trim planes - 2026-09-26
+
+Three original procedural finishes add NYC material character without textures, new geometry, materials or passes (`src/world/surfaceDetail.ts`). They chain before the weather-surface hook on existing shared materials:
+
+- **Sidewalk flags:** a 1.52 m (about five-foot) concrete flag grid with thin joints, per-flag tone and light grime, limited to upward paving faces at sidewalk height.
+- **Asphalt:** broad and fine value-noise mottling plus sparse rectangular repair patches on upward road faces.
+- **Masonry coursing:** running-bond brick (0.205 m courses, 0.42 m stretchers) with light mortar on vertical faces of warm facade tints only. The shared facade paint also colours vehicles and sidewalk props, so coursing is masked out of every street-and-sidewalk corridor; grey/teal office and curtain-wall tints stay plain.
+
+Joint lines are filtered by the pixel footprint (`fwidth`), so they fade to their average tone at overview zoom instead of shimmering. These are stylised, independently authored patterns, not traced photographs or copied textures.
+
+Wrapping trims (plinths, floor bands, cornices, roof caps and parapets) now project past exposed walls and tuck just inside lot-line walls with projection-scaled insets, and shed fascias stand 1 cm proud of their decks. This removes the coplanar faces that flickered where a building joins a neighbor on only one side; `depthFighting.test.ts` guards the remaining contact area.
+
 ## NYC realism and interior furnishing - 2026-09-17
 
 The [37-item implementation record](NYC_REALISM_RESEARCH_PLAN.md#local-implementation-record---2026-09-17) supersedes the earlier visual snapshots below. Three frontage roles and seven construction systems correlate building use, facade materials, window geometry and roofs. Shared planar glazing replaces redundant solids; cornices, shallow entry recesses, corner shopfronts and grounded roof bulkheads provide local depth without a new postprocessing effect.

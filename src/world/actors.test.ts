@@ -6,11 +6,23 @@ import { STREET_X, STREET_Z, TRAFFIC_ACTORS } from '../content/streets';
 import { PERSON_SPACE } from '../content/people';
 import { PARK_RESTING_VISITORS } from '../content/parkVisitors';
 import { LAMP_GEOMETRY, STREET_LAMPS } from '../content/lighting';
-import { ActorSimulation, type ActorState } from './actors';
+import { ActorSimulation, RUNNER_LANE_OFFSET, RUNNER_PACE, type ActorState } from './actors';
 import { PARK_MEADOW_VISIT, PARK_READING_DESTINATION } from './parkActivities';
 
 const DT = 1 / 30;
 const outsidePark = ({ x, z }: { x: number; z: number }) => Math.abs(x) > PARK_BOUNDS.x || Math.abs(z) > PARK_BOUNDS.z;
+
+const runnerAhead = new Vector3();
+/** Expected runner position: the shared track centerline plus its retained, bounded lane offset. */
+function runnerOnTrack(actor: ActorState, target: Vector3): void {
+  sampleParkRoute(PARK_RUNNING_ROUTE, actor.distance, target);
+  sampleParkRoute(PARK_RUNNING_ROUTE, actor.distance + 0.2, runnerAhead);
+  const heading = Math.atan2(runnerAhead.x - target.x, runnerAhead.z - target.z);
+  const lateral = actor.runner!.lateral;
+  if (Math.abs(lateral) > RUNNER_LANE_OFFSET + 1e-12) throw new Error(`Runner left its lane: ${actor.id}.`);
+  target.x += Math.cos(heading) * lateral;
+  target.z -= Math.sin(heading) * lateral;
+}
 
 function pedestriansOverlap(first: ActorState, second: ActorState): boolean {
   if (Math.hypot(first.position.x - second.position.x, first.position.z - second.position.z) >=
@@ -228,10 +240,11 @@ describe('connected car-free park', () => {
       });
       runners.forEach((actor, index) => {
         runnerDistance[index] += actor.speed * DT;
-        if (outsidePark(actor.position) || actor.speed < 0 || actor.speed > 2.651) {
+        // Surges, lateral lane easing and the outer lane's longer curve raise the peak ground speed.
+        if (outsidePark(actor.position) || actor.speed < 0 || actor.speed > 2.65 * RUNNER_PACE.maxFactor * 1.05) {
           throw new Error(`Runner stopped or left the park: ${actor.id}, seed ${seed}, tick ${tick}.`);
         }
-        sampleParkRoute(PARK_RUNNING_ROUTE, actor.distance, expectedRunner);
+        runnerOnTrack(actor, expectedRunner);
         if (Math.hypot(actor.position.x - expectedRunner.x, actor.position.z - expectedRunner.z) > 1e-8) {
           throw new Error(`Runner left the track: ${actor.id}.`);
         }
@@ -259,10 +272,93 @@ describe('connected car-free park', () => {
       expect(walkerDistance[index] / 900, walkers[index].id).toBeGreaterThan(0.8);
     });
     longestIdle.forEach((seconds) => expect(seconds).toBeLessThan(25));
+    // Seeded cooldown walks lower the long-run average, but never into a stalled queue.
     runnerDistance.forEach((distance) => {
       expect(distance).toBeGreaterThan(PARK_RUNNING_ROUTE.length * 10);
-      expect(distance / 900).toBeGreaterThan(2.3);
+      expect(distance / 900).toBeGreaterThan(2.1);
     });
     expect(simulation.elapsed).toBeCloseTo(simulation.traffic.elapsed);
   }, 30_000);
+});
+
+describe('individual park runners', () => {
+  it.each([42, 2401])('varies pace, takes cooldown walks and passes safely with seed %s', (seed) => {
+    const simulation = new ActorSimulation(seed);
+    const runners = simulation.actors.filter(({ gait }) => gait === 'run');
+    const running = runners.map(() => [] as number[]);
+    const walkTicks = new Uint16Array(runners.length);
+    const walks = runners.map(() => [] as number[]);
+    const resumed = new Uint8Array(runners.length);
+    const expected = new Vector3();
+    let laneChanges = 0;
+    let stalls = 0;
+    let sideBySide = 0;
+    const lastTarget = runners.map(({ runner }) => runner!.laneTarget);
+    const order = () => [...runners].sort((a, b) => a.distance - b.distance).map(({ id }) => id).join();
+    const firstOrder = order();
+    for (let tick = 0; tick < 10_800; tick++) {
+      simulation.step(DT);
+      runners.forEach((actor, index) => {
+        const runner = actor.runner!;
+        runnerOnTrack(actor, expected);
+        expect(Math.hypot(actor.position.x - expected.x, actor.position.z - expected.z)).toBeLessThan(1e-8);
+        if (actor.speed === 0) stalls++;
+        if (runner.laneTarget !== lastTarget[index]) laneChanges++;
+        lastTarget[index] = runner.laneTarget;
+        if (runner.run === 1 && runner.cooldown === 0) running[index].push(actor.speed);
+        if (runner.run === 0) {
+          walkTicks[index]++;
+          // Ground speed on the outer lane's longer curve is a few percent above centerline pace.
+          expect(actor.speed).toBeLessThanOrEqual((RUNNER_PACE.walkMin + RUNNER_PACE.walkRange) * 1.05);
+        } else if (walkTicks[index] > 0) {
+          walks[index].push(walkTicks[index] * DT);
+          walkTicks[index] = 0;
+        }
+        if (walks[index].length > 0 && runner.run === 1 && actor.speed > 2) resumed[index] = 1;
+        for (let other = index + 1; other < runners.length; other++) {
+          const second = runners[other];
+          const gap = Math.hypot(second.position.x - actor.position.x, second.position.z - actor.position.z);
+          if (gap < PERSON_SPACE.clearance - 0.05 || pedestriansOverlap(actor, second)) {
+            throw new Error(`Runner collision: ${actor.id}/${second.id}, seed ${seed}, tick ${tick}.`);
+          }
+          if (gap < PERSON_SPACE.headway && Math.abs(runner.lateral - second.runner!.lateral) > PERSON_SPACE.clearance) sideBySide++;
+        }
+      });
+    }
+    const means = running.map((speeds) => speeds.reduce((sum, speed) => sum + speed, 0) / speeds.length);
+    running.forEach((speeds, index) => {
+      expect(Math.max(...speeds) - Math.min(...speeds), runners[index].id).toBeGreaterThan(0.1);
+    });
+    expect(Math.max(...means) - Math.min(...means)).toBeGreaterThan(0.1);
+    expect(new Set(means).size).toBe(runners.length);
+    walks.forEach((durations, index) => {
+      expect(durations.length, runners[index].id).toBeGreaterThanOrEqual(1);
+      for (const seconds of durations) {
+        expect(seconds).toBeGreaterThanOrEqual(RUNNER_PACE.restMinSeconds - DT);
+        expect(seconds).toBeLessThanOrEqual(RUNNER_PACE.restMinSeconds + RUNNER_PACE.restRangeSeconds + DT);
+      }
+      expect(resumed[index], runners[index].id).toBe(1);
+      expect(runners[index].runner!.rests).toBeGreaterThanOrEqual(durations.length);
+    });
+    expect(laneChanges).toBeGreaterThan(40);
+    expect(sideBySide).toBeGreaterThan(100);
+    expect(order()).not.toBe(firstOrder);
+    expect(stalls).toBe(0);
+  }, 30_000);
+
+  it('replays identical runner envelopes through pause, hidden-tab catch-up and redraws', () => {
+    const continuous = new ActorSimulation(7);
+    const paused = new ActorSimulation(7);
+    const snapshot = (simulation: ActorSimulation) => JSON.stringify(simulation.actors.filter(({ gait }) => gait === 'run'));
+    for (let tick = 0; tick < 2400; tick++) continuous.step(DT);
+    for (let tick = 0; tick < 1200; tick++) paused.step(DT);
+    const held = snapshot(paused);
+    expect(paused.actors.some(({ runner }) => runner && (runner.cooldown > 0 || runner.lane > 0))).toBe(true);
+    for (let redraw = 0; redraw < 50; redraw++) paused.step(0, 1, undefined, true);
+    expect(snapshot(paused)).toBe(held);
+    paused.step(5);
+    for (let tick = 0; tick < 1199; tick++) paused.step(DT);
+    expect(snapshot(paused)).toBe(snapshot(continuous));
+    expect(paused).toEqual(continuous);
+  });
 });

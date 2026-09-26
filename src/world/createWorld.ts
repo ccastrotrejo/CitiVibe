@@ -1,4 +1,4 @@
-import { NeutralToneMapping, OrthographicCamera, PCFSoftShadowMap, SRGBColorSpace, WebGLRenderer } from 'three';
+import { NeutralToneMapping, OrthographicCamera, PCFShadowMap, SRGBColorSpace, WebGLRenderer } from 'three';
 import { CAMERA_ANCHORS, CAMERA_PROJECTION, validateCameraAnchors } from '../content/city';
 import { createAirplaneVisual } from './airplane';
 import type { AirplaneVisual } from './airplane';
@@ -13,6 +13,8 @@ import type { WorldModel } from './model';
 import { buildCityScene } from './scene';
 import type { CityScene } from './scene';
 import type { Lifecycle, Runtime, WorldCommand } from './types';
+
+const SHADOW_REFRESH_SECONDS = 0.1;
 
 interface WorldOptions {
   canvas: HTMLCanvasElement;
@@ -29,7 +31,8 @@ export function createWorld({ canvas, model, onChange, onLifecycle }: WorldOptio
   renderer.outputColorSpace = SRGBColorSpace;
   renderer.toneMapping = NeutralToneMapping;
   renderer.toneMappingExposure = 1;
-  renderer.shadowMap.type = PCFSoftShadowMap;
+  // three r186 removed PCFSoftShadowMap and fell back to PCF with a warning.
+  renderer.shadowMap.type = PCFShadowMap;
   renderer.debug.onShaderError = () => {
     throw new Error('City graphics shaders could not compile. Retry the live city.');
   };
@@ -71,6 +74,9 @@ export function createWorld({ canvas, model, onChange, onLifecycle }: WorldOptio
   let statusElapsed = 0;
   let shadowWeatherRevision = -1;
   let shadowReducedMotion = model.reducedMotion;
+  // Physics advances its revision every step; wind-swayed canopies and slowly settling snow
+  // stay convincing at ~10 Hz, so the whole-city shadow pass is not re-rendered every frame.
+  let shadowAge = Infinity;
   function attachEffects(): void {
     model.environment.physics.bindSurface(art.weatherSurface.heightAt, art.weatherSurface.snowRetentionAt);
     environment = new EnvironmentVisual(art.scene, art.weatherSurface, art.foliage, art.snowMeshes);
@@ -137,8 +143,10 @@ export function createWorld({ canvas, model, onChange, onLifecycle }: WorldOptio
     environment.update(model.environment.frame, { reducedMotion: model.reducedMotion, lightweight }, model.environment.physics);
     lighting.update(model.environment.frame, model.environment.physics, model.simulation.elapsed, camera, pose,
       { reducedMotion: model.reducedMotion, lightweight });
-    if (!lightweight && (model.environment.physics.revision !== shadowWeatherRevision || model.reducedMotion !== shadowReducedMotion)) {
+    if (!lightweight && ((model.environment.physics.revision !== shadowWeatherRevision && shadowAge >= SHADOW_REFRESH_SECONDS) ||
+      model.reducedMotion !== shadowReducedMotion)) {
       renderer.shadowMap.needsUpdate = true;
+      shadowAge = 0;
       shadowWeatherRevision = model.environment.physics.revision;
       shadowReducedMotion = model.reducedMotion;
     }
@@ -154,6 +162,7 @@ export function createWorld({ canvas, model, onChange, onLifecycle }: WorldOptio
       balloons.group.position.set(drift.position.x, drift.position.y, drift.position.z);
       balloons.group.rotation.y = drift.heading;
     }
+    art.prepareRender();
     renderer.render(art.scene, camera);
   }
 
@@ -176,6 +185,7 @@ export function createWorld({ canvas, model, onChange, onLifecycle }: WorldOptio
       if (simulated > 0) {
         locomotion.update(model.simulation.actors, art.actors, simulated, model.reducedMotion);
         statusElapsed += simulated;
+        shadowAge += simulated;
         if (model.camera.revision !== cameraRevision || statusElapsed >= 1) {
           statusElapsed %= 1;
           onChange();
@@ -198,6 +208,7 @@ export function createWorld({ canvas, model, onChange, onLifecycle }: WorldOptio
     if (disposed) return;
     const wasPaused = model.paused;
     model.command(command);
+    if (command.type !== 'navigate') shadowAge = Infinity;
     if (command.type === 'set-weather' || command.type === 'set-rain-intensity' || command.type === 'set-reduced-motion') {
       locomotion.restore(model.simulation.actors, art.actors, model.reducedMotion);
     }

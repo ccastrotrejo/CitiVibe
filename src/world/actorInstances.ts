@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 
+const IDENTITY = new THREE.Matrix4();
+
 interface ActorBatch {
   mesh: THREE.InstancedMesh;
   sources: THREE.Mesh[];
@@ -8,6 +10,8 @@ interface ActorBatch {
 /** Shares submissions across articulated actors without changing their simulation or rigs. */
 export class ActorInstances {
   readonly group = new THREE.Group();
+  /** Rig roots whose world matrices this class refreshes itself each update. */
+  readonly roots: ReadonlySet<THREE.Object3D>;
   private readonly batches: ActorBatch[] = [];
   private readonly inverse = new THREE.Matrix4();
   private readonly transform = new THREE.Matrix4();
@@ -15,6 +19,7 @@ export class ActorInstances {
 
   constructor(private readonly actors: readonly THREE.Group[]) {
     this.group.name = 'Instanced neighborhood activity';
+    this.roots = new Set(actors);
     const sources = new Map<string, { geometry: THREE.BufferGeometry; material: THREE.Material; meshes: THREE.Mesh[] }>();
     for (const actor of actors) {
       actor.traverse((object) => {
@@ -53,13 +58,16 @@ export class ActorInstances {
   update(): void {
     if (this.disposed) return;
     this.group.updateWorldMatrix(true, false);
-    this.inverse.copy(this.group.matrixWorld).invert();
+    const identity = this.group.matrixWorld.equals(IDENTITY);
+    if (!identity) this.inverse.copy(this.group.matrixWorld).invert();
     for (const actor of this.actors) actor.updateWorldMatrix(true, true);
     for (const { mesh, sources } of this.batches) {
-      sources.forEach((source, index) => {
-        this.transform.multiplyMatrices(this.inverse, source.matrixWorld);
-        mesh.setMatrixAt(index, this.transform);
-      });
+      const array = mesh.instanceMatrix.array as Float32Array;
+      for (let index = 0; index < sources.length; index++) {
+        const world = identity ? sources[index].matrixWorld :
+          this.transform.multiplyMatrices(this.inverse, sources[index].matrixWorld);
+        world.toArray(array, index * 16);
+      }
       mesh.instanceMatrix.needsUpdate = true;
     }
   }

@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { afterAll, describe, expect, it } from 'vitest';
 import { createPersonProfile, createWeatherTraits, PERSON_SPACE, type PersonContext } from '../content/people';
 import { ActorInstances } from './actorInstances';
-import { Locomotion, poseNeutral, poseWalkerRig, RUNNER } from './locomotion';
+import { createGaitTraits, Locomotion, poseNeutral, poseWalkerRig, RUNNER } from './locomotion';
 import type { ActorState } from './actors';
 import { buildPersonRig, type PersonArt } from './person';
 import { applyPersonWeather } from './personWeatherArt';
@@ -210,10 +210,12 @@ describe('weather-aware procedural people', () => {
   it('uses grounded walking only for cautious runners and restores that same gait', () => {
     for (const cautious of [true, false, undefined]) {
       const { group, rig } = person('cautious-runner', 'runner');
+      const traits = createGaitTraits('cautious-runner');
       const groups = new Map([['cautious-runner', group]]);
       const actor: ActorState = { id: 'cautious-runner', kind: 'pedestrian', gait: 'run',
         position: { x: 0, y: 0, z: 0 }, heading: 0, state: 'moving', speed: 2.5, routeLength: 10,
-        distance: RUNNER.stride * rig.scale! * 0.45,
+        // Locomotion applies this ID's stable gait traits; land both feet in the flight interval.
+        distance: RUNNER.stride * traits.stride * rig.scale! * (((0.45 - traits.phase) % 1 + 1) % 1),
         weather: cautious === undefined ? undefined : { ...weather('winter'), cautious } };
       const locomotion = new Locomotion();
       locomotion.update([actor], groups, 1 / 8, false);
@@ -231,7 +233,8 @@ describe('weather-aware procedural people', () => {
   it('grounds direct cautious runner poses and preserves them through restore', () => {
     const { group, rig } = person('runner-1', 'runner');
     const state = weather('winter');
-    const pose = { distance: 0.62, speed: 1.6, blend: 1, running: true, reducedMotion: false, weather: state };
+    const pose = { distance: 0.62, speed: 1.6, blend: 1, running: true, reducedMotion: false, weather: state,
+      traits: createGaitTraits('runner-1') };
     poseWalkerRig(rig, pose);
     group.updateMatrixWorld(true);
     const feet = rig.legs.map((leg) => leg.ankle.getWorldPosition(new THREE.Vector3()).y);
