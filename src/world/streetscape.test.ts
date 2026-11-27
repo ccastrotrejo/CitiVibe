@@ -136,7 +136,8 @@ function buildingParts(parts: Part[], building: StreetBuilding) {
   expect(start).toBeGreaterThanOrEqual(0);
   const next = STREET_BUILDINGS[STREET_BUILDINGS.indexOf(building) + 1];
   const end = next ? parts.findIndex((part) => isBase(part, next)) : parts.findIndex((part, index) =>
-    index > start && part.position[1] === -0.035 && part.scale[0] === 1.45);
+    index > start && (Math.abs(part.position[0] - building.x) > building.reservedWidth ||
+      Math.abs(part.position[2] - building.z) > building.reservedDepth));
   expect(end).toBeGreaterThan(start);
   return parts.slice(start, end);
 }
@@ -1852,11 +1853,11 @@ describe('original connected-city streetscape', () => {
     const palette = new Set(FACADE_TONES.map(({ hex }) => hex));
     for (const part of masonry) {
       expect(part.tint).toBeDefined();
-      const plantedTreeBed = part.tint === '#70866a' && part.position[1] === 0.035 &&
-        part.scale[0] === 0.16 && part.scale[1] === 0.026 && part.scale[2] === 0.9;
+      const plantedTreeBed = part.position[1] < 0.2 && ['#70866a', '#5f7358', '#685341', '#5a4636', '#7b8075'].includes(part.tint!);
       expect(palette.has(part.tint!) || WINDOW_UNIT_TONES.includes(part.tint!) ||
         part.tint === WINDOW_UNIT_GRILLE || plantedTreeBed ||
-        (part.position[1] < 0.02 && ['#dfb63b', '#b2b7ac', '#bdab81'].includes(part.tint!))).toBe(true);
+        (part.position[1] < 0.02 && ['#dfb63b', '#b2b7ac', '#bdab81'].includes(part.tint!)),
+      `Unexpected facade tint ${part.tint} at ${part.position.join(',')}`).toBe(true);
     }
     // Blockfronts share a family, so a run reads as one development rather than a colour riot.
     const runs = new Map<string, Set<string>>();

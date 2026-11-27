@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { toCreasedNormals } from 'three/addons/utils/BufferGeometryUtils.js';
 import { CITY, CONTENT } from '../content/city';
 import { PARK_ACTORS } from '../content/park';
 import { PARK_RESTING_VISITORS } from '../content/parkVisitors';
@@ -28,6 +30,7 @@ import { poseNeutral } from './locomotion';
 import { buildPersonRig, type PersonArt } from './person';
 import { buildReadingArt, isParkReader } from './parkActivities';
 import { PlayActivity } from './playActivity';
+import { StreetCrowdActivity } from './streetCrowd';
 import { captureWeatherSurface, type FoliageBatch } from './weatherArt';
 import type { WeatherSurface } from './weatherSurface';
 import { GROUND_LEVEL, GROUND_PUDDLES } from './groundWater';
@@ -35,6 +38,7 @@ import type { VehicleLightingRig } from './vehicleLighting';
 import { createWindowLightingMaterial, WINDOW_USE, type WindowUse } from './windowLighting';
 import { applyCivicMaintenanceCapture } from './civicUtilities';
 import { applySurfaceDetail } from './surfaceDetail';
+import { createProceduralTextureSet } from './proceduralTextures';
 
 /** One frame's worth of simulation state the scene needs to advance its owned activity. */
 export interface CityFrame {
@@ -126,80 +130,149 @@ export function buildCityScene(): CityScene {
     materials.add(value);
     return value;
   };
-  const paint = (color: string, roughness = 0.88) =>
-    material(new THREE.MeshStandardMaterial({ color, roughness }));
+  const proceduralTextures = createProceduralTextureSet();
+  const paint = (color: string, roughness = 0.86, metalness = 0) =>
+    material(new THREE.MeshStandardMaterial({ color, roughness, metalness }));
   const palette = {
-    sand: paint('#d2dad3'),
-    stone: paint('#b9bdac'),
-    paving: paint('#deddd0'),
-    road: paint('#727f7c'),
-    line: paint('#f4e7cb'),
-    cream: paint('#f0dec0'),
-    clay: paint('#bc745b'),
-    teal: paint('#568581'),
-    roof: paint('#626c67'),
-    copper: paint('#b97850', 0.65),
-    copperEdge: paint('#80553e'),
-    glass: paint('#354f53', 0.5),
-    wood: paint('#9c7952'),
-    leaf: paint('#70866a'),
-    leafLight: paint('#9aa478'),
-    water: paint('#739d98', 0.6),
-    bus: paint('#db8b57'),
-    rubber: paint('#3b4643'),
-    taxi: paint('#e7b94d'),
+    sand: paint('#d2dad3', 0.88),
+    stone: paint('#b9bdac', 0.84),
+    paving: paint('#deddd0', 0.82),
+    road: paint('#6d7977', 0.82),
+    line: paint('#f4e7cb', 0.72),
+    cream: paint('#f0dec0', 0.8),
+    clay: paint('#bc745b', 0.78),
+    teal: paint('#568581', 0.58, 0.08),
+    roof: paint('#626c67', 0.88),
+    copper: paint('#b97850', 0.42, 0.45),
+    copperEdge: paint('#80553e', 0.55, 0.32),
+    glass: paint('#2d474d', 0.16, 0.14),
+    wood: paint('#9c7952', 0.78),
+    leaf: paint('#6d8567', 0.82),
+    leafLight: paint('#9aa478', 0.8),
+    water: paint('#5c8e8b', 0.14, 0.08),
+    bus: material(new THREE.MeshPhysicalMaterial({
+      color: '#db8b57', roughness: 0.38, metalness: 0.1, clearcoat: 0.42, clearcoatRoughness: 0.22, envMapIntensity: 1.1,
+    })),
+    rubber: paint('#323b39', 0.86),
+    taxi: material(new THREE.MeshPhysicalMaterial({
+      color: '#ebb83f', roughness: 0.34, metalness: 0.12, clearcoat: 0.5, clearcoatRoughness: 0.18, envMapIntensity: 1.15,
+    })),
     // White so per-instance tints reproduce authored masonry colours exactly.
-    facade: paint('#ffffff'),
+    facade: paint('#ffffff', 0.84),
   };
+  palette.glass.envMapIntensity = 2.4;
+  palette.water.envMapIntensity = 2.2;
+  palette.water.normalMap = proceduralTextures.waterNormal;
+  palette.water.normalScale.set(0.24, 0.24);
+  palette.water.userData.waterRipple = true;
   // Tag glazing so the environment layer can light windows warmly after dark.
   palette.glass.userData.window = true;
-  const vehicleGlass = material(palette.glass.clone());
-  vehicleGlass.userData = {};
-  const civicBlue = paint('#256897');
+  const vehicleGlass = material(new THREE.MeshStandardMaterial({
+    color: '#1e3138', roughness: 0.12, metalness: 0.18, envMapIntensity: 1.6,
+  }));
+  const vehiclePaint = material(new THREE.MeshPhysicalMaterial({
+    color: '#ffffff', roughness: 0.36, metalness: 0.12, clearcoat: 0.48, clearcoatRoughness: 0.2, envMapIntensity: 1.15,
+  }));
+  const alloy = material(new THREE.MeshStandardMaterial({
+    color: '#d4dce2', roughness: 0.28, metalness: 0.78, envMapIntensity: 1.4,
+  }));
+  const civicBlue = material(new THREE.MeshPhysicalMaterial({
+    color: '#256897', roughness: 0.38, metalness: 0.12, clearcoat: 0.4, clearcoatRoughness: 0.22, envMapIntensity: 1.1,
+  }));
   civicBlue.userData.weatherSurface = true;
+  vehiclePaint.userData.weatherSurface = true;
+  alloy.userData.weatherSurface = true;
   // Public lighting: luminaire heads emit and pools brighten only after dusk (driven by frame.night).
   const lampGlow = material(new THREE.MeshStandardMaterial({
-    color: '#ffe7bb', emissive: '#ffd68f', emissiveIntensity: 0, roughness: 0.5,
+    color: '#ffe7bb', emissive: '#ffd68f', emissiveIntensity: 0, roughness: 0.35,
   }));
   lampGlow.userData.nightLight = true;
   lampGlow.userData.nightColor = '#ffd68f';
   lampGlow.userData.nightIntensity = 2.2;
   // Emergency beacons read as steady coloured lamps in daylight and after dark alike.
   const beacon = (color: string) => material(new THREE.MeshStandardMaterial({
-    color, emissive: color, emissiveIntensity: 0.85, roughness: 0.4,
+    color, emissive: color, emissiveIntensity: 0.95, roughness: 0.25,
   }));
   const beaconRed = beacon('#e5484d');
   const beaconBlue = beacon('#5a8dff');
   for (const surface of [palette.stone, palette.paving, palette.road, palette.line, palette.cream, palette.clay,
     palette.teal, palette.roof, palette.copper, palette.copperEdge, palette.wood, palette.leaf, palette.leafLight,
-    palette.facade]) {
+    palette.facade, palette.bus, palette.taxi]) {
     surface.userData.weatherSurface = true;
   }
   palette.road.userData.snowRetention = 0.45;
-  applySurfaceDetail(palette.paving, 'sidewalk');
-  applySurfaceDetail(palette.road, 'asphalt');
-  applySurfaceDetail(palette.facade, 'masonry');
+  applySurfaceDetail(palette.paving, 'sidewalk', {
+    normalMap: proceduralTextures.concreteNormal,
+    roughnessMap: proceduralTextures.concreteRoughness,
+    normalScale: 0.2,
+  });
+  applySurfaceDetail(palette.road, 'asphalt', {
+    normalMap: proceduralTextures.asphaltNormal,
+    roughnessMap: proceduralTextures.asphaltRoughness,
+    normalScale: 0.28,
+  });
+  applySurfaceDetail(palette.facade, 'masonry', {
+    normalMap: proceduralTextures.masonryNormal,
+    roughnessMap: proceduralTextures.masonryRoughness,
+    normalScale: 0.3,
+  });
   palette.line.userData.snowRetention = 0.45;
   const box = geometry(new THREE.BoxGeometry());
-  const cylinder = geometry(new THREE.CylinderGeometry(1, 1, 1, 10));
-  const crown = geometry(new THREE.DodecahedronGeometry(1));
-  const personArt: PersonArt = { box, head: geometry(new THREE.IcosahedronGeometry(1)), material: paint('#ffffff') };
-  personArt.material.name = 'Shared person colors';
-  const wheel = geometry(new THREE.CylinderGeometry(0.38, 0.38, 0.2, 12));
-  const taperedShell = geometry(new THREE.BoxGeometry());
-  const shellPositions = taperedShell.getAttribute('position');
+  // Crisp taut planar faces with clean 7% corner fillets (official RoundedBoxGeometry, zero pillow shading).
+  const roundedBox = geometry(new RoundedBoxGeometry(1, 1, 1, 1, 0.075));
+  const cylinder = geometry(new THREE.CylinderGeometry(1, 1, 1, 12));
+  const cone = geometry(new THREE.ConeGeometry(1, 1, 14));
+  const torus = geometry(new THREE.TorusGeometry(0.305, 0.025, 6, 18));
+  // Crisp low-poly faceted-yet-full botanical crown with gentle 42° crease shading so foliage has readable planes.
+  const crownBase = new THREE.IcosahedronGeometry(1, 1);
+  const crown = geometry(toCreasedNormals(crownBase, Math.PI * 0.24));
+  crownBase.dispose();
+  // Clean sculpted anatomical head: softly rounded cranial/jaw planes (diameter 2 matching radius-1 scale contract).
+  const headGeo = new RoundedBoxGeometry(1.86, 1.94, 1.86, 1, 0.56);
+  const smoothHead = geometry(headGeo);
+  // Smooth 8-segment rounded limb capsule normalized to exact [-0.5, 0.5]^3 bounds.
+  const unitCapsule = new THREE.CapsuleGeometry(0.46, 0.68, 1, 8);
+  unitCapsule.scale(1 / 0.92, 1 / 1.6, 1 / 0.92);
+  const capsule = geometry(unitCapsule);
+  const personMaterial = paint('#ffffff', 0.8);
+  personMaterial.name = 'Shared person colors';
+  const personArt: PersonArt = {
+    box, capsule, roundedBox, cone, head: smoothHead, material: personMaterial,
+  };
+  // Taut 18-segment pneumatic tire with crisp sidewall-to-tread shoulder crease (28°).
+  const tireProfile = [
+    new THREE.Vector2(0.2, -0.092),
+    new THREE.Vector2(0.345, -0.098),
+    new THREE.Vector2(0.374, -0.078),
+    new THREE.Vector2(0.38, -0.04),
+    new THREE.Vector2(0.38, 0.04),
+    new THREE.Vector2(0.374, 0.078),
+    new THREE.Vector2(0.345, 0.098),
+    new THREE.Vector2(0.2, 0.092),
+    new THREE.Vector2(0.19, 0),
+    new THREE.Vector2(0.2, -0.092),
+  ];
+  const rawTire = new THREE.LatheGeometry(tireProfile, 18);
+  const wheel = geometry(toCreasedNormals(rawTire, Math.PI * 0.18));
+  rawTire.dispose();
+  // Crisp greenhouse shell: flat windshield/side-window planes with tight 0.055 corner fillets & 26° crease lines.
+  const rawShell = new RoundedBoxGeometry(1, 1, 1, 1, 0.055);
+  const shellPositions = rawShell.getAttribute('position');
   for (let index = 0; index < shellPositions.count; index++) {
-    if (shellPositions.getY(index) <= 0) continue;
+    const py = shellPositions.getY(index);
+    if (py <= 0) continue;
     shellPositions.setX(index, shellPositions.getX(index) * 0.9);
     shellPositions.setZ(index, shellPositions.getZ(index) * 0.8 - 0.06);
   }
-  taperedShell.computeVertexNormals();
+  const taperedShell = geometry(toCreasedNormals(rawShell, Math.PI * 0.16));
+  rawShell.dispose();
+  const archSteps = 10;
   const archVertices: number[] = [];
   const archIndices: number[] = [];
-  for (let step = 0; step <= 3; step++) {
-    const angle = step / 3 * Math.PI;
-    for (const radius of [1, 1.16]) archVertices.push(0, Math.sin(angle) * radius, Math.cos(angle) * radius);
-    if (step < 3) {
+  for (let step = 0; step <= archSteps; step++) {
+    const angle = (step / archSteps) * Math.PI;
+    for (const radius of [1, 1.15]) archVertices.push(0, Math.sin(angle) * radius, Math.cos(angle) * radius);
+    if (step < archSteps) {
       const index = step * 2;
       archIndices.push(index, index + 2, index + 1, index + 1, index + 2, index + 3);
     }
@@ -209,8 +282,9 @@ export function buildCityScene(): CityScene {
   wheelArch.setIndex(archIndices);
   wheelArch.computeVertexNormals();
   const vehicleArt: VehicleArt = {
-    box, cylinder, wheel, taperedShell, wheelArch, personArt, civicBlue, vehicleGlass, lampGlow, palette, beaconRed, beaconBlue,
-    vehiclePaint: palette.facade, taxiLettering: geometry(buildSignLettering('TAXI', 0.5, 0.13)),
+    box, roundedBox, cylinder, torus, wheel, taperedShell, wheelArch, personArt, civicBlue, alloy,
+    vehicleGlass, lampGlow, palette, beaconRed, beaconBlue,
+    vehiclePaint, taxiLettering: geometry(buildSignLettering('TAXI', 0.5, 0.13)),
   };
   const dummy = new THREE.Object3D();
 
@@ -334,7 +408,9 @@ export function buildCityScene(): CityScene {
   backdrop.rotation.x = -Math.PI / 2;
   backdrop.position.y = -0.96;
 
-  const builder: StreetscapeBuilder = { block, add: district.add, box, cylinder, crown, palette };
+  const builder: StreetscapeBuilder = {
+    block, add: district.add, box, roundedBox, cylinder, cone, torus, crown, alloy, palette,
+  };
   const park = buildCentralPark(builder);
   scene.add(park.group);
   const streetscape = buildStreetscape(builder, lampGlow);
@@ -514,6 +590,8 @@ export function buildCityScene(): CityScene {
     neighborhoodActors.push(group);
     return { definition, group, rig };
   }));
+  const streetCrowd = new StreetCrowdActivity(scene, personArt);
+  neighborhoodActors.push(...streetCrowd.groups);
   for (const definition of PARK_RESTING_VISITORS) {
     const group = actorGroup(definition.id, definition.id);
     const rig = buildPersonRig(group, createPersonProfile(group.name, 'resting'), personArt);
@@ -562,6 +640,7 @@ export function buildCityScene(): CityScene {
       streetscape.setSignals(signals);
       courtActivity.update(elapsedSeconds, reducedMotion, groundLift);
       playActivity.update(elapsedSeconds, reducedMotion, groundLift);
+      streetCrowd.update(elapsedSeconds, reducedMotion, groundLift);
       bikeShare.update(elapsedSeconds, reducedMotion, groundLift, actorStates);
       if (riderStateSource !== actorStates) {
         riderStateSource = actorStates;
@@ -591,6 +670,7 @@ export function buildCityScene(): CityScene {
       instances.forEach((instance) => instance.dispose());
       geometries.forEach((shape) => shape.dispose());
       materials.forEach((surface) => surface.dispose());
+      proceduralTextures.textures.forEach((texture) => texture.dispose());
       sun.shadow.dispose();
       instances.clear();
       foliage.length = 0;

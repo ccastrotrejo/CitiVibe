@@ -5,17 +5,27 @@ import { buildPersonWeather } from './personWeatherArt';
 
 export interface PersonArt {
   box: THREE.BufferGeometry;
+  capsule?: THREE.BufferGeometry;
+  roundedBox?: THREE.BufferGeometry;
+  cone?: THREE.BufferGeometry;
   head: THREE.BufferGeometry;
   material: THREE.Material;
 }
+
+export type PersonShapeKind = 'box' | 'capsule' | 'roundedBox' | 'cone' | 'head';
 
 /** Shared neutral material + per-instance color: more people never means a material per outfit. */
 export function personPart(
   art: PersonArt, parent: THREE.Object3D, name: string, color: string,
   position: readonly [number, number, number], size: readonly [number, number, number],
-  rounded = false,
+  rounded = false, shapeKind?: PersonShapeKind,
 ): THREE.Mesh {
-  const mesh = new THREE.Mesh(rounded ? art.head : art.box, art.material);
+  let geometry = rounded ? art.head : art.box;
+  if (shapeKind === 'capsule') geometry = art.capsule ?? art.box;
+  else if (shapeKind === 'roundedBox') geometry = art.roundedBox ?? art.box;
+  else if (shapeKind === 'cone') geometry = art.cone ?? art.box;
+  else if (shapeKind === 'head') geometry = art.head;
+  const mesh = new THREE.Mesh(geometry, art.material);
   mesh.name = name;
   mesh.userData.instanceColor = new THREE.Color(color);
   mesh.position.set(...position);
@@ -24,7 +34,7 @@ export function personPart(
   return mesh;
 }
 
-/** Original low-poly clothes attach to the same contact-correct skeleton at every age. */
+/** Original smooth-silhouetted clothes attach to the same contact-correct skeleton at every age. */
 export function buildPersonRig(group: THREE.Group, profile: PersonProfile, art: PersonArt): WalkerRig {
   const court = profile.context === 'basketball' || profile.context === 'pickleball';
   const scale = court ? 1 : profile.stature / 1.7;
@@ -34,7 +44,8 @@ export function buildPersonRig(group: THREE.Group, profile: PersonProfile, art: 
   group.add(root);
   group.userData.person = profile;
   const add = (parent: THREE.Object3D, name: string, color: string, p: readonly [number, number, number],
-    s: readonly [number, number, number], rounded = false) => personPart(art, parent, name, color, p, s, rounded);
+    s: readonly [number, number, number], rounded = false, kind?: PersonShapeKind) =>
+    personPart(art, parent, name, color, p, s, rounded, kind);
   const pelvis = new THREE.Object3D();
   root.add(pelvis);
   const torso = new THREE.Object3D();
@@ -46,29 +57,30 @@ export function buildPersonRig(group: THREE.Group, profile: PersonProfile, art: 
   const buildLeg = (): LegRig => {
     const hip = new THREE.Object3D();
     add(hip, profile.shorts ? 'Exposed thigh' : 'Trouser thigh', profile.shorts ? profile.skin : profile.bottom,
-      [0, -WALKER.thigh / 2, 0], WALKER.thighSize);
-    if (profile.shorts) add(hip, 'Shorts hem', profile.bottom, [0, -0.11, 0], [0.17, 0.23, 0.19]);
+      [0, -WALKER.thigh / 2, 0], WALKER.thighSize, false, 'capsule');
+    if (profile.shorts) add(hip, 'Shorts hem', profile.bottom, [0, -0.11, 0], [0.17, 0.23, 0.19], false, 'roundedBox');
     const knee = new THREE.Object3D();
     knee.position.y = -WALKER.thigh;
     hip.add(knee);
     add(knee, profile.shorts ? 'Bare lower leg' : 'Trouser shank', profile.shorts ? profile.skin : profile.bottom,
-      [0, -WALKER.shank / 2, 0], WALKER.shankSize);
+      [0, -WALKER.shank / 2, 0], WALKER.shankSize, false, 'capsule');
     const ankle = new THREE.Object3D();
     ankle.position.y = -WALKER.shank;
     knee.add(ankle);
     add(ankle, sport ? 'Running shoe' : 'Shoe', profile.shoes,
-      [0, WALKER.footSize[1] / 2, WALKER.footFwd], WALKER.footSize);
-    if (boots) add(ankle, 'Work boot shaft', profile.shoes, [0, 0.15, 0], [0.145, 0.2, 0.17]);
+      [0, WALKER.footSize[1] / 2, WALKER.footFwd], WALKER.footSize, false, 'roundedBox');
+    if (boots) add(ankle, 'Work boot shaft', profile.shoes, [0, 0.15, 0], [0.145, 0.2, 0.17], false, 'roundedBox');
     if (sport) {
-      add(ankle, 'Sport sock', '#e9e7d9', [0, 0.12, 0], [0.135, 0.12, 0.155]);
+      add(ankle, 'Sport sock', '#e9e7d9', [0, 0.12, 0], [0.135, 0.12, 0.155], false, 'capsule');
       add(ankle, 'Contrasting trainer sole', profile.accent, [0, 0.018, WALKER.footFwd], [0.155, 0.036, 0.27]);
     }
     if (profile.outfit === 'fire-gear') add(knee, 'Reflective trouser band', '#e1d572', [0, -0.29, 0], [0.145, 0.055, 0.165]);
     return { hip, knee, ankle };
   };
   const legs: [LegRig, LegRig] = [buildLeg(), buildLeg()];
-  add(torso, 'Shirt', profile.top, [0, WALKER.torsoOffset, 0], WALKER.torsoSize);
-  add(torso, 'Neck', profile.skin, [0, 0.49, 0], [0.12, 0.12, 0.13]);
+  add(torso, 'Shirt', profile.top, [0, WALKER.torsoOffset, 0], WALKER.torsoSize, false, 'roundedBox');
+  add(torso, 'Pelvis waist', profile.bottom, [0, -0.02, 0], [0.35, 0.11, 0.22], false, 'roundedBox');
+  add(torso, 'Neck', profile.skin, [0, 0.49, 0], [0.115, 0.12, 0.115], false, 'capsule');
   const head = new THREE.Object3D();
   head.name = 'Head and headwear';
   head.position.y = WALKER.headOffset;
@@ -76,8 +88,8 @@ export function buildPersonRig(group: THREE.Group, profile: PersonProfile, art: 
   torso.add(head);
   add(head, 'Face', profile.skin, [0, 0, 0], WALKER.headScale, true);
   if (profile.hair !== 'bald') {
-    add(head, 'Hair crown', profile.hairColor, [0, 0.115, -0.015], [0.187, 0.125, 0.18], true);
-    if (profile.hair === 'bob') add(head, 'Bob haircut', profile.hairColor, [0, -0.02, -0.12], [0.35, 0.26, 0.13]);
+    add(head, 'Hair crown', profile.hairColor, [0, 0.115, -0.015], [0.188, 0.128, 0.182], true);
+    if (profile.hair === 'bob') add(head, 'Bob haircut', profile.hairColor, [0, -0.02, -0.12], [0.35, 0.26, 0.13], false, 'roundedBox');
     if (profile.hair === 'ponytail' || profile.hair === 'bun') {
       add(head, profile.hair, profile.hairColor, [0, 0.035, -0.2],
         profile.hair === 'bun' ? [0.095, 0.09, 0.08] : [0.075, 0.2, 0.08], true);
@@ -88,7 +100,7 @@ export function buildPersonRig(group: THREE.Group, profile: PersonProfile, art: 
   }
   if (profile.glasses) {
     add(head, 'Glasses bridge', '#303b40', [0, 0.015, 0.167], [0.28, 0.024, 0.027]);
-    for (const side of [-1, 1]) add(head, 'Glasses lens', '#4b6570', [side * 0.075, 0, 0.17], [0.09, 0.064, 0.023]);
+    for (const side of [-1, 1]) add(head, 'Glasses lens', '#4b6570', [side * 0.075, 0, 0.17], [0.09, 0.064, 0.023], false, 'roundedBox');
   }
   if (profile.hat !== 'none') {
     const safety = ['hard-hat', 'fire-helmet'].includes(profile.hat);
@@ -98,7 +110,7 @@ export function buildPersonRig(group: THREE.Group, profile: PersonProfile, art: 
       profile.hat === 'chef-hat' ? [0.19, 0.22, 0.18] : [0.205, 0.13, 0.205], true);
     if (profile.hat !== 'beanie' && profile.hat !== 'chef-hat') {
       const brimmed = profile.hat === 'sun-hat' || profile.hat === 'brimmed' || safety;
-      add(head, 'Hat brim', color, [0, 0.14, brimmed ? 0 : 0.17], [brimmed ? 0.49 : 0.32, 0.035, brimmed ? 0.45 : 0.24]);
+      add(head, 'Hat brim', color, [0, 0.14, brimmed ? 0 : 0.17], [brimmed ? 0.49 : 0.32, 0.035, brimmed ? 0.45 : 0.24], false, 'roundedBox');
     }
   }
   const arms: [THREE.Object3D, THREE.Object3D] = [new THREE.Object3D(), new THREE.Object3D()];
@@ -107,10 +119,10 @@ export function buildPersonRig(group: THREE.Group, profile: PersonProfile, art: 
     arm.position.set(side * WALKER.shoulderHalf, WALKER.shoulderY, 0);
     torso.add(arm);
     add(arm, 'Sleeve', profile.top, [0, shortSleeve ? -0.11 : -0.22, 0],
-      [0.12, shortSleeve ? 0.22 : 0.44, 0.15]);
+      [0.118, shortSleeve ? 0.23 : 0.44, 0.14], false, 'capsule');
     add(arm, 'Forearm and hand', profile.skin, running ? [0, -0.27, 0.12] :
-      [0, shortSleeve ? -0.355 : -0.465, 0], running ? [0.11, 0.12, 0.3] :
-        [0.105, shortSleeve ? 0.29 : 0.07, 0.125]);
+      [0, shortSleeve ? -0.355 : -0.465, 0], running ? [0.105, 0.12, 0.3] :
+        [0.105, shortSleeve ? 0.29 : 0.08, 0.12], false, 'capsule');
     legs[index].hip.position.x = side * WALKER.hipHalf;
     pelvis.add(legs[index].hip);
   });
@@ -162,13 +174,13 @@ export function buildPersonRig(group: THREE.Group, profile: PersonProfile, art: 
     add(torso, 'Sport shirt stripe', profile.accent, [0, 0.32, 0.126], [0.3, 0.055, 0.017]);
   }
   if (profile.bag === 'backpack') {
-    add(torso, 'Backpack', profile.accent, [0, 0.22, -0.22], [0.31, 0.38, 0.19]);
+    add(torso, 'Backpack', profile.accent, [0, 0.22, -0.22], [0.31, 0.38, 0.19], false, 'roundedBox');
     for (const side of [-1, 1]) add(torso, 'Backpack strap', profile.accent, [side * 0.12, 0.27, 0.128], [0.04, 0.34, 0.025]);
   } else if (profile.bag !== 'none') {
-    add(torso, profile.bag, profile.accent, [0.12, -0.12, -0.17], [0.24, 0.29, 0.12]);
+    add(torso, profile.bag, profile.accent, [0.12, -0.12, -0.17], [0.24, 0.29, 0.12], false, 'roundedBox');
     add(torso, 'Bag strap', profile.accent, [0.07, 0.24, -0.142], [0.035, 0.48, 0.025]);
   }
-  const rig: WalkerRig = { kind: 'walker', pelvis, torso, legs, arms, scale };
+  const rig: WalkerRig = { kind: 'walker', pelvis, torso, head, legs, arms, scale };
   rig.weatherArt = buildPersonWeather(rig, profile, head, add);
   return rig;
 }

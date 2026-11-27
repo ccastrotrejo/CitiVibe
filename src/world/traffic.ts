@@ -930,7 +930,7 @@ export class CityTraffic {
     // lane than maxPace * crossingTime plus both bodies' safety headway, it cannot reach the
     // bicycle crossing before the rider has fully cleared the walking lanes.
     const clearance = PEDESTRIAN_MAX_PACE * crossingTime + PERSON_SPACE.headway * 2 +
-      TRAFFIC_LENGTHS.bicycle + 12;
+      TRAFFIC_LENGTHS.bicycle + 2.5;
     const halfSpan = (gate.spanLength ?? gate.length) / 2 + PERSON_SPACE.width / 2;
     return this.pedestrians.actors.every((actor) => gate.horizontal
       ? Math.abs(actor.position.x - gate.crossingX) > halfSpan || Math.abs(actor.position.z - gate.crossingZ) >= clearance

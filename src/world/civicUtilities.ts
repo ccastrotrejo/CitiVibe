@@ -42,15 +42,21 @@ export function buildMetroWayfinding(builder: StreetscapeBuilder): void {
   }
 }
 
-/** Replaces the former two solid tree-pit slabs without moving trunks or changing canopy counts. */
+/** Beveled granite curb edging with a recessed bed and raised mulched soil ring around street trees. */
 export function buildStreetTreeBed(builder: StreetscapeBuilder, x: number, z: number): void {
-  const { block, palette: p } = builder;
+  const { add, block, cylinder, palette: p } = builder;
+  const rbox = builder.roundedBox ?? builder.box;
   const planted = Math.abs(Math.round(x * 10 + z * 7)) % 3 === 0;
-  block(p.stone, x, -0.035, z, 1.45, 0.09, 1.45);
-  block(planted ? p.wood : p.roof, x, 0.016, z, 1.2, 0.012, 1.2);
+  // Beveled outer granite/stone curb collar and stepped inner coping lip.
+  add(rbox, p.stone, [x, -0.028, z], [1.48, 0.076, 1.48]);
+  add(rbox, p.paving, [x, 0.014, z], [1.38, 0.008, 1.38]);
+  // Recessed pit bed plus concentric mulched soil berm ring around the trunk.
+  block(planted ? p.wood : p.roof, x, 0.023, z, 1.18, 0.008, 1.18);
+  add(cylinder, p.wood, [x, 0.032, z], [0.5, 0.008, 0.5]);
+  add(cylinder, p.roof, [x, 0.039, z], [0.26, 0.006, 0.26]);
   if (planted) for (const side of [-1, 1]) {
-    // Reuse the tinted box batch rather than allocating a new leaf/box submission.
-    block(p.facade, x + side * 0.42, 0.035, z, 0.16, 0.026, 0.9, 0, '#70866a');
+    // Reuse the tinted box batch for low street-bed groundcover while keeping max.y < 0.05.
+    block(p.facade, x + side * 0.43, 0.037, z, 0.16, 0.022, 0.88, 0, '#70866a');
   }
 }
 
@@ -108,27 +114,57 @@ export function buildLoadingCurbMarker(builder: StreetscapeBuilder): void {
 /** No resources owned here: original utilities join existing geometry/material combinations. */
 export function buildCivicUtilities(builder: StreetscapeBuilder): void {
   const { block, add, cylinder, palette: p } = builder;
+  const rbox = builder.roundedBox ?? builder.box;
+  const cone = builder.cone ?? cylinder;
+  const alloy = builder.alloy ?? p.stone;
   for (const prop of CIVIC_UTILITIES) {
     const { x, z, surfaceY: ground } = prop;
     const padBottom = prop.kind === 'hydrant' ? -0.015 : ground - 0.06;
-    block(p.paving, x, (ground + padBottom) / 2, z, prop.width + 0.06, ground - padBottom, prop.depth + 0.06);
+    const padTop = prop.kind === 'service-cover' ? ground - 0.0045 : ground;
+    block(p.paving, x, (padTop + padBottom) / 2, z, prop.width + 0.06, padTop - padBottom, prop.depth + 0.06);
     if (prop.kind === 'service-cover') {
-      block(p.roof, x, ground - 0.002, z, prop.width, 0.006, prop.depth);
-      for (const side of [-1, 1]) block(p.stone, x, ground + 0.0015, z + side * 0.24, 0.17, 0.001, 0.028);
+      const rOuter = Math.min(prop.width, prop.depth) * 0.44;
+      add(rbox, p.roof, [x, ground - 0.0032, z], [prop.width, 0.0016, prop.depth]);
+      add(cylinder, alloy, [x, ground - 0.0016, z], [rOuter, 0.0012, rOuter]);
+      add(cylinder, p.rubber, [x, ground - 0.0001, z], [rOuter * 0.84, 0.0012, rOuter * 0.84]);
+      add(cylinder, p.roof, [x, ground + 0.0012, z], [rOuter * 0.56, 0.001, rOuter * 0.56]);
+      add(cylinder, alloy, [x, ground + 0.0023, z], [rOuter * 0.24, 0.0008, rOuter * 0.24]);
     } else if (prop.kind === 'hydrant') {
-      add(cylinder, p.roof, [x, ground + 0.045, z], [0.27, 0.09, 0.27]);
-      add(cylinder, p.copperEdge, [x, ground + 0.4, z], [0.17, 0.67, 0.17]);
-      add(cylinder, p.stone, [x, ground + 0.78, z], [0.22, 0.13, 0.22]);
-      block(p.roof, x, ground + 0.88, z, 0.07, 0.07, 0.07);
-      add(cylinder, p.copperEdge, [x, ground + 0.55, z], [0.11, 0.61, 0.11], [Math.PI / 2, 0, 0]);
-      for (const side of [-1, 1]) block(p.stone, x, ground + 0.55, z + side * 0.29, 0.19, 0.19, 0.055);
+      const nearestRoadZ = Math.abs(z) < 47.5 ? 0 : Math.sign(z) * 95;
+      const streetDir = nearestRoadZ > z ? 1 : -1;
+      // Flanged cast-iron shoe ring & stepped bell collar.
+      add(cylinder, p.roof, [x, ground + 0.032, z], [0.265, 0.064, 0.265]);
+      add(cylinder, p.copperEdge, [x, ground + 0.088, z], [0.215, 0.048, 0.215]);
+      // Multi-tier cast-iron standpipe barrel with mid-barrel flange joint.
+      add(cylinder, p.roof, [x, ground + 0.255, z], [0.165, 0.285, 0.165]);
+      add(cylinder, p.copperEdge, [x, ground + 0.415, z], [0.205, 0.038, 0.205]);
+      add(cylinder, p.roof, [x, ground + 0.565, z], [0.185, 0.26, 0.185]);
+      // Domed alloy bonnet & top pentagon operating nut.
+      add(rbox, alloy, [x, ground + 0.738, z], [0.28, 0.074, 0.28]);
+      add(cone, alloy, [x, ground + 0.824, z], [0.195, 0.1, 0.195]);
+      add(rbox, alloy, [x, ground + 0.902, z], [0.072, 0.052, 0.072], [0, 0.63, 0]);
+      // Two side 2.5" hose nozzle caps + front 4.5" street-facing steamer nozzle.
+      add(cylinder, p.roof, [x, ground + 0.565, z], [0.08, 0.48, 0.08], [0, 0, Math.PI / 2]);
+      for (const side of [-1, 1]) {
+        add(cylinder, alloy, [x + side * 0.262, ground + 0.565, z], [0.095, 0.05, 0.095], [0, 0, Math.PI / 2]);
+      }
+      add(cylinder, p.copperEdge, [x, ground + 0.545, z + streetDir * 0.205], [0.122, 0.064, 0.122], [Math.PI / 2, 0, 0]);
+      add(cylinder, alloy, [x, ground + 0.545, z + streetDir * 0.252], [0.14, 0.04, 0.14], [Math.PI / 2, 0, 0]);
+      add(rbox, alloy, [x, ground + 0.545, z + streetDir * 0.282], [0.062, 0.062, 0.024]);
     } else if (prop.kind === 'litter-basket') {
-      add(cylinder, p.roof, [x, ground + 0.32, z], [0.235, 0.58, 0.235]);
-      for (const y of [0.04, 0.66]) add(cylinder, p.copperEdge, [x, ground + y, z], [0.3, 0.055, 0.3]);
-      for (let slat = 0; slat < 8; slat++) {
-        const angle = slat * Math.PI / 4;
-        block(p.teal, x + Math.cos(angle) * 0.275, ground + 0.34, z + Math.sin(angle) * 0.275,
-          0.055, 0.59, 0.055);
+      // Cylindrical NYC wire-mesh / ribbed waste basket with recessed dark liner & alloy rim collar.
+      add(cylinder, p.roof, [x, ground + 0.032, z], [0.255, 0.064, 0.255]);
+      add(cylinder, alloy, [x, ground + 0.076, z], [0.27, 0.024, 0.27]);
+      add(cylinder, p.rubber, [x, ground + 0.38, z], [0.232, 0.6, 0.232]);
+      add(cylinder, p.teal, [x, ground + 0.43, z], [0.278, 0.095, 0.278]);
+      add(cylinder, p.roof, [x, ground + 0.7, z], [0.294, 0.042, 0.294]);
+      add(cylinder, alloy, [x, ground + 0.732, z], [0.304, 0.022, 0.304]);
+      for (let rib = 0; rib < 8; rib++) {
+        const angle = rib * Math.PI / 4;
+        add(builder.box, alloy,
+          [x + Math.cos(angle) * 0.274, ground + 0.39, z + Math.sin(angle) * 0.274],
+          [0.02, 0.62, 0.024],
+          [-Math.sin(angle) * 0.035, -angle, Math.cos(angle) * 0.035]);
       }
     }
   }

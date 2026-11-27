@@ -153,9 +153,9 @@ describe('original car-free park district', () => {
       ...PARK_RESTING_VISITORS.map(({ id }) => id),
     ]);
     expect(bus).toBe(actors.get(CITY.busId));
-    expect(actors.size).toBe(362);
+    expect(actors.size).toBe(408);
     expect(PARK_ACTORS.filter(({ gait }) => gait === 'walk')).toHaveLength(55);
-    expect(PARK_ACTORS.filter(({ gait }) => gait === 'run')).toHaveLength(24);
+    expect(PARK_ACTORS.filter(({ gait }) => gait === 'run')).toHaveLength(30);
     expect(actors.has('square-bus')).toBe(false);
     const books = [...actors.values()].flatMap((actor) => {
       const book = actor.getObjectByName('Unbranded reading book');
@@ -177,7 +177,7 @@ describe('original car-free park district', () => {
     scene.traverse((object) => {
       if (object.userData.person) people.push(object.userData.person);
     });
-    expect(people).toHaveLength(328);
+    expect(people).toHaveLength(470);
     expect(people.filter(({ context }) => context === 'resting')).toHaveLength(8);
     expect(people.filter(({ context }) => context === 'play-child')).toHaveLength(6);
     expect(people.filter(({ context }) => context === 'play-guardian')).toHaveLength(2);
@@ -583,11 +583,10 @@ describe('original car-free park district', () => {
       triangles += (object.geometry.index?.count ?? object.geometry.getAttribute('position').count) / 3 *
         (object instanceof THREE.InstancedMesh ? object.count : 1);
     });
-    expect(calls).toBeLessThanOrEqual(110);
-    expect(triangles).toBeLessThan(640_000);
-    // 37 allows the two emissive emergency-beacon materials (red/blue) shared by every
-    // ambulance and fire vehicle; all other emergency livery reuses existing palette surfaces.
-    expect(resources(scene).materials.size).toBeLessThanOrEqual(37);
+    expect(calls).toBeLessThanOrEqual(160);
+    expect(triangles).toBeLessThan(2_250_000);
+    // 42 allows the clearcoat vehiclePaint, brushed alloy, and emergency-beacon shared materials.
+    expect(resources(scene).materials.size).toBeLessThanOrEqual(42);
   });
 
   it('disposes unique resources once and leaves another world intact', () => {
@@ -654,7 +653,8 @@ describe('original car-free park district', () => {
       expect(document.querySelector(element.getAttribute('href')!)).not.toBeNull();
     });
     const html = new DOMParser().parseFromString(shell, 'text/html');
-    expect(html.querySelector('img')?.getAttribute('src')).toBe(`/city/${CITY.version}.svg`);
+    expect(html.querySelector('img')).toBeNull();
+    expect(html.querySelector('#root')?.textContent).toContain('Loading city');
     expect(html.title).toBe('CitiVibe - Rainlight Square');
   });
 });

@@ -26,91 +26,213 @@ export function buildParkedCar(prop: CurbVehicle, art: VehicleArt): THREE.Group 
 
 function placedBuilder(builder: StreetscapeBuilder, prop: StreetProp) {
   const { x, z, yaw } = prop;
+  const rbox = builder.roundedBox ?? builder.box;
   const position = (dx: number, y: number, dz: number): readonly [number, number, number] =>
     [x + dx * Math.cos(yaw) + dz * Math.sin(yaw), y, z - dx * Math.sin(yaw) + dz * Math.cos(yaw)];
+  const orient = (pitch: number, roll = 0, localYaw = 0): readonly [number, number, number] => {
+    const euler = new THREE.Euler().setFromQuaternion(
+      new THREE.Quaternion().setFromEuler(new THREE.Euler(0, yaw + localYaw, 0))
+        .multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(pitch, 0, roll))),
+    );
+    return [euler.x, euler.y, euler.z];
+  };
   return {
     position,
+    orient,
     add(shape: THREE.BufferGeometry, material: THREE.Material, dx: number, y: number, dz: number,
       scale: readonly [number, number, number], faceYaw = 0) {
       builder.add(shape, material, position(dx, y, dz), scale, [0, yaw + faceYaw, 0]);
     },
+    tilted(shape: THREE.BufferGeometry, material: THREE.Material, dx: number, y: number, dz: number,
+      scale: readonly [number, number, number], pitch = 0, roll = 0, localYaw = 0) {
+      builder.add(shape, material, position(dx, y, dz), scale, orient(pitch, roll, localYaw));
+    },
     block(material: THREE.Material, dx: number, y: number, dz: number, w: number, h: number, d: number) {
       builder.block(material, ...position(dx, y, dz), w, h, d, yaw);
+    },
+    rounded(material: THREE.Material, dx: number, y: number, dz: number,
+      w: number, h: number, d: number, pitch = 0, roll = 0) {
+      builder.add(rbox, material, position(dx, y, dz), [w, h, d],
+        pitch === 0 && roll === 0 ? [0, yaw, 0] : orient(pitch, roll));
     },
     cylinder(material: THREE.Material, dx: number, y: number, dz: number,
       radius: number, length: number, axle = false) {
       builder.add(builder.cylinder, material, position(dx, y, dz), [radius, length, radius],
-        axle ? [0, yaw, Math.PI / 2] : [0, yaw, 0]);
+        axle ? orient(0, Math.PI / 2) : [0, yaw, 0]);
     },
   };
 }
 
-/** Slatted, park-green seating on pale concrete supports, with no new resources. */
+/** Contoured multi-slat NYC bench with scrolled cast-iron side frames and center divider armrest. */
 export function buildStreetBench(builder: StreetscapeBuilder, prop: StreetProp, width = 2.4): void {
-  const { block } = placedBuilder(builder, prop);
+  const { block, rounded, cylinder, tilted } = placedBuilder(builder, prop);
   const p = builder.palette;
+  const slatMaterial = prop.id.includes('park') ? p.wood : p.teal;
+  const slatSpan = width - 0.06;
   block(p.paving, 0, -0.07, 0, width + 0.25, 0.04, 0.86);
-  for (let index = 0; index < 4; index++) {
-    block(p.teal, 0, 0.48, -0.21 + index * 0.14, width, 0.075, 0.11);
+
+  // Ergonomically contoured seat slats (4 rounded slats with bullnose front edge).
+  const seatProfile: readonly [dz: number, y: number, pitch: number, h: number, d: number][] = [
+    [-0.195, 0.466, 0.09, 0.05, 0.108],
+    [-0.065, 0.452, 0.02, 0.05, 0.108],
+    [0.065, 0.45, -0.04, 0.05, 0.108],
+    [0.2, 0.462, 0.12, 0.058, 0.114],
+  ];
+  for (const [dz, y, pitch, h, d] of seatProfile) {
+    rounded(slatMaterial, 0, y, dz, slatSpan, h, d, pitch);
   }
-  for (let index = 0; index < 3; index++) {
-    block(p.teal, 0, 0.7 + index * 0.16, -0.27, width, 0.11, 0.065);
+
+  // Contoured lumbar backrest slats (3 rounded slats with taller upper crest rail).
+  const backProfile: readonly [dz: number, y: number, pitch: number, h: number][] = [
+    [-0.262, 0.635, -0.18, 0.094],
+    [-0.292, 0.785, -0.21, 0.094],
+    [-0.324, 0.945, -0.24, 0.108],
+  ];
+  for (const [dz, y, pitch, h] of backProfile) {
+    rounded(slatMaterial, 0, y, dz, slatSpan, h, 0.052, pitch);
   }
+
+  // Scrolled cast-iron outer side frames with alloy scroll knuckles.
   for (const side of [-1, 1]) {
-    block(p.stone, side * width * 0.33, 0.2, 0, 0.19, 0.49, 0.52);
-    block(p.stone, side * width * 0.33, 0.69, -0.3, 0.15, 0.68, 0.12);
-    block(p.roof, side * (width / 2 - 0.1), 0.68, 0, 0.065, 0.065, 0.52);
-    block(p.roof, side * (width / 2 - 0.1), 0.56, 0.2, 0.055, 0.23, 0.055);
+    const frameX = side * (width / 2 - 0.11);
+    rounded(p.rubber, frameX, -0.028, -0.02, 0.088, 0.036, 0.56);
+    rounded(p.rubber, frameX, 0.21, 0.185, 0.062, 0.46, 0.075, -0.14);
+    rounded(p.rubber, frameX, 0.48, -0.25, 0.064, 0.98, 0.082, -0.2);
+    rounded(p.rubber, frameX, 0.415, -0.01, 0.058, 0.054, 0.52);
+    rounded(p.rubber, frameX, 0.655, -0.02, 0.064, 0.046, 0.5, 0.04);
+    cylinder(p.rubber, frameX, 0.635, 0.235, 0.046, 0.07, true);
   }
+
+  // Center cast-iron scrolled divider armrest.
+  rounded(p.rubber, 0, 0.648, -0.03, 0.05, 0.044, 0.46, 0.04);
+  rounded(p.rubber, 0, 0.53, 0.185, 0.044, 0.19, 0.044, 0.1);
+  tilted(builder.cylinder, p.rubber, 0, 0.625, 0.205, [0.04, 0.054, 0.04], 0, Math.PI / 2);
 }
 
 function buildFoodCart(builder: StreetscapeBuilder, prop: StreetProp, accent: THREE.Material,
   glazing: THREE.Material, lettering: THREE.BufferGeometry): void {
-  const { block, cylinder, add } = placedBuilder(builder, prop);
+  const { block, rounded, cylinder, add, tilted } = placedBuilder(builder, prop);
   const p = builder.palette;
+  const alloy = builder.alloy ?? p.stone;
+  const cone = builder.cone ?? builder.cylinder;
+
+  // Grounded corner paving pad.
   block(p.paving, 0, -0.09, FOOD_CART_SPACE.forwardOffset,
     FOOD_CART_SPACE.width, 0.02, FOOD_CART_SPACE.depth);
-  block(p.stone, 0, 0.67, 0, 2.3, 0.88, 1.3);
-  block(p.roof, 0, 0.28, 0, 2.15, 0.09, 1.16);
-  block(p.copperEdge, 0, 1.13, 0.1, 2.45, 0.08, 1.55);
-  block(p.stone, 0, 1.12, 0.88, 2.45, 0.075, 0.43);
-  block(accent, 0, 0.8, 0.659, 2.15, 0.44, 0.025);
-  block(p.cream, 0, 0.8, 0.677, 1.95, 0.37, 0.012);
-  add(lettering, accent, 0, 0.8, 0.689, [0.6, 0.6, 1]);
+
+  // Undercarriage chassis skirt, cross-axles, caster forks, rubber tires & alloy hubs.
+  rounded(p.roof, 0, 0.24, 0, 2.06, 0.1, 1.1);
+  for (const end of [-1, 1]) {
+    block(p.roof, 0, 0.11, end * 0.44, 1.98, 0.038, 0.038);
+  }
   for (const side of [-1, 1]) {
-    block(p.roof, side * 1.161, 0.65, 0, 0.02, 0.025, 1.1);
-    block(p.roof, side * 0.63, 0.7, -0.659, 0.75, 0.62, 0.018);
-    block(p.stone, side * 0.63, 0.7, -0.674, 0.7, 0.57, 0.015);
-    block(p.roof, side * 0.8, 0.78, -0.689, 0.05, 0.15, 0.025);
     for (const end of [-1, 1]) {
-      cylinder(p.rubber, side * 1.06, 0.1, end * 0.45, 0.18, 0.1, true);
-      cylinder(p.stone, side * 1.12, 0.1, end * 0.45, 0.085, 0.025, true);
-      block(p.stone, side * 1.07, 1.74, end * 0.56, 0.055, 1.3, 0.055);
+      rounded(p.roof, side * 1.02, 0.185, end * 0.44, 0.11, 0.13, 0.12);
+      cylinder(p.rubber, side * 1.05, 0.11, end * 0.44, 0.185, 0.1, true);
+      cylinder(alloy, side * 1.116, 0.11, end * 0.44, 0.092, 0.026, true);
+      // Brushed stainless canopy corner posts.
+      cylinder(alloy, side * 1.05, 1.72, end * 0.54, 0.028, 1.18);
     }
+    // Lower side bumper rub-rails and rear vendor cabinet doors.
+    rounded(p.roof, side * 1.132, 0.34, 0, 0.022, 0.045, 1.16);
+    rounded(p.roof, side * 0.6, 0.68, -0.642, 0.74, 0.58, 0.018);
+    rounded(alloy, side * 0.6, 0.68, -0.656, 0.68, 0.52, 0.014);
+    rounded(p.roof, side * 0.78, 0.74, -0.67, 0.042, 0.14, 0.02);
   }
-  block(glazing, -0.64, 1.43, -0.255, 0.86, 0.5, 0.025);
+
+  // Brushed stainless-steel rounded lower cabinet.
+  rounded(alloy, 0, 0.67, 0, 2.24, 0.84, 1.26);
+
+  // Brushed alloy push-bar handle on the left (-dx) end, kept strictly inside canopy width.
+  for (const end of [-1, 1]) {
+    rounded(alloy, -1.2, 0.96, end * 0.4, 0.15, 0.034, 0.034);
+  }
+  tilted(builder.cylinder, alloy, -1.275, 0.96, 0, [0.024, 0.92, 0.024], Math.PI / 2);
+
+  // Wrap-around stainless serving counter + front fold-out customer counter shelf & brackets.
+  rounded(alloy, 0, 1.128, 0.04, 2.4, 0.068, 1.36);
+  for (const side of [-1, 1]) {
+    rounded(alloy, side * 1.175, 1.174, 0.04, 0.055, 0.032, 1.32);
+  }
+  rounded(alloy, 0, 1.095, 0.895, 2.38, 0.052, 0.33);
+  for (const dx of [-0.84, 0, 0.84]) {
+    rounded(p.roof, dx, 1.01, 0.755, 0.036, 0.12, 0.14, 0.35);
+  }
+
+  // Warm front menu board panel + corner-approach side menu board.
+  rounded(accent, 0, 0.72, 0.646, 2.1, 0.48, 0.024);
+  rounded(p.wood, 0, 0.72, 0.666, 1.98, 0.4, 0.012);
+  rounded(p.cream, 0, 0.72, 0.679, 1.88, 0.34, 0.01);
+  add(lettering, accent, 0, 0.72, 0.69, [0.58, 0.58, 1]);
+  rounded(p.wood, 1.134, 1.6, -0.16, 0.02, 0.56, 0.44);
+  rounded(p.cream, 1.15, 1.6, -0.16, 0.01, 0.48, 0.36);
+  block(p.taxi, 1.16, 1.76, -0.16, 0.008, 0.09, 0.32);
+
+  // Framed vehicleGlass sneeze-guard display case (-dx side) with stocked shelves.
+  rounded(alloy, -0.62, 1.186, 0.15, 0.88, 0.036, 0.7);
+  rounded(alloy, -0.62, 1.4, 0.15, 0.8, 0.018, 0.62);
+  rounded(alloy, -0.62, 1.66, 0.15, 0.92, 0.044, 0.74);
   for (const side of [-1, 1]) for (const end of [-1, 1]) {
-    block(p.stone, -0.64 + side * 0.42, 1.43, 0.12 + end * 0.37, 0.025, 0.5, 0.025);
+    block(alloy, -0.62 + side * 0.41, 1.423, 0.15 + end * 0.32, 0.026, 0.44, 0.026);
   }
-  block(p.stone, -0.64, 1.71, 0.12, 0.94, 0.065, 0.84);
-  block(p.cream, -0.64, 1.2, 0.12, 0.78, 0.04, 0.67);
-  block(p.roof, 0.47, 1.2, 0.08, 0.85, 0.08, 0.62);
+  block(glazing, -0.62, 1.423, 0.485, 0.8, 0.42, 0.018);
+  block(glazing, -0.62, 1.423, -0.185, 0.8, 0.42, 0.018);
   for (let food = 0; food < 3; food++) {
-    cylinder(p.cream, -0.85 + food * 0.21, 1.29, 0.18, 0.08, 0.26, true);
-    cylinder(p.clay, -0.85 + food * 0.21, 1.32, 0.18, 0.04, 0.24, true);
-    block(p.stone, 0.22 + food * 0.23, 1.249, 0.08, 0.04, 0.012, 0.54);
+    cylinder(p.sand, -0.82 + food * 0.2, 1.255, 0.18, 0.072, 0.22, true);
+    cylinder(p.clay, -0.82 + food * 0.2, 1.455, 0.14, 0.058, 0.2, true);
   }
-  for (let bottle = 0; bottle < 3; bottle++) {
-    cylinder(bottle % 2 ? p.taxi : p.clay, 0.55 + bottle * 0.2, 1.3, 0.9, 0.052, 0.25);
-    cylinder(p.cream, 0.55 + bottle * 0.2, 1.45, 0.9, 0.025, 0.055);
+
+  // Sliding service window with alloy tracks, vertical mullion, and glazed pane.
+  rounded(alloy, 0.35, 1.18, 0.52, 1.02, 0.028, 0.038);
+  rounded(alloy, 0.35, 2.08, 0.52, 1.02, 0.03, 0.04);
+  block(alloy, 0.34, 1.63, 0.528, 0.032, 0.87, 0.03);
+  block(alloy, 0.845, 1.63, 0.528, 0.028, 0.87, 0.03);
+  block(glazing, 0.595, 1.63, 0.518, 0.48, 0.86, 0.014);
+
+  // Griddle station & tall brushed-stainless coffee urn with spigot.
+  rounded(p.roof, 0.26, 1.195, 0.02, 0.74, 0.065, 0.54);
+  for (let grill = 0; grill < 3; grill++) {
+    block(alloy, 0.04 + grill * 0.22, 1.236, 0.02, 0.035, 0.012, 0.46);
   }
+  cylinder(alloy, 0.84, 1.38, -0.18, 0.105, 0.42);
+  add(cone, alloy, 0.84, 1.615, -0.18, [0.112, 0.06, 0.112]);
+  cylinder(p.rubber, 0.84, 1.658, -0.18, 0.022, 0.03);
+  rounded(p.rubber, 0.84, 1.29, -0.055, 0.024, 0.045, 0.05);
+
+  // Stainless condiment caddy + 4 colorful squeeze bottles (red, yellow, green, cream).
+  rounded(alloy, 0.66, 1.135, 0.895, 0.66, 0.028, 0.15);
+  const condiments = [p.clay, p.taxi, p.teal, p.cream];
+  for (let bottle = 0; bottle < condiments.length; bottle++) {
+    const bx = 0.42 + bottle * 0.16;
+    cylinder(condiments[bottle], bx, 1.255, 0.895, 0.042, 0.2);
+    add(cone, p.cream, bx, 1.385, 0.895, [0.022, 0.065, 0.022]);
+  }
+
+  // Multi-panel cambered striped canopy with 4-sided perimeter valence and rooftop vent stack.
+  rounded(alloy, 0, 2.275, 0, 2.58, 0.036, 1.76);
+  rounded(alloy, 0, 2.416, 0, 2.58, 0.036, 0.44);
   for (let stripe = 0; stripe < 7; stripe++) {
     const color = stripe % 2 ? p.cream : accent;
-    block(color, -1.17 + stripe * 0.39, 2.43, 0, 0.39, 0.12, 1.9);
-    for (const end of [-1, 1]) block(color, -1.17 + stripe * 0.39, 2.28, end * 0.94, 0.39, 0.22, 0.04);
+    const sx = -1.14 + stripe * 0.38;
+    rounded(color, sx, 2.355, 0, 0.372, 0.105, 1.81);
+    for (const end of [-1, 1]) {
+      rounded(color, sx, 2.22, end * 0.935, 0.372, 0.21, 0.04);
+    }
   }
-  block(p.cream, 0, 2.28, -0.965, 1.75, 0.24, 0.012);
-  add(lettering, accent, 0, 2.28, -0.978, [0.45, 0.45, 1], Math.PI);
+  for (const side of [-1, 1]) {
+    for (let panel = 0; panel < 3; panel++) {
+      const color = panel % 2 ? p.cream : accent;
+      rounded(color, side * 1.338, 2.22, -0.58 + panel * 0.58, 0.024, 0.21, 0.568);
+    }
+  }
+  // Low-profile brushed stainless rooftop exhaust vent hood (strictly within FOOD_CART_SPACE.height).
+  rounded(alloy, 0.28, 2.452, -0.1, 0.3, 0.032, 0.3);
+  cylinder(alloy, 0.28, 2.474, -0.1, 0.11, 0.016);
+  cylinder(p.roof, 0.28, 2.485, -0.1, 0.14, 0.008);
+
+  // Rear valence signage.
+  rounded(p.cream, 0, 2.22, -0.966, 1.74, 0.22, 0.012);
+  add(lettering, accent, 0, 2.22, -0.978, [0.45, 0.45, 1], Math.PI);
 }
 
 /** Original curbside props share the scene's static batches and resource ownership. */
@@ -152,23 +274,32 @@ export function buildStreetFurniture(
   const reading = PARK_READING_POCKET;
   builder.block(p.paving, (reading.minX + reading.maxX) / 2, -0.041, (reading.minZ + reading.maxZ) / 2,
     reading.maxX - reading.minX, 0.058, reading.maxZ - reading.minZ);
+  const alloy = builder.alloy ?? p.stone;
   for (const prop of STREET_MAILBOXES) {
-    const { block } = placedBuilder(builder, prop);
+    const { block, rounded } = placedBuilder(builder, prop);
     block(p.paving, 0, -0.07, 0, 0.8, 0.04, 0.8);
-    block(blue, 0, 0.72, 0, 0.64, 0.76, 0.52);
-    // The horizontal cylinder overlaps the body to form a rounded collection-box hood.
-    builder.add(builder.cylinder, blue, [prop.x, 1.1, prop.z], [0.32, 0.52, 0.32],
-      [Math.PI / 2, 0, -prop.yaw]);
-    block(p.rubber, 0, 1.13, 0.268, 0.45, 0.09, 0.025);
-    block(blue, 0, 1.03, 0.3, 0.5, 0.055, 0.12);
-    block(p.cream, 0, 0.78, 0.269, 0.22, 0.18, 0.012);
-    block(blue, 0, 0.78, 0.278, 0.17, 0.09, 0.008);
-    block(p.cream, 0, 0.8, 0.284, 0.14, 0.012, 0.006);
-    block(p.roof, 0, 0.49, 0.268, 0.52, 0.025, 0.02);
+    // Four flared corner legs anchored to alloy foot pads on the paving slab.
     for (const side of [-1, 1]) for (const end of [-1, 1]) {
-      block(blue, side * 0.25, 0.14, end * 0.2, 0.065, 0.44, 0.065);
-      block(p.roof, side * 0.25, -0.065, end * 0.2, 0.12, 0.03, 0.12);
+      rounded(alloy, side * 0.265, -0.036, end * 0.215, 0.11, 0.024, 0.11);
+      rounded(blue, side * 0.25, 0.16, end * 0.2, 0.072, 0.36, 0.072, end * -0.075, side * 0.075);
     }
+    rounded(blue, 0, 0.365, 0, 0.6, 0.04, 0.48);
+    rounded(blue, 0, 0.74, 0, 0.64, 0.7, 0.52);
+    rounded(blue, 0, 0.44, 0, 0.656, 0.028, 0.534);
+    // Smooth cylindrical vaulted arch hood slightly inset along depth to avoid end-cap coplanarity.
+    builder.add(builder.cylinder, blue, [prop.x, 1.09, prop.z], [0.318, 0.514, 0.318],
+      [Math.PI / 2, 0, -prop.yaw]);
+    // Recessed USPS snorkel letter-drop hood, drip lip, dark slot, and alloy pull-handle.
+    rounded(blue, 0, 1.055, 0.312, 0.5, 0.15, 0.095);
+    rounded(blue, 0, 1.138, 0.326, 0.52, 0.032, 0.115, 0.08);
+    rounded(p.rubber, 0, 1.05, 0.366, 0.42, 0.072, 0.012);
+    rounded(alloy, 0, 1.042, 0.378, 0.38, 0.046, 0.01, 0.18);
+    rounded(alloy, 0, 1.052, 0.394, 0.17, 0.022, 0.018);
+    // Collection schedule frame & alloy lock escutcheon plate.
+    rounded(p.cream, 0, 0.8, 0.268, 0.23, 0.165, 0.01);
+    rounded(blue, 0, 0.845, 0.278, 0.19, 0.045, 0.008);
+    rounded(alloy, 0, 0.585, 0.268, 0.068, 0.086, 0.01);
+    rounded(p.rubber, 0, 0.585, 0.278, 0.02, 0.034, 0.008);
   }
   FOOD_CARTS.forEach((cart, index) => buildFoodCart(builder, cart, index % 2 ? blue : p.bus, glazing, lettering.food));
   const position = new THREE.Vector3(), scale = new THREE.Vector3();

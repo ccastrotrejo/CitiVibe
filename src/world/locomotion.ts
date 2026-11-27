@@ -105,14 +105,16 @@ export function blendedStride(localSpeed: number, run: number, traits: GaitTrait
 export const VEHICLE = {
   busWheelRadius: 0.38,
   carWheelRadius: 0.26,
-  pitchGain: 0.008,
-  maxPitch: 0.026,
-  rollGain: 0.05,
-  maxRoll: 0.03,
-  steerGain: 0.18,
-  maxSteer: 0.3,
-  dwellDrop: 0.02,
-  tau: 0.22,
+  pitchGain: 0.013,
+  maxPitch: 0.036,
+  rollGain: 0.065,
+  maxRoll: 0.042,
+  bikeLeanGain: 0.14,
+  maxBikeLean: 0.22,
+  steerGain: 0.22,
+  maxSteer: 0.34,
+  dwellDrop: 0.022,
+  tau: 0.18,
 } as const;
 
 export interface LegRig {
@@ -126,6 +128,7 @@ export interface WalkerRig {
   scale?: number;
   pelvis: Object3D;
   torso: Object3D;
+  head?: Object3D;
   legs: [LegRig, LegRig];
   arms: [Object3D, Object3D];
   weatherArt?: PersonWeatherRig;
@@ -275,10 +278,19 @@ export function poseWalkerRig(rig: WalkerRig, pose: WalkerPose): void {
     + 0.08 * sitting + 0.96 * sitting * (1 - sitting);
   rig.torso.rotation.z = reducedMotion || blend === 0 ? 0 : WALKER.listAmp * Math.sin(TAU * cyclePhase) * blend;
   rig.torso.position.x = reducedMotion || blend === 0 ? 0 : WALKER.swayAmp * Math.sin(TAU * cyclePhase) * blend;
-  rig.torso.rotation.y = !reducedMotion && pose.activity === 'looking-around'
-    ? 0.1 * Math.sin(Math.PI * Math.min(1, (pose.activityTime ?? 0) / 1.5)) : 0;
-  if (civicDuty && !reducedMotion) {
+  if (!reducedMotion && pose.activity === 'looking-around') {
+    rig.torso.rotation.y = 0.1 * Math.sin(Math.PI * Math.min(1, (pose.activityTime ?? 0) / 1.5));
+  } else if (civicDuty && !reducedMotion) {
     rig.torso.rotation.y = 0.12 * Math.sin(Math.PI * Math.min(1, (pose.activityTime ?? 0) / 2.5));
+  } else if (!reducedMotion && blend > 0) {
+    // Subtle thoracic counter-rotation opposing leg swing while staying inside 0.8 m width envelope.
+    rig.torso.rotation.y = -mix(0.032, 0.055, run) * Math.sin(TAU * cyclePhase) * blend;
+  } else {
+    rig.torso.rotation.y = 0;
+  }
+  if (rig.head) {
+    rig.head.rotation.y = !reducedMotion && blend > 0 ? -0.55 * rig.torso.rotation.y : 0;
+    rig.head.rotation.z = !reducedMotion && blend > 0 ? -0.35 * rig.torso.rotation.z : 0;
   }
 
   const duty = mix(DUTY, RUNNER.duty, run);
@@ -432,11 +444,14 @@ export class Locomotion {
       }
       const acceleration = (actor.speed - memory.speed) / dt;
       const yawRate = shortestAngle(memory.heading, actor.heading) / dt;
-      const pitchTarget = clamp(-VEHICLE.pitchGain * acceleration, -VEHICLE.maxPitch, VEHICLE.maxPitch);
-      const rollTarget = clamp(-VEHICLE.rollGain * actor.speed * yawRate, -VEHICLE.maxRoll, VEHICLE.maxRoll);
+      const isBicycle = rig.pedals !== undefined;
+      const pitchTarget = isBicycle ? 0 : clamp(-VEHICLE.pitchGain * acceleration, -VEHICLE.maxPitch, VEHICLE.maxPitch);
+      const rollTarget = isBicycle
+        ? clamp(VEHICLE.bikeLeanGain * actor.speed * yawRate, -VEHICLE.maxBikeLean, VEHICLE.maxBikeLean)
+        : clamp(-VEHICLE.rollGain * actor.speed * yawRate, -VEHICLE.maxRoll, VEHICLE.maxRoll);
       const steerTarget = clamp(VEHICLE.steerGain * yawRate, -VEHICLE.maxSteer, VEHICLE.maxSteer);
-      const dropTarget = actor.state === 'dwelling' ? VEHICLE.dwellDrop : 0;
-      const smoothing = Math.min(1, dt / VEHICLE.tau);
+      const dropTarget = actor.state === 'dwelling' && !isBicycle ? VEHICLE.dwellDrop : 0;
+      const smoothing = 1 - Math.exp(-dt / VEHICLE.tau);
       memory.pitch += ((reducedMotion ? 0 : pitchTarget) - memory.pitch) * smoothing;
       memory.roll += ((reducedMotion ? 0 : rollTarget) - memory.roll) * smoothing;
       memory.steer += ((reducedMotion ? 0 : steerTarget) - memory.steer) * smoothing;

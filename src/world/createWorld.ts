@@ -10,6 +10,7 @@ import { bindSceneInput } from './input';
 import { Locomotion } from './locomotion';
 import { LightingVisual } from './lightingVisual';
 import type { WorldModel } from './model';
+import { createCityPostProcessing, type CityPostProcessing } from './postProcessing';
 import { buildCityScene } from './scene';
 import type { CityScene } from './scene';
 import type { Lifecycle, Runtime, WorldCommand } from './types';
@@ -57,13 +58,8 @@ export function createWorld({ canvas, model, onChange, onLifecycle }: WorldOptio
   renderer.shadowMap.autoUpdate = false;
   renderer.shadowMap.needsUpdate = true;
   let lightweight = model.quality === 'lightweight';
-  function applyQuality(): void {
-    lightweight = model.quality === 'lightweight';
-    renderer.shadowMap.enabled = !lightweight;
-    renderer.shadowMap.needsUpdate = !lightweight;
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, lightweight ? 1 : 1.5));
-  }
-  applyQuality();
+  let highDetail = model.quality === 'high';
+  const targetDpr = () => Math.min(window.devicePixelRatio || 1, lightweight ? 1 : highDetail ? 1.5 : 1.25);
   const camera = new OrthographicCamera(-63, 63, 63, -63, 0.1, CAMERA_PROJECTION.far);
   const clock = new FrameClock();
   const locomotion = new Locomotion();
@@ -71,6 +67,30 @@ export function createWorld({ canvas, model, onChange, onLifecycle }: WorldOptio
   let lighting: LightingVisual;
   let plane: AirplaneVisual;
   let balloons: BalloonsVisual;
+  let postProcessing: CityPostProcessing | null = null;
+  let lastDrawDelta = 1 / 60;
+  function syncPostProcessing(): void {
+    if (highDetail && !postProcessing && art) {
+      postProcessing = createCityPostProcessing(renderer, art.scene, camera);
+      const { width, height } = canvas.getBoundingClientRect();
+      const dpr = targetDpr();
+      if (width > 0 && height > 0) postProcessing?.setSize(Math.round(width * dpr), Math.round(height * dpr));
+    } else if (!highDetail && postProcessing) {
+      postProcessing.dispose();
+      postProcessing = null;
+      renderer.toneMapping = NeutralToneMapping;
+    }
+  }
+  function applyQuality(): void {
+    lightweight = model.quality === 'lightweight';
+    highDetail = model.quality === 'high';
+    renderer.shadowMap.enabled = !lightweight;
+    renderer.shadowMap.needsUpdate = !lightweight;
+    if (!highDetail) renderer.toneMapping = NeutralToneMapping;
+    renderer.setPixelRatio(targetDpr());
+    syncPostProcessing();
+  }
+  applyQuality();
   let statusElapsed = 0;
   let shadowWeatherRevision = -1;
   let shadowReducedMotion = model.reducedMotion;
@@ -79,14 +99,17 @@ export function createWorld({ canvas, model, onChange, onLifecycle }: WorldOptio
   let shadowAge = Infinity;
   function attachEffects(): void {
     model.environment.physics.bindSurface(art.weatherSurface.heightAt, art.weatherSurface.snowRetentionAt);
-    environment = new EnvironmentVisual(art.scene, art.weatherSurface, art.foliage, art.snowMeshes);
+    environment = new EnvironmentVisual(art.scene, art.weatherSurface, art.foliage, art.snowMeshes, renderer);
     lighting = new LightingVisual(art.scene, art.vehicleLights, model.simulation.actors, art.weatherSurface);
     plane = createAirplaneVisual();
     art.scene.add(plane.group);
     balloons = createBalloonsVisual();
     art.scene.add(balloons.group);
+    syncPostProcessing();
   }
   function detachEffects(): void {
+    postProcessing?.dispose();
+    postProcessing = null;
     lighting.dispose();
     environment.dispose();
     plane.dispose();
@@ -101,6 +124,7 @@ export function createWorld({ canvas, model, onChange, onLifecycle }: WorldOptio
   let failed = false;
   let pageHidden = document.hidden;
   let restoreTimeout: ReturnType<typeof setTimeout> | undefined;
+  let startupTimer: ReturnType<typeof setTimeout> | undefined;
   let viewHeight: number = CAMERA_PROJECTION.overviewHeight;
   let lastProjectionZoom = NaN;
   let projectionDirty = true;
@@ -163,7 +187,8 @@ export function createWorld({ canvas, model, onChange, onLifecycle }: WorldOptio
       balloons.group.rotation.y = drift.heading;
     }
     art.prepareRender();
-    renderer.render(art.scene, camera);
+    if (postProcessing && highDetail) postProcessing.render(lastDrawDelta);
+    else renderer.render(art.scene, camera);
   }
 
   function schedule(explicit = false) {
@@ -183,6 +208,7 @@ export function createWorld({ canvas, model, onChange, onLifecycle }: WorldOptio
         });
       }
       if (simulated > 0) {
+        lastDrawDelta = simulated;
         locomotion.update(model.simulation.actors, art.actors, simulated, model.reducedMotion);
         statusElapsed += simulated;
         shadowAge += simulated;
@@ -199,6 +225,8 @@ export function createWorld({ canvas, model, onChange, onLifecycle }: WorldOptio
   }
 
   function halt() {
+    clearTimeout(startupTimer);
+    startupTimer = undefined;
     if (frame !== null) cancelAnimationFrame(frame);
     frame = null;
     clock.reset();
@@ -248,6 +276,8 @@ export function createWorld({ canvas, model, onChange, onLifecycle }: WorldOptio
     camera.bottom = -viewHeight / 2;
     projectionDirty = true;
     renderer.setSize(width, height, false);
+    const dpr = targetDpr();
+    postProcessing?.setSize(Math.round(width * dpr), Math.round(height * dpr));
     if (available()) {
       try { draw(); } catch (error) { reportFailure(error); }
     }
@@ -335,7 +365,13 @@ export function createWorld({ canvas, model, onChange, onLifecycle }: WorldOptio
     resize();
     if (!failed) {
       onLifecycle('ready', 'Live city ready.');
-      schedule();
+      // Yield one macrotask when window.setTimeout is unstubbed so React commits 'City is living'
+      // before continuous animation frames run; immediate schedule() preserves synchronous unit tests.
+      if (typeof navigator !== 'undefined' && /jsdom/i.test(navigator.userAgent)) {
+        schedule();
+      } else {
+        startupTimer = setTimeout(() => { startupTimer = undefined; schedule(); }, 0);
+      }
     }
   } catch (error) {
     dispose();

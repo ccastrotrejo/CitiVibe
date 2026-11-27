@@ -109,10 +109,13 @@ describe('original curbside furniture', () => {
 
   it('builds finite shared geometry, rounded mailboxes, slats and street-facing service counters without owning resources', () => {
     const box = new THREE.BoxGeometry();
+    const roundedBox = new THREE.BoxGeometry();
     const cylinder = new THREE.CylinderGeometry(1, 1, 1, 10);
+    const cone = new THREE.ConeGeometry(1, 1, 10);
     const wheel = new THREE.CylinderGeometry(0.38, 0.38, 0.2, 12);
     const crown = new THREE.DodecahedronGeometry();
     const surface = new THREE.MeshStandardMaterial();
+    const alloy = new THREE.MeshStandardMaterial();
     const blue = new THREE.MeshStandardMaterial();
     const glass = new THREE.MeshStandardMaterial();
     const lettering = { food: buildSignLettering('FOOD', 2.8, 0.48), parking: buildSignLettering('P', 0.4, 0.52) };
@@ -126,7 +129,7 @@ describe('original curbside furniture', () => {
     const parts: { shape: THREE.BufferGeometry; material: THREE.Material; matrix: THREE.Matrix4 }[] = [];
     const transform = new THREE.Object3D();
     const builder: StreetscapeBuilder = {
-      box, cylinder, crown, palette,
+      box, roundedBox, cylinder, cone, crown, alloy, palette,
       add(shape, material, position, scale, rotation = [0, 0, 0]) {
         expect([...position, ...scale, ...rotation].every(Number.isFinite)).toBe(true);
         expect(scale.every((value) => value > 0)).toBe(true);
@@ -149,12 +152,12 @@ describe('original curbside furniture', () => {
     try {
       buildStreetFurniture(builder, blue, glass, lettering, vehicleArt);
       expect(parts.filter(({ shape, material }) => shape === cylinder && material === blue)).toHaveLength(6);
-      expect(parts.filter(({ material }) => material === glass)).toHaveLength(28);
+      expect(parts.filter(({ shape, material }) => shape === roundedBox && material === blue).length).toBeGreaterThanOrEqual(48);
+      expect(parts.filter(({ material }) => material === alloy).length).toBeGreaterThan(80);
+      expect(parts.filter(({ material }) => material === glass).length).toBeGreaterThanOrEqual(36);
       expect(parts.filter(({ shape }) => shape === lettering.food)).toHaveLength(8);
       expect(parts.filter(({ shape }) => shape === lettering.parking)).toHaveLength(0);
-      // Includes main's expanded civic utilities and the 36 restored paint strips;
-      // scene.test.ts retains the unchanged whole-scene triangle/draw/material limits.
-      expect(parts.length).toBeLessThan(2300);
+      expect(parts.length).toBeLessThan(3400);
       for (const part of parts) {
         part.shape.computeBoundingBox();
         const bounds = part.shape.boundingBox!.clone().applyMatrix4(part.matrix);
@@ -172,17 +175,18 @@ describe('original curbside furniture', () => {
         expect(nearby.filter(({ shape, bounds }) => shape === cylinder && bounds.max.y < 0.3)).toHaveLength(8);
         expect(nearby.every(({ bounds }) => bounds.max.y < FOOD_CART_SPACE.height)).toBe(true);
         const display = nearby.filter(({ material }) => material === glass);
-        expect(display).toHaveLength(1);
-        expect(display[0].bounds.max.y).toBeLessThan(1.7);
-        expect(nearby.filter(({ shape, material }) => shape === cylinder && material === surface))
-          .toHaveLength(20);
+        expect(display).toHaveLength(3);
+        expect(display.filter(({ bounds }) => bounds.max.y < 1.7)).toHaveLength(2);
+        expect(display.every(({ bounds }) => bounds.max.y < 2.1)).toBe(true);
+        expect(nearby.filter(({ material }) => material === alloy).length).toBeGreaterThanOrEqual(16);
+        expect(nearby.filter(({ shape }) => shape === cone)).toHaveLength(5);
       }
       const first = parts.map(({ matrix }) => matrix.toArray());
       parts.length = 0;
       buildStreetFurniture(builder, blue, glass, lettering, vehicleArt);
       expect(parts.map(({ matrix }) => matrix.toArray())).toEqual(first);
     } finally {
-      [box, cylinder, wheel, crown, surface, blue, glass, lettering.food, lettering.parking].forEach((resource) => resource.dispose());
+      [box, roundedBox, cylinder, cone, wheel, crown, surface, alloy, blue, glass, lettering.food, lettering.parking].forEach((resource) => resource.dispose());
     }
   });
 });

@@ -95,4 +95,38 @@ describe('bounded coherent building fabric', () => {
       art.dispose();
     }
   });
+
+  it('uses rounded casings, conical tank caps and alloy hardware when optional primitives are provided', () => {
+    const box = new THREE.BoxGeometry();
+    const roundedBox = new THREE.BoxGeometry();
+    const cylinder = new THREE.CylinderGeometry(1, 1, 1, 10);
+    const cone = new THREE.ConeGeometry(1, 1, 18);
+    const crown = new THREE.DodecahedronGeometry(1);
+    const alloy = new THREE.MeshStandardMaterial();
+    const names = ['sand', 'stone', 'paving', 'road', 'line', 'cream', 'clay', 'teal', 'roof',
+      'copper', 'copperEdge', 'glass', 'wood', 'leaf', 'leafLight', 'water', 'bus', 'rubber', 'taxi', 'facade'] as const;
+    const palette = Object.fromEntries(names.map((name) => [name, new THREE.MeshStandardMaterial()])) as
+      Record<(typeof names)[number], THREE.MeshStandardMaterial>;
+    const used: { shape: THREE.BufferGeometry; surface: THREE.Material; scale: readonly [number, number, number] }[] = [];
+    const add: StreetscapeBuilder['add'] = (shape, surface, _position, scale) => {
+      used.push({ shape, surface, scale });
+    };
+    const art = buildStreetscape({
+      box, roundedBox, cylinder, cone, crown, alloy, palette, add,
+      block: (surface, x, y, z, w, h, d, yaw = 0, tint) => add(box, surface, [x, y, z], [w, h, d], [0, yaw, 0], tint),
+    });
+    try {
+      const tanks = STREET_BUILDINGS.filter(({ roof, setbackFloors }) => roof === 'tank' && !setbackFloors).length;
+      expect(used.filter(({ shape, surface }) => shape === cone && surface === palette.copperEdge)).toHaveLength(tanks);
+      expect(used.filter(({ shape, surface, scale }) =>
+        shape === cylinder && surface === alloy && Math.abs(scale[0] - 0.95 * 1.02) < 1e-6)).toHaveLength(tanks * 3);
+      expect(used.filter(({ shape }) => shape === roundedBox).length).toBeGreaterThan(100);
+      expect(used.filter(({ shape, surface }) => shape === box && surface === alloy).length).toBeGreaterThan(200);
+    } finally {
+      art.dispose();
+      [box, roundedBox, cylinder, cone, crown].forEach((geometry) => geometry.dispose());
+      alloy.dispose();
+      Object.values(palette).forEach((material) => material.dispose());
+    }
+  });
 });

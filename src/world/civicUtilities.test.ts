@@ -190,8 +190,8 @@ describe('bounded civic fabric', () => {
       expect(capture.parts.every(({ shape }) => shape === capture.builder.box || shape === capture.builder.cylinder)).toBe(true);
       const triangles = capture.parts.reduce((sum, { shape }) =>
         sum + (shape.index?.count ?? shape.getAttribute('position').count) / 3, 0);
-      // Local civic geometry scales with the approved drain, hydrant and stack counts.
-      expect(triangles).toBeLessThan(16000);
+      // Local civic geometry scales with the approved drain, multi-tier hydrant, wire basket, concentric cover and stack counts.
+      expect(triangles).toBeLessThan(21000);
       for (const drain of STREET_DRAINS) {
         const frames = capture.parts.filter(({ material, bounds }) => material === capture.builder.palette.roof && bounds.max.y > -0.01 &&
           Math.abs(bounds.getCenter(new THREE.Vector3()).x - drain.x) < drain.width &&
@@ -211,7 +211,7 @@ describe('bounded civic fabric', () => {
         const nearby = capture.parts.filter(({ bounds }) =>
           Math.abs(bounds.getCenter(new THREE.Vector3()).x - cover.x) < 0.4 &&
           Math.abs(bounds.getCenter(new THREE.Vector3()).z - cover.z) < 0.5);
-        expect(nearby).toHaveLength(4);
+        expect(nearby).toHaveLength(6);
         expect(Math.max(...nearby.map(({ bounds }) => bounds.max.y)) - cover.surfaceY).toBeLessThan(0.003);
       }
       for (const part of capture.parts.filter(({ material }) => material === capture.builder.palette.line)) {
@@ -219,7 +219,7 @@ describe('bounded civic fabric', () => {
       }
       const count = capture.parts.length;
       buildStreetTreeBed(capture.builder, 0, 0);
-      expect(capture.parts.length - count).toBe(4);
+      expect(capture.parts.length - count).toBe(7);
       expect(capture.parts.slice(count).filter(({ tint }) => tint === '#70866a')).toHaveLength(2);
       expect(Math.max(...capture.parts.slice(count).map(({ bounds }) => bounds.max.y))).toBeLessThan(0.05);
     } finally {

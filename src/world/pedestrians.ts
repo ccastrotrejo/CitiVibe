@@ -10,7 +10,7 @@ import { civicActivities } from './civicActivities';
 import type { TrafficServiceState } from '../content/transitService';
 import { serviceActivities, serviceVisitAllowed, serviceVisitReady, SERVICE_VISITOR_ID, SERVICE_VISIT_ID } from './serviceActivities';
 
-export const PEDESTRIAN_BEHAVIOR = { maxCrossingWait: 12, maxBlockPopulation: 11, landingClearance: 2 } as const;
+export const PEDESTRIAN_BEHAVIOR = { maxCrossingWait: 12, maxBlockPopulation: 14, landingClearance: 2 } as const;
 const EPSILON = 1e-7;
 const wrap = (distance: number, length: number) => ((distance % length) + length) % length;
 
@@ -102,6 +102,7 @@ export class StreetPedestrians {
   private readonly walkers: Walker[];
   private readonly groups: Walker[][];
   private readonly reservations: (Walker | null)[] = INTERSECTIONS.map(() => null);
+  private readonly blockIntersections: readonly (readonly number[])[];
   private readonly hops: number[][];
   private readonly exits: (WalkingCrossing | undefined)[][][];
 
@@ -121,6 +122,9 @@ export class StreetPedestrians {
       }));
     }
     this.crossings = makeWalkingCrossings(routes);
+    this.blockIntersections = routes.map((_, block) => [
+      ...new Set(this.crossings.filter((c) => c.from === block || c.to === block).map((c) => c.intersection)),
+    ]);
     this.exits = routes.map((lanes, block) => lanes.map((route, lane) => route.segments.map((_, corner) =>
       this.crossings.find((crossing) => crossing.from === block && crossing.lane === lane && crossing.corner === corner))));
     this.hops = routes.map((_, origin) => {
@@ -184,10 +188,23 @@ export class StreetPedestrians {
 
   private canReserve(walker: Walker, crossing: WalkingCrossing, signals: readonly TrafficSignalState[]): boolean {
     if (!signals[crossing.intersection].walk || this.reservations[crossing.intersection]) return false;
-    const arriving = this.reservations.filter((reservation) => reservation?.crossing?.to === crossing.to).length;
+    let arriving = 0;
+    for (const intersection of this.blockIntersections[crossing.to]) {
+      if (this.reservations[intersection]?.crossing?.to === crossing.to) arriving++;
+    }
     if (this.groups[crossing.to].length + arriving >= PEDESTRIAN_BEHAVIOR.maxBlockPopulation) return false;
-    return this.walkers.every((other) => other === walker ||
-      corridorDistance(crossing, other.actor.position) >= PERSON_SPACE.headway);
+    for (const group of [this.groups[crossing.from], this.groups[crossing.to]]) {
+      for (const other of group) {
+        if (other !== walker && corridorDistance(crossing, other.actor.position) < PERSON_SPACE.headway) return false;
+      }
+    }
+    for (const intersection of this.blockIntersections[crossing.to]) {
+      const active = this.reservations[intersection];
+      if (active && active !== walker && corridorDistance(crossing, active.actor.position) < PERSON_SPACE.headway) {
+        return false;
+      }
+    }
+    return true;
   }
 
   step(dt: number, signals: readonly TrafficSignalState[], bikeAccess?: BikeAccessBarrier,
@@ -294,13 +311,16 @@ export class StreetPedestrians {
     // A reservation admitted later in this tick must also constrain earlier planned walkers.
     for (const walker of this.walkers) {
       if (walker.actor.visit || walker.activityStepped) continue;
-      if (!walker.crossing) for (const reservation of this.reservations) {
-        // The departed tail is clear; the moving crosser and its downstream landing remain reserved.
-        if (reservation?.crossing &&
-          corridorDistance(reservation.crossing, walker.next.position, reservation.crossingDistance) < PERSON_SPACE.headway &&
-          corridorDistance(reservation.crossing, walker.next.position, reservation.crossingDistance) <
-            corridorDistance(reservation.crossing, walker.actor.position, reservation.crossingDistance)) {
-          walker.advance = 0;
+      if (!walker.crossing) {
+        for (const intersection of this.blockIntersections[walker.block]) {
+          const reservation = this.reservations[intersection];
+          // The departed tail is clear; the moving crosser and its downstream landing remain reserved.
+          if (reservation?.crossing &&
+            corridorDistance(reservation.crossing, walker.next.position, reservation.crossingDistance) < PERSON_SPACE.headway &&
+            corridorDistance(reservation.crossing, walker.next.position, reservation.crossingDistance) <
+              corridorDistance(reservation.crossing, walker.actor.position, reservation.crossingDistance)) {
+            walker.advance = 0;
+          }
         }
       }
       if (!canWalkTo(walker.actor, walker.next.position, walker.next.heading, this.activityActors)) walker.advance = 0;

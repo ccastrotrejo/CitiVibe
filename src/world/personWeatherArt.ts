@@ -3,8 +3,13 @@ import { createWeatherTraits, type PersonProfile } from '../content/people';
 import type { WalkerRig } from './locomotion';
 import type { PersonWeatherState } from './peopleWeather';
 
+import type { PersonShapeKind } from './person';
+
 type Triple = readonly [number, number, number];
-type AddPart = (parent: THREE.Object3D, name: string, color: string, position: Triple, size: Triple, rounded?: boolean) => THREE.Mesh;
+type AddPart = (
+  parent: THREE.Object3D, name: string, color: string, position: Triple, size: Triple,
+  rounded?: boolean, kind?: PersonShapeKind,
+) => THREE.Mesh;
 interface CoveredPart { object: THREE.Object3D; scale: THREE.Vector3 }
 
 export interface PersonWeatherRig {
@@ -51,7 +56,7 @@ export function buildPersonWeather(rig: WalkerRig, profile: PersonProfile, head:
     !['Face', 'Glasses bridge', 'Glasses lens'].includes(part.name)));
   for (const arm of rig.arms) clothes.push(...covered(arm.children.filter((part) => part.name === 'Sleeve')));
   const coat = optional(rig.torso);
-  add(coat, 'Weather coat', profile.top, [0, 0.17, 0.0075], [0.415, 0.63, 0.3]);
+  add(coat, 'Weather coat', profile.top, [0, 0.17, 0.0075], [0.398, 0.63, 0.29]);
   const running = profile.context === 'runner';
   const traits = createWeatherTraits(profile.id);
   const sleeves: THREE.Object3D[] = [];
@@ -61,8 +66,8 @@ export function buildPersonWeather(rig: WalkerRig, profile: PersonProfile, head:
     const sleeve = optional(arm);
     sleeves.push(sleeve);
     add(sleeve, 'Weather sleeve', profile.top, [0, running ? -0.125 : -0.215, 0],
-      [0.14, running ? 0.25 : 0.43, 0.175]);
-    if (running) add(sleeve, 'Weather forearm sleeve', profile.top, [0, -0.27, 0.075], [0.13, 0.14, 0.21]);
+      [0.125, running ? 0.25 : 0.43, 0.165], false, 'capsule');
+    if (running) add(sleeve, 'Weather forearm sleeve', profile.top, [0, -0.27, 0.075], [0.118, 0.14, 0.21], false, 'capsule');
   }
   const hood = optional(head);
   add(hood, 'Weather hood', profile.top, [0, 0.065, -0.065], [0.235, 0.285, 0.22], true);
@@ -76,8 +81,8 @@ export function buildPersonWeather(rig: WalkerRig, profile: PersonProfile, head:
       ['Exposed thigh', 'Shorts hem', 'Bare lower leg'].includes(part.name))));
     const thigh = optional(leg.hip);
     const shank = optional(leg.knee);
-    add(thigh, 'Winter trouser thigh', profile.bottom, [0, -0.22, 0], [0.175, 0.44, 0.195]);
-    add(shank, 'Winter trouser shank', profile.bottom, [0, -0.22, 0], [0.13, 0.44, 0.15]);
+    add(thigh, 'Winter trouser thigh', profile.bottom, [0, -0.22, 0], [0.165, 0.44, 0.185], false, 'capsule');
+    add(shank, 'Winter trouser shank', profile.bottom, [0, -0.22, 0], [0.125, 0.44, 0.145], false, 'capsule');
     trousers.push(thigh, shank);
   }
   const umbrella = optional(root);
@@ -92,7 +97,7 @@ export function buildPersonWeather(rig: WalkerRig, profile: PersonProfile, head:
       facet.rotation.set(0, angle, 0);
       facet.rotateX(0.38);
     }
-    add(canopy, 'Umbrella crown', profile.accent, [0, -0.008, 0], [0.23, 0.035, 0.23]);
+    add(canopy, 'Umbrella crown', profile.accent, [0, 0.01, 0], [0.23, 0.06, 0.23], false, 'cone');
     shaft = add(umbrella, 'Umbrella shaft', '#46515a', [0, 0, 0], [0.016, 1, 0.016]);
   }
   return { coat, hood, beanie, scarf, sleeves, trousers, umbrella, canopy, shaft, clothes, headwear, bareLegs,

@@ -16,9 +16,13 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "n8ao": "2.1.0",
+    "postprocessing": "6.39.6",
     "react": "19.3.0",
     "react-dom": "19.3.0",
-    "three": "0.186.0"
+    "simplex-noise": "4.0.3",
+    "three": "0.186.0",
+    "three-subdivide": "1.1.5"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",

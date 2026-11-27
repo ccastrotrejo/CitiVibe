@@ -39,8 +39,12 @@ export interface StreetscapeBuilder {
     scale: Triple, rotation?: Triple, tint?: string,
   ): void;
   box: THREE.BufferGeometry;
+  roundedBox?: THREE.BufferGeometry;
   cylinder: THREE.BufferGeometry;
+  cone?: THREE.BufferGeometry;
+  torus?: THREE.BufferGeometry;
   crown: THREE.BufferGeometry;
+  alloy?: THREE.Material;
   palette: Record<SurfaceName, THREE.Material>;
 }
 
@@ -603,6 +607,9 @@ function lotLineTrim(
 export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = builder.palette.taxi): Streetscape {
   validateStreetscape();
   const { block, add, box, cylinder, crown, palette: p } = builder;
+  const rounded = builder.roundedBox ?? box;
+  const cone = builder.cone ?? cylinder;
+  const alloy = builder.alloy ?? p.stone;
   // Opaque panes need only their outward face; sills, jambs and mullions retain real depth.
   const windowPanel = new THREE.PlaneGeometry(1, 1);
   windowPanel.name = 'Shared outward-facing facade glazing';
@@ -725,7 +732,7 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
           stripe(p.stone, road, (cursor + end) / 2, offset, 0.18, end - cursor, 0.025, 0.13);
         }
         for (const side of track ? [track.side] : [-1, 1]) {
-          for (let along = segment.center - segment.length / 2 + 1; along < segment.center + segment.length / 2; along += track ? 3.4 : 5) {
+          for (let along = segment.center - segment.length / 2 + 1; along < segment.center + segment.length / 2; along += track ? 4.4 : 6.4) {
             const offset = side * (track ? TWO_WAY_BIKE_TRACK.separatorOffset : 3.1);
             const x = vertical ? road + offset : along;
             const z = vertical ? along : road + offset;
@@ -736,8 +743,8 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
             else block(p.rubber, x, 0.05, z, 0.24, 0.07, 0.24);
           }
         }
-        for (let along = segment.center - segment.length / 2 + 1; along < segment.center + segment.length / 2 - 0.5; along += 4) {
-          stripe(p.facade, road, along, 0, 0.085, 1.5, 0.017, 0.018, '#dfb63b');
+        for (let along = segment.center - segment.length / 2 + 1; along < segment.center + segment.length / 2 - 0.5; along += 5) {
+          stripe(p.facade, road, along, 0, 0.085, 1.65, 0.017, 0.018, '#dfb63b');
           if (track) stripe(p.taxi, road, along, track.side * TWO_WAY_BIKE_TRACK.offset, 0.065, 1.3, 0.017, 0.014);
         }
       }
@@ -784,8 +791,8 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
     const { width, height, projection, tilt, grilleDepth } = WINDOW_UNIT;
     // A little of the case stays inside the reveal so the box never floats off the wall.
     const cased = projection + 0.08;
-    const near = side * (cased / 2 - 0.04);
-    const far = cased / 2 - grilleDepth / 2;
+    const near = side * (cased / 2 - 0.052);
+    const far = cased / 2 - grilleDepth / 2 + 0.007;
     const lean = Math.sin(tilt);
     const centre: Triple = axis === 'z'
       ? [sill[0], sill[1] + height / 2, sill[2] + near]
@@ -800,8 +807,17 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
       ? [centre[0], centre[1] + drop, centre[2] + side * far * Math.cos(tilt)]
       : [centre[0] + side * far * Math.cos(tilt), centre[1] + drop, centre[2]];
     const tone = WINDOW_UNIT_TONES[Math.floor(roll / WINDOW_UNIT.windowShare * WINDOW_UNIT_TONES.length) % WINDOW_UNIT_TONES.length];
-    add(box, p.facade, centre, size, spin, tone);
+    add(rounded, p.facade, centre, size, spin, tone);
     add(box, p.facade, grille, grilleSize, spin, WINDOW_UNIT_GRILLE);
+    const louverOut = cased * 0.14;
+    const louverDrop = -side * louverOut * lean;
+    const louverSize: Triple = axis === 'z'
+      ? [width + 0.014, height * 0.6, cased * 0.42]
+      : [cased * 0.42, height * 0.6, width + 0.014];
+    const louverPos: Triple = axis === 'z'
+      ? [centre[0], centre[1] + louverDrop, centre[2] + side * louverOut * Math.cos(tilt)]
+      : [centre[0] + side * louverOut * Math.cos(tilt), centre[1] + louverDrop, centre[2]];
+    add(box, p.rubber, louverPos, louverSize, spin);
   };
 
   const facade = (building: StreetBuilding, width: number, depth: number, base: number, floors: number) => {
@@ -887,6 +903,13 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
           }
           if (brownstone && side > 0) {
             block(p.copperEdge, wx, y + windowHeight / 2 + 0.1, front + 0.08, windowWidth + 0.27, 0.18, 0.24);
+            if (building.front.axis === 'z') {
+              block(p.copperEdge, wx, y + windowHeight / 2 + 0.205, front + 0.11, windowWidth + 0.35, 0.075, 0.3);
+              for (const edge of [-1, 1]) {
+                block(p.copperEdge, wx + edge * (windowWidth / 2 + 0.115), y + windowHeight / 2 - 0.01,
+                  front + 0.105, 0.085, 0.2, 0.2);
+              }
+            }
             if (principal) {
               block(p.glass, wx, 0.5, front + 0.15, windowWidth - 0.11, 0.3, 0.045);
               for (const edge of [-1, 1]) {
@@ -918,6 +941,12 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
           if (brownstone && building.front.axis === 'x' && side === building.front.side) {
             block(p.copperEdge, flank + side * 0.08, y + windowHeight / 2 + 0.1, wz,
               0.24, 0.18, windowWidth + 0.27);
+            block(p.copperEdge, flank + side * 0.11, y + windowHeight / 2 + 0.205, wz,
+              0.3, 0.075, windowWidth + 0.35);
+            for (const edge of [-1, 1]) {
+              block(p.copperEdge, flank + side * 0.105, y + windowHeight / 2 - 0.01,
+                wz + edge * (windowWidth / 2 + 0.115), 0.2, 0.2, 0.085);
+            }
             if (principal) {
               for (const edge of [-1, 1]) {
                 block(p.copperEdge, flank + side * 0.065, y, wz + edge * (windowWidth / 2 + 0.075),
@@ -995,9 +1024,11 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
     if (civic) {
       buildCivicFront(building, civic, p, frontPiece, frontRod);
     } else if (building.use !== 'residential') {
-      buildCommercialFront(building, p, frontPiece);
+      buildCommercialFront(building, p, frontPiece, alloy, frontRod);
     } else {
       frontPiece(p.glass, entryAlong, brownstone ? 1.765 : 1.06, 0.05, 0.95, 1.85, 0.06);
+      frontPiece(alloy, entryAlong, brownstone ? 0.925 : 0.22, 0.096, 0.84, 0.16, 0.016);
+      frontPiece(alloy, entryAlong + 0.33, brownstone ? 1.72 : 1.02, 0.108, 0.03, 0.26, 0.03);
       frontPiece(brownstone ? p.copperEdge : p.paving, entryAlong, brownstone ? 2.8 : 2.2,
         0.17, 1.45, 0.18, 0.34);
     }
@@ -1057,29 +1088,36 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
       for (let floor = 1; floor < floors; floor++) {
         const y = floor * floorHeight + 0.42;
         const offset = Math.min(span * 0.25, 2);
-        frontPiece(iron, offset, y, 0.23, 1.6, 0.1, 0.34);
-        frontRod(iron, [offset - 0.7, y + 0.65, 0.33], [offset + 0.7, y + 0.65, 0.33], 0.045);
-        for (const dz of [-0.65, 0, 0.65]) {
-          frontRod(iron, [offset + dz, y, 0.33], [offset + dz, y + 0.65, 0.33], 0.04);
+        frontPiece(iron, offset, y, 0.23, 1.6, 0.08, 0.34);
+        frontRod(iron, [offset - 0.74, y + 0.72, 0.36], [offset + 0.74, y + 0.72, 0.36], 0.04);
+        frontRod(iron, [offset - 0.74, y + 0.13, 0.36], [offset + 0.74, y + 0.13, 0.36], 0.026);
+        for (const dz of [-0.68, -0.34, 0, 0.34, 0.68]) {
+          frontRod(iron, [offset + dz, y + 0.04, 0.36], [offset + dz, y + 0.72, 0.36],
+            Math.abs(dz) > 0.6 ? 0.036 : 0.022);
         }
+        frontRod(iron, [offset, y - 0.36, 0.03], [offset, y - 0.02, 0.35], 0.03);
         for (const edge of [-1, 1]) {
           frontRod(iron, [offset + 0.62, y, 0.23 + edge * 0.11],
             [offset - 0.62, y + floorHeight, 0.23 + edge * 0.11], 0.04);
         }
-        for (let rung = 1; rung <= 7; rung++) {
-          frontPiece(iron, offset + 0.62 - rung * 0.155, y + rung * floorHeight / 8, 0.23, 0.06, 0.04, 0.26);
+        frontRod(iron, [offset + 0.62, y + 0.56, 0.34],
+          [offset - 0.62, y + floorHeight + 0.56, 0.34], 0.028);
+        for (let rung = 1; rung <= 5; rung++) {
+          frontPiece(iron, offset + 0.62 - rung * 0.205, y + rung * floorHeight / 6, 0.23, 0.06, 0.04, 0.26);
         }
       }
     }
     if (building.roof === 'tank' && !setbackFloors) {
-      for (const dx of [-0.57, 0.57]) for (const dz of [-0.57, 0.57]) {
-        rod(p.copperEdge, [x + dx, roofY, z + dz], [x + dx * 0.8, roofY + 0.95, z + dz * 0.8], 0.08);
+      for (const dx of [-0.6, 0.6]) for (const dz of [-0.6, 0.6]) {
+        rod(p.copperEdge, [x + dx, roofY, z + dz], [x + dx * 0.78, roofY + 0.94, z + dz * 0.78], 0.085);
       }
-      add(cylinder, p.wood, [x, roofY + 1.7, z], [0.95, 1.55, 0.95]);
-      for (const y of [roofY + 1.1, roofY + 2.25]) {
-        add(cylinder, p.copperEdge, [x, y, z], [0.98, 0.1, 0.98]);
+      for (const dz of [-0.42, 0.42]) block(alloy, x, roofY + 0.94, z + dz, 1.72, 0.08, 0.1);
+      block(p.wood, x, roofY + 1.01, z, 1.56, 0.06, 1.56);
+      add(cylinder, p.wood, [x, roofY + 1.81, z], [0.95, 1.56, 0.95]);
+      for (const hoopY of [roofY + 1.2, roofY + 1.66, roofY + 2.24]) {
+        add(cylinder, alloy, [x, hoopY, z], [0.95 * 1.02, 0.042, 0.95 * 1.02]);
       }
-      add(crown, p.roof, [x, roofY + 2.55, z], [1.03, 0.4, 1.03]);
+      add(cone, p.copperEdge, [x, roofY + 2.84, z], [1.06, 0.52, 1.06]);
     } else if (building.roof === 'garden') {
       const planterOffset = Math.min(1.45, roofDepth / 2 - 0.55);
       const planterWidth = Math.max(0.65, roofWidth - 3.2);
@@ -1091,12 +1129,15 @@ export function buildStreetscape(builder: StreetscapeBuilder, globeMaterial = bu
           add(crown, p.leaf, [planterX + dx, roofY + 0.6, z + dz], [0.6, 0.6, 0.48]);
         }
       }
-      block(p.teal, x, roofY + 0.4, z, 1.4, 0.65, 1.1);
+      const gardenHvacW = Math.min(1.36, roofWidth - 0.55);
+      add(rounded, p.stone, [x, roofY + 0.36, z], [gardenHvacW, 0.66, 1.04]);
     } else {
-      block(p.stone, x + 0.4, roofY + 0.35, z, 1.4, 0.7, 1.1);
-      for (const dx of [-0.35, 0.35]) {
-        add(cylinder, p.roof, [x + 0.4 + dx, roofY + 0.73, z], [0.22, 0.06, 0.22]);
-      }
+      const hvacW = Math.min(1.4, roofWidth - 0.55);
+      const hvacZ = z + 0.16;
+      add(rounded, p.stone, [x, roofY + 0.36, hvacZ], [hvacW, 0.68, 1.04]);
+      add(cylinder, alloy, [x, roofY + 0.725, hvacZ], [0.29, 0.065, 0.29]);
+      add(cylinder, p.rubber, [x, roofY + 0.742, hvacZ], [0.235, 0.048, 0.235]);
+      block(alloy, x, roofY + 0.38, hvacZ + 0.66, 0.36, 0.42, 0.32);
       for (const dz of building.roof === 'chimneys' ? [-roofDepth / 2 + 0.8, roofDepth / 2 - 0.8] : []) {
         block(p.clay, x - serviceSide * (roofWidth / 2 - 0.85), roofY + 0.55, z + dz, 0.55, 1.1, 0.55);
         block(p.roof, x - serviceSide * (roofWidth / 2 - 0.85), roofY + 1.13, z + dz, 0.68, 0.12, 0.68);

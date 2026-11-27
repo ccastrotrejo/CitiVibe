@@ -183,19 +183,20 @@ export class ActorSimulation {
       const route = running ? PARK_RUNNING_ROUTE : PARK_ROUTES[index % PARK_ROUTES.length];
       const group = PARK_ACTORS.filter((actor) => actor.gait === gait);
       const ordinal = group.findIndex((actor) => actor.id === id);
+      const initialLane: 0 | 1 = running && LANES ? ((ordinal % 2) as 0 | 1) : 0;
       let distance = (ordinal + random() * 0.3) / group.length * route.length;
-      const lateral = running ? laneLateral(0) : 0;
+      const lateral = running ? laneLateral(initialLane) : 0;
       const position = new Vector3();
       let heading = 0;
       let placed = false;
-      for (let attempt = 0; attempt < 32; attempt++) {
+      for (let attempt = 0; attempt < 48; attempt++) {
         sampleParkRoute(route, distance, position);
         sampleParkRoute(route, distance + 0.2, this.lookAhead);
         heading = Math.atan2(this.lookAhead.x - position.x, this.lookAhead.z - position.z);
         position.x += Math.cos(heading) * lateral;
         position.z -= Math.sin(heading) * lateral;
         if (occupied.every((other) => other.distanceTo(position) > PERSON_SPACE.headway)) { placed = true; break; }
-        distance = (distance + 3) % route.length;
+        distance = (distance + 2.4) % route.length;
       }
       if (!placed) throw new Error('Unable to place park visitors with safe spacing.');
       occupied.push(position);
@@ -209,7 +210,7 @@ export class ActorSimulation {
           effort: 1, cooldown: 0, rests: 0,
           nextCooldown: distance + route.length * (0.4 + runnerSample(id, 'first-rest') * 2.4),
           recovered: distance - runnerSample(id, 'initial-fatigue') * pace.fatigueDistance,
-          lane: 0, laneTarget: 0, lateral, cycle: 0, stride: 0, run: 1,
+          lane: initialLane, laneTarget: initialLane, lateral, cycle: 0, stride: 0, run: 1,
         };
         actor.runner.stride = pace.scale * blendedStride(runningPace(pace, actor.runner, distance) / pace.scale, 1, pace.traits);
       }
@@ -218,7 +219,7 @@ export class ActorSimulation {
         advance: 0,
         untilReading: isParkReader(id) ? (PARK_READING_ENTRY - distance + route.length) % route.length : Infinity,
         untilMeadow: !running && index % 10 === 0 ? (PARK_MEADOW_VISIT.entry - distance + route.length) % route.length : Infinity,
-        meadowDistance: null, nextHeading: actor.heading, activityStepped: false, pace, nextLane: 0,
+        meadowDistance: null, nextHeading: actor.heading, activityStepped: false, pace, nextLane: initialLane,
       };
     });
     for (const walker of this.walkers) {

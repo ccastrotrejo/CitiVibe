@@ -12,9 +12,20 @@ const glslList = (values: readonly number[]) => values.map((value) => value.toFi
 /** NYC concrete sidewalk flags are commonly about five feet square. */
 export const SIDEWALK_FLAG_SIZE = 1.52;
 
+export interface SurfaceDetailTextures {
+  normalMap?: THREE.Texture;
+  roughnessMap?: THREE.Texture;
+  normalScale?: number;
+}
+
 const DETAIL_GLSL = /* glsl */ `
 varying vec3 vDetailPosition;
 varying vec3 vDetailNormal;
+varying vec3 vBoxLocal;
+varying vec3 vBoxScale;
+varying vec3 vBoxAxisX;
+varying vec3 vBoxAxisY;
+varying vec3 vBoxAxisZ;
 float detailHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float detailNoise(vec2 p) {
   vec2 i = floor(p);
@@ -22,6 +33,9 @@ float detailNoise(vec2 p) {
   f = f * f * (3.0 - 2.0 * f);
   return mix(mix(detailHash(i), detailHash(i + vec2(1.0, 0.0)), f.x),
     mix(detailHash(i + vec2(0.0, 1.0)), detailHash(i + vec2(1.0)), f.x), f.y);
+}
+float detailFbm(vec2 p) {
+  return detailNoise(p);
 }
 // Coverage of a line of half-width hw at distance d, filtered by the pixel footprint w so
 // thin joints fade to their average tone instead of shimmering at overview zoom.
@@ -37,25 +51,25 @@ const MODE_GLSL: Record<SurfaceDetailMode, string> = {
       vec2 edge = min(fract(flag), 1.0 - fract(flag)) * ${SIDEWALK_FLAG_SIZE.toFixed(2)};
       float footprint = length(fwidth(vDetailPosition.xz));
       float joint = max(detailLine(edge.x, 0.012, footprint), detailLine(edge.y, 0.012, footprint));
-      float tone = 0.94 + 0.09 * detailHash(floor(flag));
-      float grime = 0.96 + 0.05 * detailNoise(vDetailPosition.xz * 0.8);
-      diffuseColor.rgb *= tone * grime * (1.0 - 0.3 * joint);
+      float tone = 0.96 + 0.06 * detailHash(floor(flag));
+      float grime = 0.97 + 0.035 * detailFbm(vDetailPosition.xz * 0.75);
+      diffuseColor.rgb *= tone * grime * (1.0 - 0.24 * joint);
     }
   `,
   asphalt: /* glsl */ `
     if (vDetailNormal.y > 0.9 && vDetailPosition.y < 0.05) {
       float footprint = length(fwidth(vDetailPosition.xz));
-      float fine = detailNoise(vDetailPosition.xz * 1.9) * (1.0 - smoothstep(0.08, 0.35, footprint));
-      float broad = detailNoise(vDetailPosition.xz * 0.28);
+      float fine = detailFbm(vDetailPosition.xz * 2.2) * (1.0 - smoothstep(0.08, 0.35, footprint));
+      float broad = detailFbm(vDetailPosition.xz * 0.24);
       vec2 patchCell = floor(vDetailPosition.xz / vec2(6.5, 3.7));
       vec2 patchLocal = fract(vDetailPosition.xz / vec2(6.5, 3.7));
       float patchEdge = min(min(patchLocal.x, 1.0 - patchLocal.x), min(patchLocal.y, 1.0 - patchLocal.y));
       float repair = step(0.88, detailHash(patchCell)) * smoothstep(0.08, 0.12, patchEdge);
-      diffuseColor.rgb *= (0.92 + 0.12 * broad + 0.06 * (fine - 0.5)) * (1.0 - 0.07 * repair);
+      diffuseColor.rgb *= (0.94 + 0.09 * broad + 0.04 * (fine - 0.45)) * (1.0 - 0.06 * repair);
     }
   `,
-  // Shared white facade paint also colours vehicles and sidewalk props, so coursing is limited
-  // to warm (brick/brownstone) tints on vertical faces outside every street-and-sidewalk corridor.
+  // Shared white facade paint also colours sidewalk props, so coursing is limited
+  // to vertical faces outside every street-and-sidewalk corridor.
   masonry: /* glsl */ `
     if (abs(vDetailNormal.y) < 0.3 && vDetailPosition.y > 0.35 && diffuseColor.r - diffuseColor.b > 0.07) {
       float street = 1e3;
@@ -69,42 +83,143 @@ const MODE_GLSL: Record<SurfaceDetailMode, string> = {
         float row = floor(course);
         float stretcher = along / ${BRICK_COURSE.length.toFixed(2)} + 0.5 * mod(row, 2.0);
         vec2 footprint = fwidth(vec2(along, vDetailPosition.y));
-        float bed = detailLine(min(fract(course), 1.0 - fract(course)) * ${BRICK_COURSE.height.toFixed(3)}, 0.01, footprint.y);
-        float head = detailLine(min(fract(stretcher), 1.0 - fract(stretcher)) * ${BRICK_COURSE.length.toFixed(2)}, 0.01, footprint.x);
-        float brick = mix(0.93 + 0.12 * detailHash(vec2(row, floor(stretcher))), 1.0,
-          smoothstep(0.06, 0.2, max(footprint.x, footprint.y)));
-        diffuseColor.rgb = mix(diffuseColor.rgb * brick, vec3(0.74, 0.71, 0.66), 0.45 * max(bed, head));
+        float bed = detailLine(min(fract(course), 1.0 - fract(course)) * ${BRICK_COURSE.height.toFixed(3)}, 0.009, footprint.y);
+        float head = detailLine(min(fract(stretcher), 1.0 - fract(stretcher)) * ${BRICK_COURSE.length.toFixed(2)}, 0.009, footprint.x);
+        float brick = mix(0.95 + 0.09 * detailHash(vec2(row, floor(stretcher))), 1.0,
+          smoothstep(0.06, 0.22, max(footprint.x, footprint.y)));
+        diffuseColor.rgb = mix(diffuseColor.rgb * brick, vec3(0.76, 0.73, 0.68), 0.38 * max(bed, head));
       }
+    } else if (abs(vDetailNormal.y) < 0.3 && vDetailPosition.y > 0.35) {
+      float along = abs(vDetailNormal.x) > abs(vDetailNormal.z) ? vDetailPosition.z : vDetailPosition.x;
+      float ashlarCourse = vDetailPosition.y / 0.42;
+      float ashlarRow = floor(ashlarCourse);
+      float ashlarBlock = along / 0.88 + 0.5 * mod(ashlarRow, 2.0);
+      vec2 footprint = fwidth(vec2(along, vDetailPosition.y));
+      float stoneJoint = max(
+        detailLine(min(fract(ashlarCourse), 1.0 - fract(ashlarCourse)) * 0.42, 0.006, footprint.y),
+        detailLine(min(fract(ashlarBlock), 1.0 - fract(ashlarBlock)) * 0.88, 0.006, footprint.x)
+      );
+      float stoneTone = mix(0.97 + 0.05 * detailHash(vec2(ashlarRow, floor(ashlarBlock))), 1.0,
+        smoothstep(0.08, 0.28, max(footprint.x, footprint.y)));
+      diffuseColor.rgb *= stoneTone * (1.0 - 0.12 * stoneJoint);
+    }
+  `,
+};
+
+const NORMAL_RELIEF_GLSL: Record<SurfaceDetailMode, string> = {
+  sidewalk: /* glsl */ `
+    if (vDetailNormal.y > 0.9 && vDetailPosition.y > -0.1 && vDetailPosition.y < -0.06) {
+      vec2 flag = vDetailPosition.xz / ${SIDEWALK_FLAG_SIZE.toFixed(2)};
+      vec2 frac = fract(flag);
+      vec2 signedEdge = (frac - 0.5);
+      vec2 edge = min(frac, 1.0 - frac) * ${SIDEWALK_FLAG_SIZE.toFixed(2)};
+      float footprint = length(fwidth(vDetailPosition.xz));
+      float grooveX = (1.0 - smoothstep(0.004, 0.026 + footprint, edge.x)) * sign(signedEdge.x);
+      float grooveZ = (1.0 - smoothstep(0.004, 0.026 + footprint, edge.y)) * sign(signedEdge.y);
+      vec3 worldBump = normalize(vec3(grooveX * 0.16, 1.0, grooveZ * 0.16));
+      normal = normalize(mix(normal, normalize((viewMatrix * vec4(worldBump, 0.0)).xyz), 0.42));
+      float jointMask = max(detailLine(edge.x, 0.014, footprint), detailLine(edge.y, 0.014, footprint));
+      roughnessFactor = mix(clamp(roughnessFactor * 0.93, 0.65, 0.92), 0.96, jointMask);
+    }
+  `,
+  asphalt: /* glsl */ `
+    if (vDetailNormal.y > 0.9 && vDetailPosition.y < 0.05) {
+      float streetDistX = 1e3;
+      float streetDistZ = 1e3;
+      const float roadX[${STREET_X.length}] = float[](${glslList(STREET_X)});
+      const float roadZ[${STREET_Z.length}] = float[](${glslList(STREET_Z)});
+      for (int i = 0; i < ${STREET_X.length}; i++) streetDistX = min(streetDistX, abs(vDetailPosition.x - roadX[i]));
+      for (int i = 0; i < ${STREET_Z.length}; i++) streetDistZ = min(streetDistZ, abs(vDetailPosition.z - roadZ[i]));
+      float laneCoord = min(streetDistX, streetDistZ);
+      // Dual tire-wear polish centered around +/- 1.6 m vehicle lanes (~0.65 m track gauge).
+      float trackPolish = exp(-pow((laneCoord - 1.15) / 0.42, 2.0)) + exp(-pow((laneCoord - 2.05) / 0.42, 2.0));
+      roughnessFactor = mix(roughnessFactor, 0.56, clamp(trackPolish, 0.0, 1.0) * 0.55);
+    }
+  `,
+  masonry: /* glsl */ `
+    // Smooth 2.4 cm world-space normal chamfer along box edges for tactile architectural corners.
+    vec3 absLocal = abs(vBoxLocal);
+    if (max(max(absLocal.x, absLocal.y), absLocal.z) <= 0.501 && min(min(vBoxScale.x, vBoxScale.y), vBoxScale.z) > 0.08) {
+      vec3 edgeMeters = max(vec3(0.0), (vec3(0.5) - absLocal) * vBoxScale);
+      float footprint3d = length(fwidth(vDetailPosition));
+      float bevelRadius = clamp(0.026, 0.008, 0.22 * min(min(vBoxScale.x, vBoxScale.y), vBoxScale.z));
+      float fade = 1.0 - smoothstep(bevelRadius * 0.8, bevelRadius * 3.5, footprint3d);
+      vec3 faceMask = step(vec3(0.495), absLocal);
+      vec3 edgeWeight = (1.0 - smoothstep(0.0, bevelRadius, edgeMeters)) * (vec3(1.0) - faceMask) * sign(vBoxLocal);
+      vec3 chamferWorld = edgeWeight.x * vBoxAxisX + edgeWeight.y * vBoxAxisY + edgeWeight.z * vBoxAxisZ;
+      vec3 chamferView = (viewMatrix * vec4(chamferWorld, 0.0)).xyz;
+      normal = normalize(normal + chamferView * (0.48 * fade));
+    }
+    if (abs(vDetailNormal.y) < 0.3 && vDetailPosition.y > 0.35 && diffuseColor.r - diffuseColor.b > 0.07) {
+      float along = abs(vDetailNormal.x) > abs(vDetailNormal.z) ? vDetailPosition.z : vDetailPosition.x;
+      float course = vDetailPosition.y / ${BRICK_COURSE.height.toFixed(3)};
+      float row = floor(course);
+      float stretcher = along / ${BRICK_COURSE.length.toFixed(2)} + 0.5 * mod(row, 2.0);
+      vec2 footprint = fwidth(vec2(along, vDetailPosition.y));
+      float cFrac = fract(course);
+      float sFrac = fract(stretcher);
+      float bed = detailLine(min(cFrac, 1.0 - cFrac) * ${BRICK_COURSE.height.toFixed(3)}, 0.01, footprint.y);
+      float head = detailLine(min(sFrac, 1.0 - sFrac) * ${BRICK_COURSE.length.toFixed(2)}, 0.01, footprint.x);
+      float mortar = max(bed, head);
+      float bevelY = (1.0 - smoothstep(0.0, 0.022 + footprint.y, min(cFrac, 1.0 - cFrac) * ${BRICK_COURSE.height.toFixed(3)})) * sign(0.5 - cFrac);
+      vec3 mortarTilt = (viewMatrix * vec4(0.0, bevelY * 0.22, 0.0, 0.0)).xyz;
+      normal = normalize(normal + mortarTilt * (1.0 - smoothstep(0.05, 0.2, footprint.y)));
+      roughnessFactor = mix(0.73, 0.95, mortar);
     }
   `,
 };
 
 /**
- * Add a procedural finish to a shared material. Other borrowers (weather surfaces)
- * chain after this compile hook, and the cache key keeps each mode in its own program.
+ * Add a procedural finish + normal-bevel & mipmapped PBR micro-surface to a shared material.
+ * Other borrowers (weather surfaces) chain after this compile hook, and the cache key keeps each mode in its own program.
  */
-export function applySurfaceDetail(material: THREE.MeshStandardMaterial, mode: SurfaceDetailMode): void {
+export function applySurfaceDetail(
+  material: THREE.MeshStandardMaterial,
+  mode: SurfaceDetailMode,
+  textures?: SurfaceDetailTextures,
+): void {
+  if (textures?.normalMap) {
+    material.normalMap = textures.normalMap;
+    const scale = textures.normalScale ?? 0.28;
+    material.normalScale.set(scale, scale);
+  }
+  if (textures?.roughnessMap) {
+    material.roughnessMap = textures.roughnessMap;
+  }
   const compile = material.onBeforeCompile;
   const key = material.customProgramCacheKey;
   material.customProgramCacheKey = () => `${key.call(material)}:surface-detail-${mode}-1`;
   material.onBeforeCompile = (shader, renderer) => {
     compile.call(material, shader, renderer);
-    shader.vertexShader = `varying vec3 vDetailPosition;\nvarying vec3 vDetailNormal;\n${shader.vertexShader}`.replace(
+    shader.vertexShader = `varying vec3 vDetailPosition;
+varying vec3 vDetailNormal;
+varying vec3 vBoxLocal;
+varying vec3 vBoxScale;
+varying vec3 vBoxAxisX;
+varying vec3 vBoxAxisY;
+varying vec3 vBoxAxisZ;
+${shader.vertexShader}`.replace(
       '#include <project_vertex>',
       `#include <project_vertex>
       vec4 detailPosition = vec4(transformed, 1.0);
       vec3 detailNormal = objectNormal;
+      mat4 boxWorldMat = modelMatrix;
       #ifdef USE_INSTANCING
         detailPosition = instanceMatrix * detailPosition;
         detailNormal = mat3(instanceMatrix) * detailNormal;
+        boxWorldMat = modelMatrix * instanceMatrix;
       #endif
+      vBoxLocal = position;
+      vBoxScale = vec3(length(boxWorldMat[0].xyz), length(boxWorldMat[1].xyz), length(boxWorldMat[2].xyz));
+      vBoxAxisX = normalize(boxWorldMat[0].xyz + vec3(1e-6, 0.0, 0.0));
+      vBoxAxisY = normalize(boxWorldMat[1].xyz + vec3(0.0, 1e-6, 0.0));
+      vBoxAxisZ = normalize(boxWorldMat[2].xyz + vec3(0.0, 0.0, 1e-6));
       vDetailPosition = (modelMatrix * detailPosition).xyz;
       vDetailNormal = normalize(mat3(modelMatrix) * detailNormal);`,
     );
-    shader.fragmentShader = `${DETAIL_GLSL}\n${shader.fragmentShader}`.replace(
-      '#include <color_fragment>',
-      `#include <color_fragment>\n${MODE_GLSL[mode]}`,
-    );
+    shader.fragmentShader = `${DETAIL_GLSL}\n${shader.fragmentShader}`
+      .replace('#include <color_fragment>', `#include <color_fragment>\n${MODE_GLSL[mode]}`)
+      .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>\n${NORMAL_RELIEF_GLSL[mode]}`);
   };
   material.needsUpdate = true;
 }

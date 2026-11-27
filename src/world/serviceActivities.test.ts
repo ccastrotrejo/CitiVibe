@@ -149,7 +149,7 @@ describe('retained service-associated sidewalk visit', () => {
     expect(phases).toEqual(new Set(['approaching', 'awaiting', 'using', 'resting', 'departing']));
     expect(pedestrians.activities.reserved(SERVICE_VISIT_ID)).toBe(false);
     expect(actor.position).toBe(position);
-    expect(pedestrians.actors).toHaveLength(200);
+    expect(pedestrians.actors).toHaveLength(240);
     pedestrians.actors.forEach((actor, index) => expect(actor).toBe(identities[index]));
   });
 
@@ -213,6 +213,6 @@ describe('retained service-associated sidewalk visit', () => {
     expect(completed).toBe(true);
     for (const phase of ['approaching', 'using', 'resting', 'departing']) expect(phases.has(phase)).toBe(true);
     expect(actor.position).toBe(position);
-    expect(traffic.pedestrians.actors).toHaveLength(200);
+    expect(traffic.pedestrians.actors).toHaveLength(240);
   }, 60_000);
 });

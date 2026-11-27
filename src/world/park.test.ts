@@ -62,6 +62,21 @@ describe('lakeside scenery refinement', () => {
           .toBeGreaterThan(path.width / 2 + 0.05);
       }
     }
+    const instanceMatrix = new THREE.Matrix4();
+    for (const meshName of ['Lakeside shoreline boulders', 'Park schist outcrops']) {
+      const batch = scene.getObjectByName(meshName);
+      if (!(batch instanceof THREE.InstancedMesh)) throw new Error(`Missing boulder batch: ${meshName}.`);
+      batch.geometry.computeBoundingBox();
+      for (let idx = 0; idx < batch.count; idx++) {
+        batch.getMatrixAt(idx, instanceMatrix);
+        const bounds = batch.geometry.boundingBox!.clone().applyMatrix4(instanceMatrix);
+        for (const path of PARK_PATHS) for (const point of path.curve.getPoints(256)) {
+          const nearest = bounds.clampPoint(point.clone().setY(0.4), new THREE.Vector3());
+          expect(Math.hypot(nearest.x - point.x, nearest.z - point.z), `${meshName}#${idx}: ${path.id}`)
+            .toBeGreaterThan(path.width / 2 + 0.05);
+        }
+      }
+    }
   });
 
   it('models a hollow fountain basin with raised coping instead of stacked solid disks', () => {
@@ -106,6 +121,14 @@ describe('lakeside scenery refinement', () => {
   it('adds shallow-to-deep pond color without changing the lawn palette or water weather behavior', () => {
     const { scene, weatherSurface, snowMeshes } = createScene();
     const pond = namedMesh(scene, 'Reed pond');
+    const reservoir = namedMesh(scene, 'Park reservoir');
+    const pondMat = pond.material as THREE.MeshStandardMaterial;
+    const reservoirMat = reservoir.material as THREE.MeshStandardMaterial;
+    expect(pondMat.userData.waterRipple).toBe(true);
+    expect(pondMat.roughness).toBeCloseTo(0.16);
+    expect(pondMat.metalness).toBeCloseTo(0.08);
+    expect(pondMat.normalMap).toBe(reservoirMat.normalMap);
+    expect(pond.geometry.getAttribute('uv')?.count).toBe(pond.geometry.getAttribute('position').count);
     const colors = pond.geometry.getAttribute('color');
     const normals = pond.geometry.getAttribute('normal');
     expect(colors.count).toBe(pond.geometry.getAttribute('position').count);

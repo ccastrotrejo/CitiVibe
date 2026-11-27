@@ -60,4 +60,28 @@ describe('use-aware retained window schedules', () => {
     source.dispose();
     geometry.dispose();
   });
+
+  it('configures reflective glazing and injects 3D parallax interior shader hooks in valid GLSL order', () => {
+    const source = new THREE.MeshStandardMaterial({ roughness: 0.5, metalness: 0 });
+    const material = createWindowLightingMaterial(source);
+    expect(material.roughness).toBe(0.14);
+    expect(material.metalness).toBe(0.18);
+    expect(source.roughness).toBe(0.5);
+
+    const shader = {
+      uniforms: {} as Record<string, THREE.IUniform>,
+      vertexShader: THREE.ShaderLib.standard.vertexShader,
+      fragmentShader: THREE.ShaderLib.standard.fragmentShader,
+    };
+    material.onBeforeCompile(shader as unknown as THREE.WebGLProgramParametersWithUniforms, {} as THREE.WebGLRenderer);
+    expect(shader.uniforms.windowPhase).toBeDefined();
+    expect(shader.vertexShader).toContain('isOrthographic');
+    expect(shader.fragmentShader).toContain('evalWindowInterior(');
+    const declIndex = shader.fragmentShader.indexOf('vec3 winDayInterior = vec3(0.5);');
+    const useIndex = shader.fragmentShader.indexOf('diffuseColor.rgb *= mix(winDayInterior');
+    expect(declIndex).toBeGreaterThan(0);
+    expect(useIndex).toBeGreaterThan(declIndex);
+    material.dispose();
+    source.dispose();
+  });
 });
