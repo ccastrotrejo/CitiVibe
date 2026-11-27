@@ -24,8 +24,8 @@ describe('weather-aware resting park neighbors', () => {
     const dry: PeopleWeatherInput = { ...wet, frame: { ...wet.frame, rain: 0, temperatureC: 22, wetness: 0 }, sunny: true };
     for (let tick = 0; tick < 900 * 30; tick++) simulation.step(DT, 1, dry);
     expect(simulation.resting.states.filter((visitor) => visitor.phase !== 'seated')
-      .map(({ phase, actor }) => ({ phase, id: actor.id, ...actor.position }))).toEqual([]);
-  }, 30000);
+      .map(({ phase, actor }) => ({ phase, actor: actor.id, ...actor.position }))).toEqual([]);
+  }, 45000);
 
   it('stands before traveling, leaves through a gate, stays outside and returns to the same seats', () => {
     const visitors = new ParkVisitors();

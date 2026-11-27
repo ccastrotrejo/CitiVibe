@@ -5,6 +5,12 @@ import type { StreetBlock, StreetBuilding, StreetscapeBuilder } from './streetsc
 export type BuildingFace = 'west' | 'east' | 'north' | 'south';
 type FacadePiece = (surface: THREE.Material, along: number, y: number, outward: number,
   width: number, height: number, depth: number) => void;
+type FacadeRod = (
+  surface: THREE.Material,
+  start: readonly [number, number, number],
+  end: readonly [number, number, number],
+  thickness: number,
+) => void;
 export const PARTY_WALL_JOINT = 0.06;
 /** Retain the diagonal view into the east-south stairwell, as well as actual bicycle access. */
 export const STREET_WALL_OPENINGS = [
@@ -95,10 +101,14 @@ export function buildStreetCornice(
   const span = buildingFrontSpan(building);
   const top = 0.3 + building.floors * building.architecture.floorHeight;
   piece(p.rubber, 0, top - 0.08, 0.1, span - 0.12, 0.12, 0.18);
+  piece(p.rubber, 0, top + 0.015, 0.175, span - 0.08, 0.075, 0.31);
   const brackets = Math.max(2, Math.floor(span / 2.4));
   for (let index = 0; index < brackets; index++) {
     const along = (index - (brackets - 1) / 2) * (span - 0.65) / brackets;
     piece(p.rubber, along, top - 0.08, 0.16, 0.14, 0.24, 0.28);
+  }
+  for (const side of [-1, 1]) {
+    piece(p.rubber, side * (span / 2 - 0.18), top - 0.09, 0.17, 0.17, 0.29, 0.3);
   }
 }
 
@@ -107,6 +117,8 @@ export function buildCommercialFront(
   building: StreetBuilding,
   p: StreetscapeBuilder['palette'],
   piece: FacadePiece,
+  alloy: THREE.Material = p.stone,
+  rod?: FacadeRod,
 ): void {
   const span = buildingFrontSpan(building);
   const shop = building.storefront;
@@ -136,11 +148,22 @@ export function buildCommercialFront(
             0.22, 0.16);
         }
       }
-
     }
   }
   // The ground-floor core is cut back: this door and its side cheeks form a real shallow recess.
-  piece(p.glass, 0, 1.06, shop === 'cafe' ? -0.16 : -0.08, 0.95, 1.85, 0.06);
+  const doorOut = shop === 'cafe' ? -0.16 : -0.08;
+  piece(p.glass, 0, 1.06, doorOut, 0.95, 1.85, 0.06);
+  if (shop) {
+    piece(alloy, 0, 0.225, doorOut + 0.046, 0.86, 0.16, 0.016);
+    piece(alloy, 0, 1.01, doorOut + 0.062, 0.74, 0.034, 0.024);
+    piece(alloy, 0.32, 1.08, doorOut + 0.068, 0.032, 0.32, 0.032);
+  } else {
+    piece(alloy, 0, 0.225, doorOut + 0.046, 0.86, 0.16, 0.016);
+    piece(alloy, 0, 0.96, doorOut + 0.052, 0.82, 0.03, 0.018);
+    for (const side of [-1, 1]) {
+      piece(alloy, side * 0.11, 1.07, doorOut + 0.066, 0.032, 0.42, 0.032);
+    }
+  }
   for (const side of [-1, 1]) {
     piece(shop ? p.wood : p.stone, side * 0.56, 1.18, -0.04, 0.12, 2.2, 0.32);
   }
@@ -148,18 +171,38 @@ export function buildCommercialFront(
   if (shop) {
     // Separate street access to the upper floors, beside rather than through the shop.
     piece(p.glass, -span / 2 + 0.55, 1.06, 0.05, 0.65, 1.85, 0.06);
+    piece(alloy, -span / 2 + 0.55, 0.22, 0.096, 0.56, 0.15, 0.016);
+    piece(alloy, -span / 2 + 0.73, 1.04, 0.108, 0.03, 0.24, 0.03);
     piece(p.paving, -span / 2 + 0.55, 2.12, 0.1, 0.9, 0.16, 0.2);
   }
   piece(shop ? accent : p.stone, 0, 2.42, 0.1, span - 0.12, 0.32, 0.2);
   if (shop !== 'books') {
     const canopyWidth = shop === 'market' ? span - 0.15 : shop === 'cafe' ? span * 0.62 : 2.4;
     piece(shop ? accent : p.paving, 0, 2.68, 0.27, canopyWidth, 0.12, shop ? 0.85 : 0.65);
-    if (shop) piece(accent, 0, 2.55, 0.68, canopyWidth, 0.2, 0.045);
+    if (shop) {
+      piece(accent, 0, 2.775, 0.17, canopyWidth - 0.04, 0.11, 0.48);
+      piece(accent, 0, 2.55, 0.68, canopyWidth, 0.2, 0.045);
+      piece(p.cream, 0, 2.442, 0.692, canopyWidth - 0.04, 0.032, 0.032);
+      for (const side of [-1, 1]) {
+        piece(alloy, side * (canopyWidth / 2 - 0.14), 2.56, 0.35, 0.034, 0.038, 0.54);
+      }
+    } else {
+      piece(p.stone, 0, 2.755, 0.145, 2.32, 0.08, 0.34);
+      piece(alloy, 0, 2.68, 0.614, 2.44, 0.085, 0.028);
+      if (rod) {
+        for (const side of [-1, 1]) {
+          rod(alloy, [side * 0.92, 2.74, 0.5], [side * 0.92, 3.08, 0.04], 0.028);
+        }
+      }
+    }
+  } else {
+    piece(alloy, 0, 2.605, 0.075, span - 0.22, 0.045, 0.12);
   }
   if (shop === 'market') {
     const stripes = Math.floor(span / 1.2);
     for (let stripe = 0; stripe < stripes; stripe++) {
-      piece(p.cream, (stripe - (stripes - 1) / 2) * 1.2, 2.746, 0.27, 0.28, 0.012, 0.82);
+      const stripeX = (stripe - (stripes - 1) / 2) * 1.2;
+      piece(p.cream, stripeX, 2.746, 0.27, 0.28, 0.012, 0.82);
     }
   } else if (!shop) {
     piece(p.rubber, 0, 1.1, 0.1, 0.055, 1.85, 0.05);

@@ -101,7 +101,7 @@ describe('retained civic staff activity', () => {
         Object.assign(before, { x: actor.position.x, z: actor.position.z, distance: actor.travelDistance!, visiting: !!actor.visit });
       });
     }
-    expect(people).toHaveLength(200);
+    expect(people).toHaveLength(240);
     staff.forEach(({ actor, phases, completed }, index) => {
       expect(actor.position).toBe(positions[index]);
       expect(completed, actor.id).toBe(true);

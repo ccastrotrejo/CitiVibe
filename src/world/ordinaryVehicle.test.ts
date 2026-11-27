@@ -109,7 +109,7 @@ describe('ordinary and parked fleet artwork', () => {
         const normal = new THREE.Vector3().fromBufferAttribute(object.geometry.getAttribute('normal'), 0)
           .transformDirection(object.matrixWorld);
         expect(normal.x * Math.sign(object.position.x)).toBeGreaterThan(0.99);
-        expect(object.geometry.index!.count / 3).toBe(6);
+        expect(object.geometry.index!.count / 3).toBe(20);
       });
     }
   });

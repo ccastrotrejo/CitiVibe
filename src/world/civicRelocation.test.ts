@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { BIKE_SHARE_POCKETS, JUNIPER_ACCESS_CROSSING } from '../content/bikeShare';
 import { CIVIC_UTILITIES, SIDEWALK_ZONING, STEAM_STACKS, outsideWalkingCorridors } from '../content/civicUtilities';
@@ -57,7 +58,9 @@ describe('interior civic furniture relocation', () => {
     // the remaining real scene without treating each new fixture as its own obstruction.
     const owned = new Set<string>();
     const box = new THREE.BoxGeometry();
+    const roundedBox = new RoundedBoxGeometry(1, 1, 1, 1, 0.075);
     const cylinder = new THREE.CylinderGeometry(1, 1, 1, 10);
+    const cone = new THREE.ConeGeometry(1, 1, 12);
     const wheel = new THREE.CylinderGeometry(0.38, 0.38, 0.2, 12);
     const crown = new THREE.DodecahedronGeometry();
     const material = new THREE.MeshStandardMaterial();
@@ -70,7 +73,7 @@ describe('interior civic furniture relocation', () => {
     };
     const transform = new THREE.Object3D();
     const builder: StreetscapeBuilder = {
-      box, cylinder, crown, palette,
+      box, roundedBox, cylinder, cone, crown, alloy: material, palette,
       add(shape, _surface, position, scale, rotation = [0, 0, 0]) {
         transform.position.set(...position);
         transform.scale.set(...scale);
@@ -84,13 +87,13 @@ describe('interior civic furniture relocation', () => {
     };
     try {
       buildStreetFurniture(builder, material, material, lettering, {
-        box, cylinder, wheel, taperedShell: box, wheelArch: box, taxiLettering: lettering.parking,
-        personArt: { box, head: crown, material }, civicBlue: material,
+        box, roundedBox, cylinder, wheel, taperedShell: box, wheelArch: box, taxiLettering: lettering.parking,
+        personArt: { box, head: crown, material }, civicBlue: material, alloy: material,
         vehiclePaint: material, vehicleGlass: material, lampGlow: material,
         beaconRed: material, beaconBlue: material, palette,
       });
     } finally {
-      [box, cylinder, wheel, crown, material, lettering.food, lettering.parking].forEach((resource) => resource.dispose());
+      [box, roundedBox, cylinder, cone, wheel, crown, material, lettering.food, lettering.parking].forEach((resource) => resource.dispose());
     }
     world = buildCityScene();
     world.scene.updateMatrixWorld(true);

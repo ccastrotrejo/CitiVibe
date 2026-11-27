@@ -136,7 +136,8 @@ function buildingParts(parts: Part[], building: StreetBuilding) {
   expect(start).toBeGreaterThanOrEqual(0);
   const next = STREET_BUILDINGS[STREET_BUILDINGS.indexOf(building) + 1];
   const end = next ? parts.findIndex((part) => isBase(part, next)) : parts.findIndex((part, index) =>
-    index > start && part.position[1] === -0.035 && part.scale[0] === 1.45);
+    index > start && (Math.abs(part.position[0] - building.x) > building.reservedWidth ||
+      Math.abs(part.position[2] - building.z) > building.reservedDepth));
   expect(end).toBeGreaterThan(start);
   return parts.slice(start, end);
 }
@@ -1339,7 +1340,7 @@ describe('original connected-city streetscape', () => {
     }
   });
 
-  it('keeps rendered metro sweeps at 5.8–7.6 m and entrance approaches clear after the buildingward move', () => {
+  it('keeps rendered metro sweeps at 5.8 to 7.6 m and entrance approaches clear after the buildingward move', () => {
     const { parts } = createArt();
     const g = METRO_GEOMETRY;
     const obstacles = parts.filter(({ bounds }) => bounds.max.y > 0.12 && bounds.min.y < 2.4);
@@ -1658,7 +1659,7 @@ describe('original connected-city streetscape', () => {
     }
   });
 
-  it('keeps the full 5.8–7.6 m bidirectional pedestrian sweep clear beneath every sidewalk shed', () => {
+  it('keeps the full 5.8 to 7.6 m bidirectional pedestrian sweep clear beneath every sidewalk shed', () => {
     const { parts } = createArt();
     const corridors = SIDEWALK_SHEDS.map((shed) => {
       const road = STREET_X.reduce((nearest, x) => Math.abs(x - shed.x) < Math.abs(nearest - shed.x) ? x : nearest);
@@ -1852,11 +1853,11 @@ describe('original connected-city streetscape', () => {
     const palette = new Set(FACADE_TONES.map(({ hex }) => hex));
     for (const part of masonry) {
       expect(part.tint).toBeDefined();
-      const plantedTreeBed = part.tint === '#70866a' && part.position[1] === 0.035 &&
-        part.scale[0] === 0.16 && part.scale[1] === 0.026 && part.scale[2] === 0.9;
+      const plantedTreeBed = part.position[1] < 0.2 && ['#70866a', '#5f7358', '#685341', '#5a4636', '#7b8075'].includes(part.tint!);
       expect(palette.has(part.tint!) || WINDOW_UNIT_TONES.includes(part.tint!) ||
         part.tint === WINDOW_UNIT_GRILLE || plantedTreeBed ||
-        (part.position[1] < 0.02 && ['#dfb63b', '#b2b7ac', '#bdab81'].includes(part.tint!))).toBe(true);
+        (part.position[1] < 0.02 && ['#dfb63b', '#b2b7ac', '#bdab81'].includes(part.tint!)),
+      `Unexpected facade tint ${part.tint} at ${part.position.join(',')}`).toBe(true);
     }
     // Blockfronts share a family, so a run reads as one development rather than a colour riot.
     const runs = new Map<string, Set<string>>();

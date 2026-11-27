@@ -135,13 +135,14 @@ describe('accessible city controls', () => {
     expect(settings).toHaveFocus();
   });
 
-  it('retains the descriptive static city and retries without landmark navigation', async () => {
+  it('shows a clean loading/unavailable status without a static poster placeholder and retries cleanly', async () => {
     lifecycle.fail = true;
     const user = userEvent.setup();
     render(<App />);
     await screen.findByText(/WebGL2 is unavailable/);
     expect(screen.getByRole('button', { name: 'Pause city' })).toBeDisabled();
-    expect(screen.getByRole('img', { name: /Original miniature city/ })).toBeVisible();
+    expect(screen.getByText('Live city unavailable')).toBeVisible();
+    expect(document.querySelector('.city-poster')).toBeNull();
     expect(screen.getByRole('button', { name: 'Start tour' })).toBeDisabled();
     expect(screen.queryByRole('group', { name: 'Landmark navigation' })).not.toBeInTheDocument();
     const retained = lifecycle.model;

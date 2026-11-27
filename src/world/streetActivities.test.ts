@@ -60,7 +60,7 @@ describe('existing storefront destination', () => {
     }
     expect(completed).toBe(true);
     for (const phase of ['approaching', 'using', 'departing']) expect(seen.has(phase)).toBe(true);
-    expect(actors).toHaveLength(200);
+    expect(actors).toHaveLength(240);
     actors.forEach((actor, index) => {
       expect(pedestrians.actors[index]).toBe(actor);
       expect(actor.position).toBe(positions[index]);

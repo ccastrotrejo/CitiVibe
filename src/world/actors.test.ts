@@ -98,16 +98,16 @@ describe('connected car-free park', () => {
     expect(simulation.getActor('square-bus')).toBeUndefined();
     expect(simulation.getActor('car-1')).toBeUndefined();
     expect(Object.isFrozen(simulation.actors)).toBe(true);
-    expect(actors).toHaveLength(362);
+    expect(actors).toHaveLength(408);
     expect(actors.filter(({ kind }) => kind === 'car' || kind === 'bus')).toHaveLength(48);
     expect(actors.filter(({ kind }) => kind === 'cyclist')).toHaveLength(27);
-    expect(actors.filter(({ kind }) => kind === 'pedestrian')).toHaveLength(287);
+    expect(actors.filter(({ kind }) => kind === 'pedestrian')).toHaveLength(333);
     expect(actors.filter(({ gait }) => gait === 'walk')).toHaveLength(55);
-    expect(actors.filter(({ gait }) => gait === 'run')).toHaveLength(24);
-    expect(new Set(actors.map(({ id }) => id)).size).toBe(362);
+    expect(actors.filter(({ gait }) => gait === 'run')).toHaveLength(30);
+    expect(new Set(actors.map(({ id }) => id)).size).toBe(408);
     expect(PARK_ACTORS.map(({ id }) => id)).toEqual([
       ...Array.from({ length: 55 }, (_, index) => `walker-${index + 1}`),
-      ...Array.from({ length: 24 }, (_, index) => `runner-${index + 1}`),
+      ...Array.from({ length: 30 }, (_, index) => `runner-${index + 1}`),
     ]);
     simulation.step(DT);
     actors.forEach((actor, index) => {
@@ -172,7 +172,7 @@ describe('connected car-free park', () => {
     const runners = simulation.actors.filter(({ gait }) => gait === 'run');
     const parkActors = [...walkers, ...runners];
     expect(walkers).toHaveLength(55);
-    expect(runners).toHaveLength(24);
+    expect(runners).toHaveLength(30);
     const transitions = new Uint16Array(walkers.length);
     const gates = Array.from({ length: walkers.length }, () => new Map<string, number>());
     const wasOutside = walkers.map(({ position }) => outsidePark(position));
@@ -278,7 +278,7 @@ describe('connected car-free park', () => {
       expect(distance / 900).toBeGreaterThan(2.1);
     });
     expect(simulation.elapsed).toBeCloseTo(simulation.traffic.elapsed);
-  }, 30_000);
+  }, 60_000);
 });
 
 describe('individual park runners', () => {

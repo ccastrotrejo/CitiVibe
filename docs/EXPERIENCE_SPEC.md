@@ -31,7 +31,7 @@ Maintain independent state for:
 | Preferences | Quality, motion preference, sound volume/mute choice, guide visibility, weather/time choices. |
 | UI | Open panel and focus-return target. |
 
-Effective simulation running requires a ready renderer, a visible page, and no user pause. Camera automation additionally requires no open modal. UI actions can still request a single render while the world is paused. Never infer camera ownership from whichever component last wrote a transform.
+Effective simulation running requires a ready renderer, a visible page, and no user pause. Camera automation also requires no open modal. UI actions can still request a single render while the world is paused. Never infer camera ownership from whichever component last wrote a transform.
 
 ## Camera modes and transitions
 

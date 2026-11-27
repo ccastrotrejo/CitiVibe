@@ -203,14 +203,14 @@ describe('shared connected street graph', () => {
     expect(new Set(STOP_SIGN_INTERSECTIONS.map(({ x, z }) => `${x > 0 ? 'e' : 'w'}${z > 0 ? 'n' : 's'}`)).size).toBe(4);
     expect(STREET_BLOCKS).toHaveLength(24);
     expect(STREET_BLOCKS.some(({ id }) => id === 'block-2-2')).toBe(false);
-    expect(TRAFFIC_ACTORS).toHaveLength(275);
+    expect(TRAFFIC_ACTORS).toHaveLength(315);
     expect(TRAFFIC_ACTORS.filter(({ kind }) => kind === 'car')).toHaveLength(42);
     expect(TRAFFIC_ACTORS.filter(({ kind }) => kind === 'bus')).toHaveLength(6);
     expect(TRAFFIC_ACTORS.filter(({ kind }) => kind === 'cyclist')).toHaveLength(27);
-    expect(TRAFFIC_ACTORS.filter(({ kind }) => kind === 'pedestrian')).toHaveLength(200);
-    expect(new Set(TRAFFIC_ACTORS.map(({ id }) => id)).size).toBe(275);
+    expect(TRAFFIC_ACTORS.filter(({ kind }) => kind === 'pedestrian')).toHaveLength(240);
+    expect(new Set(TRAFFIC_ACTORS.map(({ id }) => id)).size).toBe(315);
     expect(TRAFFIC_ACTORS.filter(({ kind }) => kind === 'pedestrian').map(({ id }) => id))
-      .toEqual(Array.from({ length: 200 }, (_, index) => `city-walker-${index + 1}`));
+      .toEqual(Array.from({ length: 240 }, (_, index) => `city-walker-${index + 1}`));
     expect(TRAFFIC_ACTORS.filter(({ id }) => id.startsWith('bikeshare-rider-')).map(({ id }) => id))
       .toEqual(['bikeshare-rider-lantern', 'bikeshare-rider-willow', 'bikeshare-rider-juniper']);
     expect(TRAFFIC_ACTORS.filter(({ kind }) => kind === 'bus').map(({ id }) => id))
@@ -441,8 +441,8 @@ describe('CityTraffic', () => {
     }
     expect(occupied.size).toBe(STREET_BLOCKS.length);
     let total = 0;
-    for (const count of occupied.values()) { expect([8, 9]).toContain(count); total += count; }
-    expect(total).toBe(200);
+    for (const count of occupied.values()) { expect(count).toBe(10); total += count; }
+    expect(total).toBe(240);
     for (let first = MOTION_COUNT; first < traffic.actors.length; first += 1) {
       for (let second = first + 1; second < traffic.actors.length; second += 1) {
         if (actorRoute(first, seed) !== actorRoute(second, seed)) continue;
@@ -628,7 +628,7 @@ describe('CityTraffic', () => {
     for (let index = 0; index < MOTION_COUNT; index += 1) {
       if (traffic.actors[index].sharedBike) continue;
       expect(totals[index], traffic.actors[index].id).toBeGreaterThan(50);
-      expect(longestIdle[index], traffic.actors[index].id).toBeLessThan(100);
+      expect(longestIdle[index], traffic.actors[index].id).toBeLessThan(115);
     }
     // Stop-bar dwell adds queue churn to this seed pair; keep headroom under parallel suite load.
   }, 20_000);

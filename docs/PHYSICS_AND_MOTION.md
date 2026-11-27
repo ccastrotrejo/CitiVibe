@@ -36,7 +36,7 @@ During stance (`phase < DUTY`) the foot's forward position relative to the hips 
 footZ = 0.3·stride − phase·stride
 ```
 
-On a straight path the foot's *world* position is `distance + footZ`. Because `phase·stride = distance mod stride`, the distance term cancels: `d(worldZ)/d(distance) = 0` exactly. The planted foot is world-locked for the whole stance — proven analytically and asserted in `locomotion.test.ts` (max XZ spread < 1 mm across a stance interval).
+On a straight path the foot's *world* position is `distance + footZ`. Because `phase·stride = distance mod stride`, the distance term cancels and `d(worldZ)/d(distance) = 0`. The planted foot stays locked in world space for the whole stance, which `locomotion.test.ts` checks to within 1 mm of XZ spread.
 
 During swing (`phase ≥ DUTY`) the foot follows an eased forward arc (`smoothstep`) with lift `stepHeight · sin(π·u)`, returning to the ground at both ends of the swing.
 
@@ -56,14 +56,14 @@ The solver is exact to machine precision for reachable targets (verified to 1e-1
 
 ### Geometry tradeoff
 
-`hipY = 0.80 m` is deliberately shorter than a full leg (`thigh + shank = 0.88 m`). This headroom guarantees the stance foot never reaches `L1+L2` and therefore never clamps (clamping would reintroduce slip). The cost is a permanent slight knee bend even when standing, so a limb-box corner can dip a few cm below the nominal ground plane — visually negligible from the miniature's overhead framing, and preferred over either foot slip or a shuffling micro-stride.
+`hipY = 0.80 m` is deliberately shorter than a full leg (`thigh + shank = 0.88 m`). That headroom keeps the stance foot short of `L1+L2` so the solver never clamps and reintroduces slip. The cost is a slight knee bend even when standing, which lets a limb corner dip a few centimetres below the ground plane. From the miniature's overhead camera you cannot spot that dip, and it beats foot slip or a shuffling micro-stride.
 
 ### Secondary motion
 
-- **Vertical bob** `pelvisY = hipY + bobAmp·(−cos(2·2π·phase))·blend` — two oscillations per stride, lowest near heel strike. Bob moves the pelvis (and thus the IK drop), never the planted foot, so no-slip is preserved.
-- **Lateral sway / pelvic list / trunk lean** — one oscillation per stride, applied to the **torso** node (not the pelvis) so the feet never slide sideways.
-- **Arm swing** — anti-phase with the legs, `±armSwing`.
-- **Start/stop blend** — an eased `blend` toward `moving ? 1 : 0` folds foot targets and bob toward a planted neutral stance so no foot freezes mid-swing.
+- **Vertical bob.** `pelvisY = hipY + bobAmp·(−cos(2·2π·phase))·blend` runs two oscillations per stride, lowest near heel strike. Bob moves the pelvis and the IK drop rather than the planted foot, preserving no-slip contact.
+- **Lateral sway, pelvic list, and trunk lean.** One oscillation per stride on the torso node rather than the pelvis so the feet never slide sideways.
+- **Arm swing.** Anti-phase with the legs, `±armSwing`.
+- **Start and stop blend.** An eased `blend` toward `moving ? 1 : 0` folds foot targets and bob into a planted neutral stance so no foot freezes mid-swing.
 
 ## Runner model
 
@@ -89,7 +89,7 @@ The incoming weather extension scales route vehicle acceleration/braking by a bo
 
 Weather-driven ground height is sampled from nearby retained ground snow, not the canopy above an actor, and is applied without cumulatively adding elevation each frame. Rebuilding graphics must not reset travel, court time, precipitation or reservoirs. Particle travel and actor motion use ordinary simulation seconds; accumulation/melt/drainage/evaporation alone use the declared 60x surface-time compression. Snow/grounding changes must retain shared court ball/rim/net contact alignment; final integrated checks remain pending.
 
-- **Wheel roll** `spin.rotation.x = distance / wheelRadius` — frame-rate independent, monotonic, and zero when stopped (asserted in tests).
+- **Wheel roll.** `spin.rotation.x = distance / wheelRadius` stays frame-rate independent, monotonic, and zero when stopped (asserted in tests).
 - **Front-wheel steer** `steer.rotation.y = clamp(steerGain · yawRate, ±maxSteer)`, front wheels only.
 - **Pitch** (dive/squat) low-pass of `−pitchGain · acceleration`, capped `±maxPitch`.
 - **Roll** (body lean in turns) `−rollGain · speed · yawRate`, capped `±maxRoll`.

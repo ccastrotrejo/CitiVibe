@@ -15,7 +15,7 @@ describe('original neighborhood civic services', () => {
     expect(new Set(CIVIC_SERVICES.map(({ id }) => id)).size).toBe(3);
     expect(new Set(CIVIC_SERVICES.map(({ buildingId }) => buildingId)).size).toBe(3);
     expect(STREET_BUILDINGS).toHaveLength(94);
-    expect(TRAFFIC_ACTORS.filter(({ kind }) => kind === 'pedestrian')).toHaveLength(200);
+    expect(TRAFFIC_ACTORS.filter(({ kind }) => kind === 'pedestrian')).toHaveLength(240);
     for (const service of CIVIC_SERVICES) {
       const building = STREET_BUILDINGS.find(({ id }) => id === service.buildingId)!;
       expect(building.blockId).toBe(service.blockId);
@@ -26,7 +26,7 @@ describe('original neighborhood civic services', () => {
     }
   });
 
-  it('assigns unique naturally adult employees from each facility’s original home block', () => {
+  it("assigns unique naturally adult employees from each facility's original home block", () => {
     const walkers = TRAFFIC_ACTORS.filter(({ kind }) => kind === 'pedestrian');
     const staffIds = new Set<string>();
     const roles = { hospital: 'healthcare-worker', 'fire-station': 'firefighter', 'police-station': 'police-officer' };

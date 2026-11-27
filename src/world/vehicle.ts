@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { BIKE_SHARE_STATIONS, sharedBikeKind } from '../content/bikeShare';
 import { createPersonProfile } from '../content/people';
 import type { TrafficActorDefinition } from '../content/streets';
-import { buildSharedBike } from './bikeShare';
+import { buildSharedBike, type SharedBikeShapes } from './bikeShare';
 import { buildEmergencyVehicle, isEmergencyVehicle } from './emergencyVehicle';
 import { buildOrdinaryVehicle } from './ordinaryVehicle';
 import { WALKER, poseNeutral, type VehicleRig, type WheelRig } from './locomotion';
@@ -14,13 +14,16 @@ type Triple = readonly [number, number, number];
 /** Shared geometry and materials the scene owns; the vehicle rig only borrows them. */
 export interface VehicleArt {
   box: THREE.BufferGeometry;
+  roundedBox?: THREE.BufferGeometry;
   cylinder: THREE.BufferGeometry;
+  torus?: THREE.BufferGeometry;
   wheel: THREE.BufferGeometry;
   taperedShell: THREE.BufferGeometry;
   wheelArch: THREE.BufferGeometry;
   taxiLettering: THREE.BufferGeometry;
   personArt: PersonArt;
   civicBlue: THREE.Material;
+  alloy?: THREE.Material;
   vehiclePaint: THREE.Material;
   vehicleGlass: THREE.Material;
   lampGlow: THREE.Material;
@@ -63,6 +66,7 @@ export function buildVehicleRig(
     body.add(mount);
     lamps.push({ mount, channel, size });
   };
+  const alloy = art.alloy ?? palette.stone;
   const buildWheel = (
     parent: THREE.Object3D, x: number, y: number, z: number,
     radiusFactor: number, thicknessFactor: number, front: boolean,
@@ -72,9 +76,17 @@ export function buildVehicleRig(
     parent.add(steer);
     const spin = new THREE.Object3D();
     steer.add(spin);
-    spin.add(limb(wheel, palette.rubber, [0, 0, 0], [radiusFactor, thicknessFactor, radiusFactor], [0, 0, Math.PI / 2]));
-    spin.add(limb(cylinder, palette.stone, [Math.sign(x) * 0.06, 0, 0],
-      [0.16 * radiusFactor, 0.05, 0.16 * radiusFactor], [0, 0, Math.PI / 2]));
+    const tire = limb(wheel, palette.rubber, [0, 0, 0], [radiusFactor, thicknessFactor, radiusFactor], [0, 0, Math.PI / 2]);
+    tire.name = 'Rubber tire';
+    spin.add(tire);
+    const rim = limb(cylinder, alloy, [0, 0, 0],
+      [0.22 * radiusFactor, 0.206 * thicknessFactor, 0.22 * radiusFactor], [0, 0, Math.PI / 2]);
+    rim.name = 'Alloy wheel rim';
+    spin.add(rim);
+    const cap = limb(cylinder, palette.rubber, [Math.sign(x) * 0.065, 0, 0],
+      [0.08 * radiusFactor, 0.018, 0.08 * radiusFactor], [0, 0, Math.PI / 2]);
+    cap.name = 'Wheel center hubcap';
+    spin.add(cap);
     return { steer, spin, front };
   };
   const wheels: WheelRig[] = [];
@@ -85,17 +97,20 @@ export function buildVehicleRig(
     const riderPart = (name: string, color: string, p: Triple, size: Triple, rounded = false) =>
       personPart(personArt, body, name, color, p, size, rounded);
     const bikeKind = sharedBikeKind(definition.id);
-    const bicycle = buildSharedBike(personArt, civicBlue, bikeKind);
+    const bikeShapes: SharedBikeShapes = {
+      cylinder, roundedBox: art.roundedBox, torus: art.torus, alloy, rubber: palette.rubber,
+    };
+    const bicycle = buildSharedBike(personArt, civicBlue, bikeKind, bikeShapes);
     group.userData.bikeKind = bikeKind;
     body.add(bicycle.group);
     for (const wheelRig of bicycle.wheelRigs) group.add(wheelRig.steer);
     wheels.push(...bicycle.wheelRigs);
-    riderPart('Cycling jacket', person.top, [0, 1.42, -0.05], [0.35 * person.build, 0.52, 0.24]);
-    riderPart('Seated cycling trousers', person.bottom, [0, 1.075, -0.28], [0.36, 0.22, 0.25]);
+    riderPart('Cycling jacket', person.top, [0, 1.42, -0.05], [0.35 * person.build, 0.52, 0.24], true);
+    riderPart('Seated cycling trousers', person.bottom, [0, 1.075, -0.28], [0.36, 0.22, 0.25], true);
     riderPart('Cyclist face', person.skin, [0, 1.82, 0.05], [0.18, 0.2, 0.18], true);
     riderPart('Cycle helmet', person.accent, [0, 1.95, 0.05], [0.21, 0.12, 0.22], true);
-    riderPart('Helmet stripe', '#e9e7d9', [0, 2.05, 0.05], [0.065, 0.035, 0.3]);
-    if (person.bag !== 'none') riderPart('Cyclist backpack', person.accent, [0, 1.45, -0.26], [0.28, 0.36, 0.19]);
+    riderPart('Helmet stripe', '#e9e7d9', [0, 2.05, 0.05], [0.065, 0.035, 0.3], true);
+    if (person.bag !== 'none') riderPart('Cyclist backpack', person.accent, [0, 1.45, -0.26], [0.28, 0.36, 0.19], true);
     for (const side of [-1, 1]) {
       riderPart('Cyclist sleeve', person.top, [side * 0.22, 1.3325, 0.255],
         [0.11, Math.hypot(0.535, 0.45), 0.11]).rotation.x = Math.atan2(0.45, -0.535);

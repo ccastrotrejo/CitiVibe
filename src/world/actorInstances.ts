@@ -1,6 +1,26 @@
 import * as THREE from 'three';
 
 const IDENTITY = new THREE.Matrix4();
+const ZERO_MATRIX = new THREE.Matrix4().set(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+
+function zeroSubtree(node: THREE.Object3D): void {
+  node.matrixWorld.copy(ZERO_MATRIX);
+  const children = node.children;
+  for (let i = 0; i < children.length; i++) zeroSubtree(children[i]);
+}
+
+export function updateActorSubtree(node: THREE.Object3D, parentWorld: THREE.Matrix4 | null): void {
+  if (node.scale.x === 0 && node.scale.y === 0 && node.scale.z === 0) {
+    // Every valid affine/rigid Matrix4 has elements[15] === 1; ZERO_MATRIX sets elements[15] === 0.
+    if (node.matrixWorld.elements[15] !== 0) zeroSubtree(node);
+    return;
+  }
+  if (node.matrixAutoUpdate) node.updateMatrix();
+  if (parentWorld === null) node.matrixWorld.copy(node.matrix);
+  else node.matrixWorld.multiplyMatrices(parentWorld, node.matrix);
+  const children = node.children;
+  for (let i = 0; i < children.length; i++) updateActorSubtree(children[i], node.matrixWorld);
+}
 
 interface ActorBatch {
   mesh: THREE.InstancedMesh;
@@ -60,13 +80,23 @@ export class ActorInstances {
     this.group.updateWorldMatrix(true, false);
     const identity = this.group.matrixWorld.equals(IDENTITY);
     if (!identity) this.inverse.copy(this.group.matrixWorld).invert();
-    for (const actor of this.actors) actor.updateWorldMatrix(true, true);
-    for (const { mesh, sources } of this.batches) {
-      const array = mesh.instanceMatrix.array as Float32Array;
-      for (let index = 0; index < sources.length; index++) {
-        const world = identity ? sources[index].matrixWorld :
+    for (let i = 0; i < this.actors.length; i++) {
+      const actor = this.actors[i];
+      const parentWorld = actor.parent && !actor.parent.matrixWorld.equals(IDENTITY) ? actor.parent.matrixWorld : null;
+      updateActorSubtree(actor, parentWorld);
+    }
+    for (let b = 0; b < this.batches.length; b++) {
+      const { mesh, sources } = this.batches[b];
+      const array = mesh.instanceMatrix.array;
+      if (identity) {
+        for (let index = 0; index < sources.length; index++) {
+          array.set(sources[index].matrixWorld.elements, index * 16);
+        }
+      } else {
+        for (let index = 0; index < sources.length; index++) {
           this.transform.multiplyMatrices(this.inverse, sources[index].matrixWorld);
-        world.toArray(array, index * 16);
+          array.set(this.transform.elements, index * 16);
+        }
       }
       mesh.instanceMatrix.needsUpdate = true;
     }

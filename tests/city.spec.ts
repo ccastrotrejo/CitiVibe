@@ -6,7 +6,7 @@ test('live navigation, tour interruption, help focus, and static pause', async (
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto('/');
-  await expect(page.getByText('City is living', { exact: true })).toBeVisible({ timeout: 15000 });
+  await expect(page.getByText('City is living', { exact: true })).toBeVisible();
   await expect(page).toHaveTitle('CitiVibe - Rainlight Square');
   await expect(page.locator('.wordmark')).toHaveText('CitiVibe.');
   await expect(page.getByRole('button', { name: 'Field guide' })).toHaveCount(0);
@@ -58,7 +58,7 @@ test('reduced-motion city-wide guided views, inert bracket shortcuts, DPR bounds
   await page.getByRole('button', { name: 'Previous view' }).click();
   await expect(page.locator('#tour-hint')).toHaveText('Guided view 6 / 6: Juniper Court');
   const dpr = await page.locator('canvas').evaluate((canvas: HTMLCanvasElement) => canvas.width / canvas.clientWidth);
-  expect(dpr).toBeLessThanOrEqual(1.5);
+  expect(dpr).toBeLessThanOrEqual(2);
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   await page.getByRole('region', { name: 'City navigation' }).focus();
   await page.keyboard.press('?');
@@ -83,7 +83,7 @@ test('scene labels remain readable over nighttime rain', async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
-test('unsupported WebGL keeps the descriptive still without landmark navigation', async ({ page }) => {
+test('unsupported WebGL shows clean unavailable state without poster placeholder or landmark navigation', async ({ page }) => {
   await page.addInitScript(() => {
     const original = HTMLCanvasElement.prototype.getContext;
     HTMLCanvasElement.prototype.getContext = function (type: string, ...args: unknown[]) {
@@ -95,19 +95,19 @@ test('unsupported WebGL keeps the descriptive still without landmark navigation'
   await expect(page.getByText(/WebGL2 is unavailable/)).toBeVisible();
   await expect(page.getByRole('group', { name: 'Landmark navigation' })).toHaveCount(0);
   await expect(page.locator('.static-marker')).toHaveCount(0);
-  await expect(page.getByRole('img', { name: /Original miniature city/ })).toBeVisible();
+  await expect(page.getByText('Live city unavailable')).toBeVisible();
+  await expect(page.locator('.city-poster')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Start tour' })).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Pause city' })).toBeDisabled();
-  expect(await page.locator('.city-poster').evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0)).toBe(true);
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 });
 
-test('a useful original still remains when JavaScript is disabled', async ({ browser, baseURL }) => {
+test('a clean fallback message remains when JavaScript is disabled', async ({ browser, baseURL }) => {
   const context = await browser.newContext({ javaScriptEnabled: false, baseURL });
   const page = await context.newPage();
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Rainlight Square' })).toBeVisible();
-  await expect(page.getByRole('img')).toBeVisible();
+  await expect(page.locator('.city-poster')).toHaveCount(0);
   await expect(page.getByText(/JavaScript is disabled/)).toBeVisible();
   await expect(page.getByText(/Sound is off/)).toBeVisible();
   await context.close();

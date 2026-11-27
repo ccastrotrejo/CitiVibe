@@ -92,11 +92,10 @@ export function App() {
       <p className="header-caption">A small world of its own</p>
     </header>
     <div className="world-layout">
-      <CityStage canvas={canvas} attempt={attempt} live={live} guide={preferences.guide} status={status} send={send} onDismissGuide={() => changePreferences({ guide: false })} onKeyDown={keyDown}
+      <CityStage canvas={canvas} attempt={attempt} live={live} lifecycle={lifecycle} detail={detail} onRetry={retry} guide={preferences.guide} status={status} send={send} onDismissGuide={() => changePreferences({ guide: false })} onKeyDown={keyDown}
         settingsOpen={panel === 'settings'} settingsTrigger={settingsTrigger} onSettings={toggleSettings}
         settings={panel === 'settings' ? <Settings preferences={preferences} onChange={changePreferences} notice={storageNotice} onClose={closeSettings} /> : null}
         fullscreenLabel={screenMode.label} onFullscreen={() => { void screenMode.toggle(); }} />
-      {!live ? <div className="lifecycle-panel" role="status"><div><strong>{lifecycle === 'loading' ? 'Growing a little city' : lifecycle === 'lost' || lifecycle === 'restoring' ? 'Restoring city' : 'Live city unavailable'}</strong><p>{detail}</p></div><div className="lifecycle-actions">{lifecycle !== 'loading' && lifecycle !== 'lost' && lifecycle !== 'restoring' ? <button onClick={retry}>Retry live city</button> : null}</div></div> : null}
       {screenMode.message ? <div className="view-notice" role="status"><span>{screenMode.message}</span>{!screenMode.expanded && !screenMode.fullscreen ? <button onClick={screenMode.expand}>Use expanded view</button> : null}</div> : null}
       {storageNotice && panel !== 'settings' ? <p className="view-notice" role="status">{storageNotice}</p> : null}
     </div>

@@ -1,7 +1,7 @@
 import type { KeyboardEventHandler, ReactNode, RefObject } from 'react';
 import { CITY } from '../content/city';
 import { WEATHER_LABELS } from '../content/preferences';
-import type { WorldCommand, WorldStatus } from '../world/types';
+import type { Lifecycle, WorldCommand, WorldStatus } from '../world/types';
 import { Navigation, PrimaryControls } from './Controls';
 import { Icon } from './Icon';
 
@@ -9,6 +9,9 @@ interface CityStageProps {
   canvas: RefObject<HTMLCanvasElement | null>;
   attempt: number;
   live: boolean;
+  lifecycle: Lifecycle;
+  detail: string;
+  onRetry: () => void;
   guide: boolean;
   status: WorldStatus;
   send: (command: WorldCommand) => void;
@@ -22,13 +25,24 @@ interface CityStageProps {
   onFullscreen: () => void;
 }
 
-export function CityStage({ canvas, attempt, live, guide, status, send, settings, settingsOpen, settingsTrigger, onSettings, onDismissGuide, onKeyDown, fullscreenLabel, onFullscreen }: CityStageProps) {
+export function CityStage({ canvas, attempt, live, lifecycle, detail, onRetry, guide, status, send, settings, settingsOpen, settingsTrigger, onSettings, onDismissGuide, onKeyDown, fullscreenLabel, onFullscreen }: CityStageProps) {
+  const busy = lifecycle === 'loading' || lifecycle === 'lost' || lifecycle === 'restoring';
+  const heading = lifecycle === 'loading'
+    ? 'Loading city…'
+    : lifecycle === 'lost' || lifecycle === 'restoring'
+      ? 'Restoring city…'
+      : 'Live city unavailable';
   return <section className="scene-shell" data-night={live && status.daylight === 'Night'} aria-label={`${CITY.name} experience`}>
     <h1 className="sr-only">{CITY.name}</h1>
     <div className="scene-navigation" role="region" aria-label="City navigation" aria-describedby="navigation-hint" tabIndex={0} onKeyDown={onKeyDown}>
-      <div className={`poster-frame ${live ? 'poster-hidden' : ''}`}>
-        <img className="city-poster" src={`/city/${CITY.version}.svg`} alt="Original miniature city, shown as a static illustration rather than a live view. Masonry homes, offices and shops surround a car-free park with a reservoir, woodland, lake and bridge. A hospital, fire station and police station have staff outside. Avenues and two-way bike paths connect the neighborhood; neighbors play basketball and pickleball at Juniper Court." />
-      </div>
+      {!live ? (
+        <div className="stage-loading" role="status" aria-live="polite">
+          {busy ? <span className="stage-spinner" aria-hidden="true" /> : null}
+          <strong>{heading}</strong>
+          <p>{detail}</p>
+          {!busy ? <button type="button" onClick={onRetry}>Retry live city</button> : null}
+        </div>
+      ) : null}
       <canvas key={attempt} ref={canvas} className={live ? 'world-canvas' : 'world-canvas canvas-hidden'} aria-hidden="true" />
     </div>
     {guide && live ? <aside className="first-guide"><p><strong>Explore every angle.</strong><span>Drag to pan. Cmd/Ctrl-drag to orbit.</span></p><button className="icon-button" aria-label="Dismiss navigation hint" onClick={onDismissGuide}><Icon name="close" /></button></aside> : null}

@@ -11,7 +11,7 @@ export const PARK_LAKESIDE = {
 } as const;
 export const PARK_ACTORS = [
   ...Array.from({ length: 55 }, (_, index) => ({ id: `walker-${index + 1}`, gait: 'walk' as const })),
-  ...Array.from({ length: 24 }, (_, index) => ({ id: `runner-${index + 1}`, gait: 'run' as const })),
+  ...Array.from({ length: 30 }, (_, index) => ({ id: `runner-${index + 1}`, gait: 'run' as const })),
 ];
 export const PARK_PICNICS = [[5.4, -7.2], [15.3, -9.9], [11.7, 6.3], [19.8, 59.4]] as const;
 

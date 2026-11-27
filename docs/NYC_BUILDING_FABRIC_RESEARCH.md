@@ -55,9 +55,9 @@ These are attributed reference candidates with verified license metadata, **not 
 
 The supplied city image and verified written guidance, rather than uninspected photo details, informed this implementation:
 
-- **Denser building groups:** 57 former gaps become 0.06 m construction joints across 75 of the existing 94 buildings. Both adjoining lot-line faces remain blank; roof trims do not overlap the neighbors. This is an authored miniature joint, not a measured NYC separation.
-- **Purposeful open space:** planted plazas, metro mouths, bicycle-station access, court runoffs and the shared passage remain. An existing diagonal view into the east-south subway entrance is retained.
-- **Mixed uses:** 19 office buildings have broad repeated glazing and masonry or curtain-wall treatments; 32 mixed-use buildings have ground-floor display bays, transoms, canopies and separate upstairs doors. Forty-three buildings remain residential. These ratios are artistic choices, not NYC statistics.
-- **Original and bounded:** no grid expansion, building-count increase, copied business branding, runtime photographs, retail interaction, population change or new simulation system. Public circulation, weather, lighting, pause/recovery and existing controls remain.
+- **Denser building groups.** Fifty-seven former gaps become 0.06 m construction joints across 75 of the existing 94 buildings. Both adjoining lot-line faces stay blank, and roof trims do not overlap neighbors. This is an authored miniature joint, not a measured NYC separation.
+- **Purposeful open space.** Planted plazas, metro mouths, bicycle-station access, court runoffs, and the shared passage stay open, keeping the diagonal view into the east-south subway entrance.
+- **Mixed uses.** Nineteen office buildings carry broad repeated glazing and masonry or curtain-wall treatments; 32 mixed-use buildings carry ground-floor display bays, transoms, canopies, and separate upstairs doors; 43 buildings stay residential. These ratios are artistic choices, not NYC statistics.
+- **Original and bounded.** No grid expansion, building-count increase, copied business branding, runtime photographs, retail interaction, population change, or extra simulation system. Public circulation, weather, lighting, pause/recovery, and controls stay intact.
 
 Current verification and the unresolved visual-inspection limitation are recorded in [acceptance criteria](ACCEPTANCE_CRITERIA.md#nyc-building-fabric---2026-09-15).
