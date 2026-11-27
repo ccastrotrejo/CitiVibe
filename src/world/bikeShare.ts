@@ -364,7 +364,7 @@ export function buildBikeShare(
         if (showPerson && !reducedMotion) {
           // Docked neighbors gently shift their weight so they read as resting rather
           // than frozen. Torso-only (feet stay planted); deterministic and locked to a
-          // whole number of cycles per station loop so the animation still closes seamlessly,
+          // whole number of cycles per station loop so the animation closes without a jump,
           // and disabled under reduced motion to keep poses reproducible.
           const cyclePhase = (elapsedSeconds % L.period) / L.period;
           const sway = Math.sin(cyclePhase * 2 * Math.PI * 10 + station.x * 0.7 + station.z * 0.3);

@@ -33,7 +33,7 @@ Bringi, Thurai, and Baumgardner compare measured fall velocities with laboratory
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Expected speed (m/s) | 2.5 | 3.3 | 4.0 | 4.6 | 5.2 | 5.7 | 6.1 | 6.5 |
 
-Section 2.2 additionally reports a mean near 2 m/s for the 0.5 mm bin in one Huntsville case. These are rounded references, not exact constants for every drop. Strong turbulence broadens observed distributions and can change their means.
+Section 2.2 also reports a mean near 2 m/s for the 0.5 mm bin in one Huntsville case. These are rounded references, not exact constants for every drop. Strong turbulence broadens observed distributions and can change their means.
 
 ### Implemented model
 

@@ -26,7 +26,7 @@ describe('original neighborhood civic services', () => {
     }
   });
 
-  it('assigns unique naturally adult employees from each facility’s original home block', () => {
+  it("assigns unique naturally adult employees from each facility's original home block", () => {
     const walkers = TRAFFIC_ACTORS.filter(({ kind }) => kind === 'pedestrian');
     const staffIds = new Set<string>();
     const roles = { hospital: 'healthcare-worker', 'fire-station': 'firefighter', 'police-station': 'police-officer' };

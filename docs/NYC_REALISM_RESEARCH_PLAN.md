@@ -118,7 +118,7 @@ These are measurements of the current default seed, not numbers copied from an o
 | Attached fabric | 75 buildings participate in 57 joined pairs; authored 0.06 m joints | [`buildingFabric.ts`](../src/world/buildingFabric.ts) |
 | Architectural geometry families | Six brownstones, 37 masonry, 30 loft, 21 terrace | `architecture.family` in `streetscape.ts` |
 | Material palette | 12 named facade families, 48 tone entries | [`facades.ts`](../src/content/facades.ts); material family is not architectural geometry |
-| Main floors | 29 buildings with three; 17 with four; 24 with five; 16 with six; eight with seven | `STREET_BUILDINGS`; six buildings additionally have two setback floors |
+| Main floors | 29 buildings with three; 17 with four; 24 with five; 16 with six; eight with seven | `STREET_BUILDINGS`; six buildings also have two setback floors |
 | Main-volume height | Approximately 6.91-16.79 m, excluding base, parapet, roof props, and additional setback floors | `floors * architecture.floorHeight`; ordinary floor heights are approximately 2.3-2.4 m |
 | Ground-floor store variants | 11 market, eight books, 13 cafe | `storefront` and `buildCommercialFront` |
 | Roof variants | 37 mechanical plant, 20 tank, 16 chimney, 21 garden | `roof`; one assigned primary treatment per building |

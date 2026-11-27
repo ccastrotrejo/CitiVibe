@@ -6,10 +6,10 @@ The strongest NYC cues are not famous buildings or branded signs: predictable in
 
 ## Evidence boundaries
 
-- **Observed:** visible details in the separately identified, inspected photo-reference pass below; not proof of unseen systems or construction dimensions.
-- **Operator-declared:** information stated by an agency, transit operator, dataset publisher, or preservation organization. Reading its page verifies the statement, not every underlying outcome.
-- **Inferred:** our interpretation, with limitations.
-- **Proposed:** an original design adaptation, not recovered source behavior or a completed feature.
+- **Observed.** Visible details in the separately identified, inspected photo-reference pass below; not proof of unseen systems or construction dimensions.
+- **Operator-declared.** Information stated by an agency, transit operator, dataset publisher, or preservation organization. Reading its page verifies the statement, not every underlying outcome.
+- **Inferred.** Our interpretation, with limitations.
+- **Proposed.** An original design adaptation, not recovered source behavior or a completed feature.
 
 Public dataset metadata was read to establish categories, not to obtain real journeys or map coordinates. No reference-site code, models, textures, fonts, commercial captures, or other runtime assets were fetched. Screenshots supplied with the request establish broad visual direction only.
 

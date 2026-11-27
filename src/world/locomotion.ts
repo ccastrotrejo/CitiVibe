@@ -6,8 +6,8 @@ import { applyPersonWeather, type PersonWeatherRig } from './personWeatherArt';
 /**
  * Deterministic procedural locomotion.
  *
- * Every cyclic pose is a pure function of an integrated scalar the simulation
- * already produces — `distance` for feet and wheels — never wall-clock time.
+ * Every cyclic pose is a pure function of `distance`, the integrated scalar
+ * the simulation already tracks for feet and wheels, never wall-clock time.
  * A pose expressed as f(distance) is automatically frame-rate independent,
  * reproducible from a seed, and ground-locked: while a foot is the support
  * foot it moves backward relative to the hips at exactly body speed, so its
@@ -170,9 +170,9 @@ export function gaitPhase(distance: number, stride: number, offset = 0): number 
 
 /**
  * Foot position in the actor's forward (z) axis relative to the hips, plus lift.
- * Stance: the foot slides from front (+A) to back (-A) at exactly body speed, so
- * d(worldZ)/d(distance) = 0 — provably no sliding. Swing: an eased forward arc
- * that returns to the ground at both ends.
+ * Stance moves the foot from front (+A) to back (-A) at body speed, so
+ * d(worldZ)/d(distance) = 0 and the foot cannot slide. Swing follows an eased
+ * forward arc back to the ground at both ends.
  */
 export function footTrajectory(phase: number, stride: number): { z: number; y: number } {
   const amplitude = 0.3 * stride;

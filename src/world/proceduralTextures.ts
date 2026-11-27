@@ -32,7 +32,7 @@ function createSeededRng(seed: number): () => number {
   };
 }
 
-/** Seamless 2D torus-mapped multi-octave Simplex fBm in [-1, 1]. */
+/** Periodic 2D torus-mapped multi-octave Simplex fBm in [-1, 1]. */
 function buildSeamlessFbm(seed: number, octaves: number, baseRadius: number): Float32Array {
   const noiseA = createNoise2D(createSeededRng(seed));
   const noiseB = createNoise2D(createSeededRng(seed ^ 0x9e3779b9));
@@ -145,8 +145,8 @@ function makeRepeatTexture(bytes: Uint8Array, repeat: number): THREE.DataTexture
 }
 
 /**
- * Allocate per-world GPU DataTextures backed by deterministically cached Simplex fBm PBR maps.
- * Every texture uses trilinear mipmaps + 16x anisotropic filtering for velvety smooth surfaces.
+ * Allocate per-world GPU DataTextures backed by cached Simplex fBm PBR maps.
+ * Trilinear mipmaps and 16x anisotropic filtering keep angled roads and walls free of shimmer.
  */
 export function createProceduralTextureSet(): ProceduralTextureSet {
   const maps = ensureBakedMaps();

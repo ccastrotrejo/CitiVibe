@@ -29,7 +29,7 @@ describe('procedural PBR texture set', () => {
     }
   });
 
-  it('produces seamlessly wrapping torus-sampled edges without boundary cliffs', () => {
+  it('wraps periodic torus-sampled edges without boundary steps', () => {
     const set = createProceduralTextureSet();
     try {
       const data = set.asphaltRoughness.image.data as Uint8Array;

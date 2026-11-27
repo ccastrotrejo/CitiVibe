@@ -1340,7 +1340,7 @@ describe('original connected-city streetscape', () => {
     }
   });
 
-  it('keeps rendered metro sweeps at 5.8–7.6 m and entrance approaches clear after the buildingward move', () => {
+  it('keeps rendered metro sweeps at 5.8 to 7.6 m and entrance approaches clear after the buildingward move', () => {
     const { parts } = createArt();
     const g = METRO_GEOMETRY;
     const obstacles = parts.filter(({ bounds }) => bounds.max.y > 0.12 && bounds.min.y < 2.4);
@@ -1659,7 +1659,7 @@ describe('original connected-city streetscape', () => {
     }
   });
 
-  it('keeps the full 5.8–7.6 m bidirectional pedestrian sweep clear beneath every sidewalk shed', () => {
+  it('keeps the full 5.8 to 7.6 m bidirectional pedestrian sweep clear beneath every sidewalk shed', () => {
     const { parts } = createArt();
     const corridors = SIDEWALK_SHEDS.map((shed) => {
       const road = STREET_X.reduce((nearest, x) => Math.abs(x - shed.x) < Math.abs(nearest - shed.x) ? x : nearest);

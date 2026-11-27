@@ -58,7 +58,7 @@ function frustumFor(camera: THREE.OrthographicCamera): THREE.Frustum {
 }
 
 describe('AirplaneSimulation', () => {
-  it.each([2401, 0, 0xffffffff])('seed %s starts inactive and waits exactly its seeded 90–180-second gap', (seed) => {
+  it.each([2401, 0, 0xffffffff])('seed %s starts inactive and waits its seeded 90 to 180 second gap', (seed) => {
     const simulation = new AirplaneSimulation(seed);
     const state = simulation.state;
     const position = state.position;

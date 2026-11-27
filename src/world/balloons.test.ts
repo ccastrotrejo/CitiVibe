@@ -39,7 +39,7 @@ function inventory(group: THREE.Group) {
 }
 
 describe('BalloonDrift', () => {
-  it.each([5309, 0, 0xffffffff])('seed %s starts inactive and waits exactly its seeded 150–300-second gap', (seed) => {
+  it.each([5309, 0, 0xffffffff])('seed %s starts inactive and waits its seeded 150 to 300 second gap', (seed) => {
     const simulation = new BalloonDrift(seed);
     const state = simulation.state;
     const gap = nextGap(seed).seconds;

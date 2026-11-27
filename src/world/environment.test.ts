@@ -77,7 +77,7 @@ describe('retained environment state', () => {
     expect(environment.frame.snow).toBe(0);
   });
 
-  it('changes natural weather deterministically every 180–360 simulation seconds without repeats', () => {
+  it('changes natural weather deterministically every 180 to 360 simulation seconds without repeats', () => {
     const first = new EnvironmentController(2401);
     const second = new EnvironmentController(2401);
     first.setNatural(true);

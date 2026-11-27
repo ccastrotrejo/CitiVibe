@@ -6,10 +6,10 @@ The user's request is better, smoother nighttime lighting and functioning headli
 
 ## Evidence and scope
 
-- **Observed:** source pages and r186 implementation documentation were inspected; local source inspection found hard-edged additive light discs, painted vehicle lamp plates, and vehicle glazing sharing building-window emission.
-- **Operator-declared:** published Three.js behavior, government standards and technical-author explanations below. Reading a standard does not establish that this fictional scene meets it.
-- **Inferred:** practical consequences of the physics for this orthographic scene.
-- **Proposed / implemented:** artistic RGB values, intensity budgets, miniature lamp dimensions and signal anticipation distances. These are not measurements recovered from New York or an existing game.
+- **Observed.** Source pages and r186 implementation documentation were inspected; local source inspection found hard-edged additive light discs, painted vehicle lamp plates, and vehicle glazing sharing building-window emission.
+- **Operator-declared.** Published Three.js behavior, government standards, and technical-author explanations below. Reading a standard does not establish that this fictional scene meets it.
+- **Inferred.** Practical consequences of the physics for this orthographic scene.
+- **Proposed / implemented.** Artistic RGB values, intensity budgets, miniature lamp dimensions, and signal anticipation distances. These are not measurements recovered from New York or an existing game.
 
 No source model, texture, photograph, font, map, logo, live API or third-party runtime service is included. Reference material is inert research, never executable app input.
 
