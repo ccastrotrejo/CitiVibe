@@ -63,13 +63,24 @@ function placedBuilder(builder: StreetscapeBuilder, prop: StreetProp) {
   };
 }
 
+export interface BenchBuildOptions {
+  withPad?: boolean;
+  yLift?: number;
+}
+
 /** Contoured multi-slat NYC bench with scrolled cast-iron side frames and center divider armrest. */
-export function buildStreetBench(builder: StreetscapeBuilder, prop: StreetProp, width = 2.4): void {
+export function buildStreetBench(
+  builder: StreetscapeBuilder,
+  prop: StreetProp,
+  width = 2.4,
+  options: BenchBuildOptions = {},
+): void {
+  const { withPad = true, yLift = 0 } = options;
   const { block, rounded, cylinder, tilted } = placedBuilder(builder, prop);
   const p = builder.palette;
   const slatMaterial = prop.id.includes('park') ? p.wood : p.teal;
   const slatSpan = width - 0.06;
-  block(p.paving, 0, -0.07, 0, width + 0.25, 0.04, 0.86);
+  if (withPad) block(p.paving, 0, -0.07 + yLift, 0, width + 0.25, 0.04, 0.86);
 
   // Ergonomically contoured seat slats (4 rounded slats with bullnose front edge).
   const seatProfile: readonly [dz: number, y: number, pitch: number, h: number, d: number][] = [
@@ -79,7 +90,7 @@ export function buildStreetBench(builder: StreetscapeBuilder, prop: StreetProp, 
     [0.2, 0.462, 0.12, 0.058, 0.114],
   ];
   for (const [dz, y, pitch, h, d] of seatProfile) {
-    rounded(slatMaterial, 0, y, dz, slatSpan, h, d, pitch);
+    rounded(slatMaterial, 0, y + yLift, dz, slatSpan, h, d, pitch);
   }
 
   // Contoured lumbar backrest slats (3 rounded slats with taller upper crest rail).
@@ -89,24 +100,24 @@ export function buildStreetBench(builder: StreetscapeBuilder, prop: StreetProp, 
     [-0.324, 0.945, -0.24, 0.108],
   ];
   for (const [dz, y, pitch, h] of backProfile) {
-    rounded(slatMaterial, 0, y, dz, slatSpan, h, 0.052, pitch);
+    rounded(slatMaterial, 0, y + yLift, dz, slatSpan, h, 0.052, pitch);
   }
 
-  // Scrolled cast-iron outer side frames with alloy scroll knuckles.
+  // Scrolled cast-iron outer side frames with scroll knuckles.
   for (const side of [-1, 1]) {
     const frameX = side * (width / 2 - 0.11);
-    rounded(p.rubber, frameX, -0.028, -0.02, 0.088, 0.036, 0.56);
-    rounded(p.rubber, frameX, 0.21, 0.185, 0.062, 0.46, 0.075, -0.14);
-    rounded(p.rubber, frameX, 0.48, -0.25, 0.064, 0.98, 0.082, -0.2);
-    rounded(p.rubber, frameX, 0.415, -0.01, 0.058, 0.054, 0.52);
-    rounded(p.rubber, frameX, 0.655, -0.02, 0.064, 0.046, 0.5, 0.04);
-    cylinder(p.rubber, frameX, 0.635, 0.235, 0.046, 0.07, true);
+    rounded(p.rubber, frameX, -0.028 + yLift, -0.02, 0.088, 0.036, 0.56);
+    rounded(p.rubber, frameX, 0.21 + yLift, 0.185, 0.062, 0.46, 0.075, -0.14);
+    rounded(p.rubber, frameX, 0.48 + yLift, -0.25, 0.064, 0.98, 0.082, -0.2);
+    rounded(p.rubber, frameX, 0.415 + yLift, -0.01, 0.058, 0.054, 0.52);
+    rounded(p.rubber, frameX, 0.655 + yLift, -0.02, 0.064, 0.046, 0.5, 0.04);
+    cylinder(p.rubber, frameX, 0.635 + yLift, 0.235, 0.046, 0.07, true);
   }
 
   // Center cast-iron scrolled divider armrest.
-  rounded(p.rubber, 0, 0.648, -0.03, 0.05, 0.044, 0.46, 0.04);
-  rounded(p.rubber, 0, 0.53, 0.185, 0.044, 0.19, 0.044, 0.1);
-  tilted(builder.cylinder, p.rubber, 0, 0.625, 0.205, [0.04, 0.054, 0.04], 0, Math.PI / 2);
+  rounded(p.rubber, 0, 0.648 + yLift, -0.03, 0.05, 0.044, 0.46, 0.04);
+  rounded(p.rubber, 0, 0.53 + yLift, 0.185, 0.044, 0.19, 0.044, 0.1);
+  tilted(builder.cylinder, p.rubber, 0, 0.625 + yLift, 0.205, [0.04, 0.054, 0.04], 0, Math.PI / 2);
 }
 
 function buildFoodCart(builder: StreetscapeBuilder, prop: StreetProp, accent: THREE.Material,

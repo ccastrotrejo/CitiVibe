@@ -41,19 +41,43 @@ declare module 'n8ao' {
     neuralDenoise: boolean;
   }
 
+  export interface DisposableResource {
+    dispose(): void;
+  }
+
+  export interface FullscreenQuadResource {
+    material?: DisposableResource;
+    dispose?(): void;
+  }
+
   export class N8AOPostPass extends Pass {
     scene: THREE.Scene;
     camera: THREE.Camera;
     width: number;
     height: number;
     autosetGamma: boolean;
+    autoDetectTransparency: boolean;
     configuration: N8AOConfiguration;
     writeTargetInternal?: THREE.WebGLRenderTarget;
     readTargetInternal?: THREE.WebGLRenderTarget;
     outputTargetInternal?: THREE.WebGLRenderTarget;
     accumulationRenderTarget?: THREE.WebGLRenderTarget;
-    depthDownsampleTarget?: { dispose(): void };
+    transparencyRenderTargetDWFalse?: THREE.WebGLRenderTarget;
+    transparencyRenderTargetDWTrue?: THREE.WebGLRenderTarget & { depthTexture?: DisposableResource };
+    depthDownsampleTarget?: DisposableResource;
+    depthMipAtlas?: DisposableResource;
+    depthCopyPass?: DisposableResource;
     bluenoise?: THREE.DataTexture;
+    effectShaderQuad?: FullscreenQuadResource;
+    poissonBlurQuad?: FullscreenQuadResource;
+    effectCompositerQuad?: FullscreenQuadResource;
+    copyQuad?: FullscreenQuadResource;
+    accumulationQuad?: FullscreenQuadResource;
+    depthDownsampleQuad?: FullscreenQuadResource;
+    standardDenoiseMaterial?: DisposableResource;
+    neuralDenoiseMaterial?: DisposableResource | null;
+    standardCompositerMaterial?: DisposableResource;
+    neuralCompositerMaterial?: DisposableResource | null;
 
     constructor(scene: THREE.Scene, camera: THREE.Camera, width?: number, height?: number);
     setSize(width: number, height: number): void;

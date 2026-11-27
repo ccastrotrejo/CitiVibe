@@ -239,7 +239,7 @@ export function buildCityScene(): CityScene {
   const personArt: PersonArt = {
     box, capsule, roundedBox, cone, head: smoothHead, material: personMaterial,
   };
-  // Taut 18-segment pneumatic tire with crisp sidewall-to-tread shoulder crease (28°).
+  // Taut 16-segment pneumatic tire (multiple of 4 so Z-rotated bottom vertex rests at exact y = 0).
   const tireProfile = [
     new THREE.Vector2(0.2, -0.092),
     new THREE.Vector2(0.345, -0.098),
@@ -252,7 +252,7 @@ export function buildCityScene(): CityScene {
     new THREE.Vector2(0.19, 0),
     new THREE.Vector2(0.2, -0.092),
   ];
-  const rawTire = new THREE.LatheGeometry(tireProfile, 18);
+  const rawTire = new THREE.LatheGeometry(tireProfile, 16);
   const wheel = geometry(toCreasedNormals(rawTire, Math.PI * 0.18));
   rawTire.dispose();
   // Crisp greenhouse shell: flat windshield/side-window planes with tight 0.055 corner fillets & 26° crease lines.
@@ -640,7 +640,7 @@ export function buildCityScene(): CityScene {
       streetscape.setSignals(signals);
       courtActivity.update(elapsedSeconds, reducedMotion, groundLift);
       playActivity.update(elapsedSeconds, reducedMotion, groundLift);
-      streetCrowd.update(elapsedSeconds, reducedMotion, groundLift);
+      streetCrowd.update(elapsedSeconds, reducedMotion, groundLift, actorStates);
       bikeShare.update(elapsedSeconds, reducedMotion, groundLift, actorStates);
       if (riderStateSource !== actorStates) {
         riderStateSource = actorStates;
@@ -663,6 +663,7 @@ export function buildCityScene(): CityScene {
       if (disposed) return;
       disposed = true;
       actorInstances.dispose();
+      streetCrowd.dispose();
       bikeShare.dispose();
       pavement.dispose();
       park.dispose();

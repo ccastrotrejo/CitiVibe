@@ -6,7 +6,7 @@ test('live navigation, tour interruption, help focus, and static pause', async (
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto('/');
-  await expect(page.getByText('City is living', { exact: true })).toBeVisible({ timeout: 15000 });
+  await expect(page.getByText('City is living', { exact: true })).toBeVisible();
   await expect(page).toHaveTitle('CitiVibe - Rainlight Square');
   await expect(page.locator('.wordmark')).toHaveText('CitiVibe.');
   await expect(page.getByRole('button', { name: 'Field guide' })).toHaveCount(0);

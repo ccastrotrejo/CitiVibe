@@ -332,7 +332,9 @@ export class StreetPedestrians {
     const crossing = walker.crossing;
     if (crossing) {
       const distance = walker.crossingDistance + advance;
-      Object.assign(walker.next.position, { x: crossing.x + crossing.dx * distance, y: 0, z: crossing.z + crossing.dz * distance });
+      walker.next.position.x = crossing.x + crossing.dx * distance;
+      walker.next.position.y = 0;
+      walker.next.position.z = crossing.z + crossing.dz * distance;
       walker.next.heading = Math.atan2(crossing.dx, crossing.dz);
     } else sampleTrafficRoute(this.routes[walker.block][walker.lane], walker.actor.distance + advance, walker.next);
   }
@@ -340,7 +342,9 @@ export class StreetPedestrians {
   private move(walker: Walker, dt: number): void {
     const { actor, crossing } = walker;
     this.sampleNext(walker, walker.advance);
-    Object.assign(actor.position, walker.next.position);
+    actor.position.x = walker.next.position.x;
+    actor.position.y = walker.next.position.y;
+    actor.position.z = walker.next.position.z;
     actor.heading = walker.next.heading;
     actor.speed = walker.advance / dt;
     actor.state = walker.advance > EPSILON ? 'moving' : 'waiting';

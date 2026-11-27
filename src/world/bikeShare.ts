@@ -5,6 +5,7 @@ import {
 } from '../content/bikeShare';
 import { createPersonProfile } from '../content/people';
 import type { ActorState } from './actors';
+import { updateActorSubtree } from './actorInstances';
 import { WALKER, poseWalkerRig, type WalkerRig, type WheelRig } from './locomotion';
 import { buildPersonRig, personPart, type PersonArt } from './person';
 import type { StreetscapeBuilder } from './streetscape';
@@ -323,6 +324,8 @@ export function buildBikeShare(
   const down = new THREE.Vector3(0, -1, 0);
   const handDirection = new THREE.Vector3();
   let disposed = false;
+  let cachedActorSource: readonly ActorState[] | null = null;
+  let cachedStationRiders: (ActorState | undefined)[] = [];
   const activity: BikeShareActivity = {
     rigs,
     update(elapsedSeconds, reducedMotion, groundLift = 0, actors: readonly ActorState[] = []) {
@@ -330,8 +333,14 @@ export function buildBikeShare(
       if (!Number.isFinite(groundLift) || groundLift < 0 || groundLift > 0.45) {
         throw new RangeError('Bike-share ground lift must be between 0 and 0.45 metres.');
       }
-      for (const { station, bike, parked, person, rig, lockMarkers } of bays) {
-        const trip = actors.find((actor) => actor.id === station.riderId)?.sharedBike;
+      if (actors !== cachedActorSource) {
+        cachedActorSource = actors;
+        const byId = new Map(actors.map((actor) => [actor.id, actor] as const));
+        cachedStationRiders = bays.map(({ station }) => byId.get(station.riderId));
+      }
+      for (let bayIndex = 0; bayIndex < bays.length; bayIndex += 1) {
+        const { station, bike, parked, person, rig, lockMarkers } = bays[bayIndex];
+        const trip = cachedStationRiders[bayIndex]?.sharedBike;
         const sample = sampleBikeShare(station, elapsedSeconds, reducedMotion, trip);
         const floor = station.surfaceY + groundLift;
         const showCheckout = sample.phase !== 'riding';
@@ -363,7 +372,8 @@ export function buildBikeShare(
           rig.torso.position.x += 0.015 * sway;
         }
         if (!showPerson) continue;
-        person.updateWorldMatrix(true, true);
+        if (person.parent) person.parent.updateWorldMatrix(true, false);
+        updateActorSubtree(person, person.parent ? person.parent.matrixWorld : null);
         bike.group.updateWorldMatrix(true, true);
         rig.arms.forEach((arm, index) => {
           const touch = index === 0 ? sample.latchTouch : 0;

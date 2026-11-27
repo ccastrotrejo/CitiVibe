@@ -45,7 +45,6 @@ attribute vec3 windowSchedule;
 varying vec3 vWindowGlow;
 varying vec3 vWindowSchedule;
 varying vec2 vWinUv;
-varying vec3 vWinWorldPos;
 varying vec3 vWinCenter;
 varying vec3 vWinUAxis;
 varying vec3 vWinVAxis;
@@ -66,7 +65,6 @@ mat4 winWorldMat = modelMatrix;
   winWorldMat = modelMatrix * instanceMatrix;
 #endif
 vec4 winWorldPos4 = winWorldMat * vec4(transformed, 1.0);
-vWinWorldPos = winWorldPos4.xyz;
 vWinCenter = winWorldMat[3].xyz;
 vec3 winLocalN = winSafeNormalize(normal, vec3(0.0, 0.0, 1.0));
 vec3 winLocalV = abs(winLocalN.y) < 0.5 ? vec3(0.0, 1.0, 0.0) : vec3(0.0, 0.0, -sign(winLocalN.y));
@@ -83,7 +81,6 @@ vWinToCam = isOrthographic
 varying vec3 vWindowGlow;
 varying vec3 vWindowSchedule;
 varying vec2 vWinUv;
-varying vec3 vWinWorldPos;
 varying vec3 vWinCenter;
 varying vec3 vWinUAxis;
 varying vec3 vWinVAxis;
@@ -136,9 +133,9 @@ void evalWindowInterior(out float roomLightProfile, out vec3 dayInteriorColor, o
   float h1 = fract(sin(dot(seedKey, vec2(127.1, 311.7))) * 43758.5453);
   float h2 = fract(sin(dot(seedKey, vec2(269.5, 183.3))) * 43758.5453);
 
+  bool isOffice = (vWindowSchedule.x > 0.5 && vWindowSchedule.x < 1.5);
   bool isResidential = (vWindowSchedule.x > 1.5 && vWindowSchedule.x < 2.5);
   bool isStorefront = (vWindowSchedule.x > 2.5 && vWindowSchedule.x < 3.5);
-  bool isOffice = !isResidential && !isStorefront;
 
   float seamX = isSideWall ? 1.0 : min(hit.x, 1.0 - hit.x);
   float seamY = (isCeiling || isFloor) ? 1.0 : min(hit.y, 1.0 - hit.y);

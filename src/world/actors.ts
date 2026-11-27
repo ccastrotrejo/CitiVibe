@@ -437,7 +437,9 @@ export class ActorSimulation {
         runner.lane = walker.nextLane;
         runner.lateral = laneLateral(runner.lane);
         actor.distance = (actor.distance + walker.advance) % actor.routeLength;
-        Object.assign(actor.position, { x: walker.next.x, y: 0, z: walker.next.z });
+        actor.position.x = walker.next.x;
+        actor.position.y = 0;
+        actor.position.z = walker.next.z;
         actor.heading = walker.nextHeading;
         continue;
       }
@@ -445,7 +447,9 @@ export class ActorSimulation {
       if (walker.meadowDistance !== null) {
         walker.meadowDistance += walker.advance;
         actor.parkPath!.distance = walker.meadowDistance;
-        Object.assign(actor.position, { x: walker.next.x, y: 0, z: walker.next.z });
+        actor.position.x = walker.next.x;
+        actor.position.y = 0;
+        actor.position.z = walker.next.z;
         actor.heading = walker.nextHeading;
         if (PARK_MEADOW_VISIT.length - walker.meadowDistance <= 1e-7) {
           actor.distance = PARK_MEADOW_VISIT.exit;
@@ -456,7 +460,9 @@ export class ActorSimulation {
         continue;
       }
       actor.distance = (actor.distance + walker.advance) % actor.routeLength;
-      Object.assign(actor.position, { x: walker.next.x, y: 0, z: walker.next.z });
+      actor.position.x = walker.next.x;
+      actor.position.y = 0;
+      actor.position.z = walker.next.z;
       actor.heading = walker.nextHeading;
       walker.untilReading -= walker.advance;
       walker.untilMeadow -= walker.advance;

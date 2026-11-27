@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
 const IDENTITY = new THREE.Matrix4();
-const ZERO_MATRIX = new THREE.Matrix4().makeScale(0, 0, 0);
+const ZERO_MATRIX = new THREE.Matrix4().set(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 
 function zeroSubtree(node: THREE.Object3D): void {
   node.matrixWorld.copy(ZERO_MATRIX);
@@ -9,14 +9,10 @@ function zeroSubtree(node: THREE.Object3D): void {
   for (let i = 0; i < children.length; i++) zeroSubtree(children[i]);
 }
 
-function updateActorSubtree(node: THREE.Object3D, parentWorld: THREE.Matrix4 | null): void {
+export function updateActorSubtree(node: THREE.Object3D, parentWorld: THREE.Matrix4 | null): void {
   if (node.scale.x === 0 && node.scale.y === 0 && node.scale.z === 0) {
-    // Skip expensive quaternion/matrix composition across hidden optional weather/station subtrees.
-    if (node.matrixWorld.elements[0] !== 0 || node.matrixWorld.elements[5] !== 0 ||
-      node.matrixWorld.elements[10] !== 0 || node.matrixWorld.elements[12] !== 0 ||
-      node.matrixWorld.elements[13] !== 0 || node.matrixWorld.elements[14] !== 0) {
-      zeroSubtree(node);
-    }
+    // Every valid affine/rigid Matrix4 has elements[15] === 1; ZERO_MATRIX sets elements[15] === 0.
+    if (node.matrixWorld.elements[15] !== 0) zeroSubtree(node);
     return;
   }
   if (node.matrixAutoUpdate) node.updateMatrix();
@@ -91,7 +87,7 @@ export class ActorInstances {
     }
     for (let b = 0; b < this.batches.length; b++) {
       const { mesh, sources } = this.batches[b];
-      const array = mesh.instanceMatrix.array as Float32Array;
+      const array = mesh.instanceMatrix.array;
       if (identity) {
         for (let index = 0; index < sources.length; index++) {
           array.set(sources[index].matrixWorld.elements, index * 16);

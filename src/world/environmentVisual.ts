@@ -51,8 +51,9 @@ export class EnvironmentVisual {
   private readonly envTexture: THREE.DataTexture;
   private readonly pmremGenerator: THREE.PMREMGenerator | null = null;
   private pmremTarget: THREE.WebGLRenderTarget | null = null;
-  private readonly waterMaterials: THREE.MeshStandardMaterial[] = [];
+  private readonly waterNormalMaps: THREE.Texture[] = [];
   private lastEnvKey = '';
+  private lastPmremTime = -Infinity;
   private readonly rainGeometry = new THREE.BufferGeometry();
   private readonly rainMaterial = new THREE.LineBasicMaterial({
     color: 0xc5d7e2, transparent: true, opacity: 0, depthWrite: false,
@@ -126,7 +127,7 @@ export class EnvironmentVisual {
     this.envTexture.mapping = THREE.EquirectangularReflectionMapping;
     this.envTexture.magFilter = THREE.LinearFilter;
     this.envTexture.minFilter = THREE.LinearFilter;
-    if (renderer && typeof (renderer as Partial<THREE.WebGLRenderer>).getContext === 'function') {
+    if (renderer && typeof (renderer as unknown as { getContext?: unknown }).getContext === 'function') {
       this.pmremGenerator = new THREE.PMREMGenerator(renderer);
       this.pmremGenerator.compileEquirectangularShader();
     }
@@ -149,7 +150,9 @@ export class EnvironmentVisual {
         }
         if (material instanceof THREE.MeshStandardMaterial && material.userData.waterRipple === true && !seen.has(material)) {
           seen.add(material);
-          this.waterMaterials.push(material);
+          if (material.normalMap && !this.waterNormalMaps.includes(material.normalMap)) {
+            this.waterNormalMaps.push(material.normalMap);
+          }
         }
         if (material instanceof THREE.MeshStandardMaterial && material.userData.nightLight === true && !seen.has(material)) {
           seen.add(material);
@@ -223,19 +226,30 @@ export class EnvironmentVisual {
     scene.add(this.group);
   }
 
-  private updateEnvironmentDome(frame: EnvironmentFrame): void {
+  private updateEnvironmentDome(frame: EnvironmentFrame, lightweight: boolean, elapsedTime: number): void {
+    this.scene.environmentIntensity = lightweight ? 0 : 0.14 + 0.06 * (1 - frame.clouds * 0.5);
+    if (lightweight) {
+      this.scene.environment = null;
+      return;
+    }
     const key = [
-      Math.round(frame.palette.sky.r * 60),
-      Math.round(frame.palette.sky.g * 60),
-      Math.round(frame.palette.sky.b * 60),
-      Math.round(frame.palette.sun.r * 50),
-      Math.round(frame.sunIntensity * 25),
-      Math.round(frame.night * 40),
-      Math.round(frame.clouds * 25),
+      Math.round(frame.palette.sky.r * 36),
+      Math.round(frame.palette.sky.g * 36),
+      Math.round(frame.palette.sky.b * 36),
+      Math.round(frame.palette.sun.r * 30),
+      Math.round(frame.sunIntensity * 16),
+      Math.round(frame.night * 24),
+      Math.round(frame.clouds * 16),
     ].join(':');
-    this.scene.environmentIntensity = 0.14 + 0.06 * (1 - frame.clouds * 0.5);
-    if (key === this.lastEnvKey) return;
+    if (key === this.lastEnvKey && this.scene.environment !== null) return;
+    // Throttle PMREM GPU render-target regeneration during smooth weather transitions (~4 Hz max).
+    if (this.lastEnvKey !== '' && elapsedTime === this.lastPmremTime) {
+      // Explicit paused weather/time jump: regenerate immediately.
+    } else if (this.lastEnvKey !== '' && Math.abs(elapsedTime - this.lastPmremTime) < 0.25 && this.scene.environment !== null) {
+      return;
+    }
     this.lastEnvKey = key;
+    this.lastPmremTime = elapsedTime;
 
     const { sky, fog, sun, ground, ambient, window: win } = frame.palette;
     const sunStrength = Math.min(1.8, frame.sunIntensity * 0.34) * (1 - frame.clouds * 0.65);
@@ -295,11 +309,10 @@ export class EnvironmentVisual {
     if (this.disposed) return;
     copyColor(this.sky, frame.palette.sky);
     copyColor(this.fog.color, frame.palette.fog);
-    this.updateEnvironmentDome(frame);
-    for (const water of this.waterMaterials) {
-      if (water.normalMap && !options.reducedMotion) {
-        water.normalMap.offset.set(physics.time * 0.018, physics.time * 0.013);
-      }
+    this.updateEnvironmentDome(frame, options.lightweight, physics.time);
+    for (const normalMap of this.waterNormalMaps) {
+      if (options.reducedMotion) normalMap.offset.set(0, 0);
+      else normalMap.offset.set(physics.time * 0.018, physics.time * 0.013);
     }
     for (const { material } of this.backdrops) copyColor(material.color, frame.palette.sky);
     this.fog.density = frame.fog * 60 / CAMERA_PROJECTION.distance;
@@ -433,7 +446,8 @@ export class EnvironmentVisual {
     this.pmremTarget?.dispose();
     this.pmremTarget = null;
     this.pmremGenerator?.dispose();
-    this.waterMaterials.length = 0;
+    for (const normalMap of this.waterNormalMaps) normalMap.offset.set(0, 0);
+    this.waterNormalMaps.length = 0;
     for (const { light, color, intensity, ground } of this.lights) {
       light.color.copy(color);
       light.intensity = intensity;

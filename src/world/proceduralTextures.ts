@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { createNoise2D } from 'simplex-noise';
 
-const TEXTURE_SIZE = 256;
+const TEXTURE_SIZE = 128;
 
 interface BakedMaps {
   masonryNormal: Uint8Array;
@@ -131,7 +131,7 @@ function ensureBakedMaps(): BakedMaps {
 }
 
 function makeRepeatTexture(bytes: Uint8Array, repeat: number): THREE.DataTexture {
-  const texture = new THREE.DataTexture(bytes.slice(), TEXTURE_SIZE, TEXTURE_SIZE, THREE.RGBAFormat);
+  const texture = new THREE.DataTexture(bytes, TEXTURE_SIZE, TEXTURE_SIZE, THREE.RGBAFormat);
   texture.colorSpace = THREE.NoColorSpace;
   texture.wrapS = THREE.RepeatWrapping;
   texture.wrapT = THREE.RepeatWrapping;

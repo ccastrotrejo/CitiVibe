@@ -10,7 +10,7 @@ import { bindSceneInput } from './input';
 import { Locomotion } from './locomotion';
 import { LightingVisual } from './lightingVisual';
 import type { WorldModel } from './model';
-import { createCityPostProcessing, type CityPostProcessing } from './postProcessing';
+import type { CityPostProcessing } from './postProcessing';
 import { buildCityScene } from './scene';
 import type { CityScene } from './scene';
 import type { Lifecycle, Runtime, WorldCommand } from './types';
@@ -68,29 +68,40 @@ export function createWorld({ canvas, model, onChange, onLifecycle }: WorldOptio
   let plane: AirplaneVisual;
   let balloons: BalloonsVisual;
   let postProcessing: CityPostProcessing | null = null;
+  let postProcessingToken = 0;
   let lastDrawDelta = 1 / 60;
+  let lastArtFrameKey = '';
   function syncPostProcessing(): void {
-    if (highDetail && !postProcessing && art) {
-      postProcessing = createCityPostProcessing(renderer, art.scene, camera);
-      const { width, height } = canvas.getBoundingClientRect();
-      const dpr = targetDpr();
-      if (width > 0 && height > 0) postProcessing?.setSize(Math.round(width * dpr), Math.round(height * dpr));
+    postProcessingToken += 1;
+    const token = postProcessingToken;
+    if (highDetail && !postProcessing) {
+      void import('./postProcessing').then(({ createCityPostProcessing }) => {
+        if (disposed || lost || failed || !highDetail || token !== postProcessingToken) return;
+        postProcessing = createCityPostProcessing(renderer, art.scene, camera);
+        const { width, height } = canvas.getBoundingClientRect();
+        if (width > 0 && height > 0) postProcessing?.setSize(width, height);
+        if (available()) {
+          try { draw(); } catch (error) { reportFailure(error); }
+        }
+      }).catch((error: unknown) => {
+        if (!disposed) reportFailure(error);
+      });
     } else if (!highDetail && postProcessing) {
       postProcessing.dispose();
       postProcessing = null;
       renderer.toneMapping = NeutralToneMapping;
     }
   }
-  function applyQuality(): void {
+  function applyQuality(syncEffects = true): void {
     lightweight = model.quality === 'lightweight';
     highDetail = model.quality === 'high';
     renderer.shadowMap.enabled = !lightweight;
     renderer.shadowMap.needsUpdate = !lightweight;
     if (!highDetail) renderer.toneMapping = NeutralToneMapping;
     renderer.setPixelRatio(targetDpr());
-    syncPostProcessing();
+    if (syncEffects) syncPostProcessing();
   }
-  applyQuality();
+  applyQuality(false);
   let statusElapsed = 0;
   let shadowWeatherRevision = -1;
   let shadowReducedMotion = model.reducedMotion;
@@ -98,6 +109,7 @@ export function createWorld({ canvas, model, onChange, onLifecycle }: WorldOptio
   // stay convincing at ~10 Hz, so the whole-city shadow pass is not re-rendered every frame.
   let shadowAge = Infinity;
   function attachEffects(): void {
+    lastArtFrameKey = '';
     model.environment.physics.bindSurface(art.weatherSurface.heightAt, art.weatherSurface.snowRetentionAt);
     environment = new EnvironmentVisual(art.scene, art.weatherSurface, art.foliage, art.snowMeshes, renderer);
     lighting = new LightingVisual(art.scene, art.vehicleLights, model.simulation.actors, art.weatherSurface);
@@ -108,6 +120,7 @@ export function createWorld({ canvas, model, onChange, onLifecycle }: WorldOptio
     syncPostProcessing();
   }
   function detachEffects(): void {
+    postProcessingToken += 1;
     postProcessing?.dispose();
     postProcessing = null;
     lighting.dispose();
@@ -142,19 +155,26 @@ export function createWorld({ canvas, model, onChange, onLifecycle }: WorldOptio
   function draw() {
     viewDirty = false;
     const { pose } = model.camera;
-    for (const actor of model.simulation.actors) {
-      const mesh = art.actors.get(actor.id);
-      if (!mesh) throw new Error(`Missing original actor geometry: ${actor.id}.`);
-      mesh.position.set(actor.position.x, actor.position.y, actor.position.z);
-      mesh.rotation.y = actor.heading;
+    const snowLift = model.environment.physics.snowDepth;
+    const sampleActor = model.simulation.actors[0];
+    const weatherSample = sampleActor?.weather;
+    const frameKey = `${model.simulation.elapsed}:${model.reducedMotion}:${snowLift}:${model.environment.weather}:${weatherSample?.equipment ?? ''}:${weatherSample?.umbrellaOpen ?? 0}`;
+    if (frameKey !== lastArtFrameKey) {
+      lastArtFrameKey = frameKey;
+      for (const actor of model.simulation.actors) {
+        const mesh = art.actors.get(actor.id);
+        if (!mesh) throw new Error(`Missing original actor geometry: ${actor.id}.`);
+        mesh.position.set(actor.position.x, actor.position.y, actor.position.z);
+        mesh.rotation.y = actor.heading;
+      }
+      art.frame({
+        signals: model.simulation.traffic.signals,
+        elapsedSeconds: model.simulation.elapsed,
+        reducedMotion: model.reducedMotion,
+        groundLift: snowLift,
+        actors: model.simulation.actors,
+      });
     }
-    art.frame({
-      signals: model.simulation.traffic.signals,
-      elapsedSeconds: model.simulation.elapsed,
-      reducedMotion: model.reducedMotion,
-      groundLift: model.environment.physics.snowDepth,
-      actors: model.simulation.actors,
-    });
     const radius = CAMERA_PROJECTION.distance * Math.cos(pose.pitch);
     camera.position.set(pose.x + Math.sin(pose.yaw) * radius, CAMERA_PROJECTION.distance * Math.sin(pose.pitch), pose.z + Math.cos(pose.yaw) * radius);
     camera.lookAt(pose.x, 0, pose.z);
@@ -187,7 +207,7 @@ export function createWorld({ canvas, model, onChange, onLifecycle }: WorldOptio
       balloons.group.rotation.y = drift.heading;
     }
     art.prepareRender();
-    if (postProcessing && highDetail) postProcessing.render(lastDrawDelta);
+    if (postProcessing && highDetail) postProcessing.render(model.paused ? 0 : lastDrawDelta);
     else renderer.render(art.scene, camera);
   }
 
@@ -238,6 +258,7 @@ export function createWorld({ canvas, model, onChange, onLifecycle }: WorldOptio
     model.command(command);
     if (command.type !== 'navigate') shadowAge = Infinity;
     if (command.type === 'set-weather' || command.type === 'set-rain-intensity' || command.type === 'set-reduced-motion') {
+      lastArtFrameKey = '';
       locomotion.restore(model.simulation.actors, art.actors, model.reducedMotion);
     }
     if (command.type === 'set-quality') { applyQuality(); resize(); }
@@ -276,8 +297,7 @@ export function createWorld({ canvas, model, onChange, onLifecycle }: WorldOptio
     camera.bottom = -viewHeight / 2;
     projectionDirty = true;
     renderer.setSize(width, height, false);
-    const dpr = targetDpr();
-    postProcessing?.setSize(Math.round(width * dpr), Math.round(height * dpr));
+    postProcessing?.setSize(width, height);
     if (available()) {
       try { draw(); } catch (error) { reportFailure(error); }
     }

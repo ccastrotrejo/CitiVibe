@@ -21,8 +21,7 @@
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "simplex-noise": "4.0.3",
-    "three": "0.186.0",
-    "three-subdivide": "1.1.5"
+    "three": "0.186.0"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",

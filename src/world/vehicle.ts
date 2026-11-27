@@ -18,7 +18,6 @@ export interface VehicleArt {
   cylinder: THREE.BufferGeometry;
   torus?: THREE.BufferGeometry;
   wheel: THREE.BufferGeometry;
-  wheelRim?: THREE.BufferGeometry;
   taperedShell: THREE.BufferGeometry;
   wheelArch: THREE.BufferGeometry;
   taxiLettering: THREE.BufferGeometry;

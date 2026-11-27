@@ -1,10 +1,10 @@
 import * as THREE from 'three';
-import { LoopSubdivision } from 'three-subdivide';
 import { mergeGeometries, toCreasedNormals } from 'three/addons/utils/BufferGeometryUtils.js';
 import {
   PARK_BOUNDS, PARK_COMPANION_SEAT_IDS, PARK_LAKESIDE, PARK_PATHS, PARK_PICNICS, PARK_RESERVOIR, PARK_SEATS,
 } from '../content/park';
 import type { StreetscapeBuilder } from './streetscape';
+import { buildStreetBench } from './streetFurniture';
 import { GROUND_PUDDLES } from './groundWater';
 
 type Point = readonly [number, number];
@@ -26,6 +26,7 @@ export function buildCentralPark(builder: StreetscapeBuilder) {
     vertexColors: true,
     roughness: 0.16,
     metalness: 0.08,
+    envMapIntensity: waterSource.envMapIntensity,
     normalMap: waterSource.normalMap ?? null,
     normalScale: waterSource.normalScale ? waterSource.normalScale.clone() : new THREE.Vector2(0.22, 0.22),
   });
@@ -165,12 +166,10 @@ export function buildCentralPark(builder: StreetscapeBuilder) {
   waterGeometry.computeVertexNormals();
   mesh('Reed pond', waterGeometry, pondWater);
 
-  // Sculpted Loop-subdivided lakeside river boulders + reed clusters and blossoming lily pads.
-  const seedBoulder = new THREE.DodecahedronGeometry(1, 0);
-  const subdividedBoulder = LoopSubdivision.modify(seedBoulder, 2, { split: false, uvSmooth: false, preserveEdges: false });
+  // Sculpted lakeside river boulders + reed clusters and blossoming lily pads.
+  const seedBoulder = new THREE.IcosahedronGeometry(1, 2);
+  const boulderGeometry = toCreasedNormals(seedBoulder, Math.PI * 0.45);
   seedBoulder.dispose();
-  const boulderGeometry = toCreasedNormals(subdividedBoulder, Math.PI * 0.45);
-  subdividedBoulder.dispose();
   geometries.push(boulderGeometry);
   const boulderTransform = new THREE.Object3D();
   const boulderMatrix = (x: number, y: number, z: number, sx: number, sy: number, sz: number, yaw = 0, tilt = 0) => {
@@ -403,46 +402,14 @@ export function buildCentralPark(builder: StreetscapeBuilder) {
   addBoulderBatch('Lakeside shoreline boulders', shoreRockMatrices, p.stone);
   addBoulderBatch('Park schist outcrops', darkOutcropMatrices, p.roof);
 
-  // Contoured multi-slat wood park benches with scrolled cast-iron frames & center armrest.
+  // Contoured multi-slat wood park benches sharing the canonical street-furniture builder.
   for (const { id, x, z, yaw } of PARK_SEATS) {
-    const pos = (dx: number, y: number, dz: number): readonly [number, number, number] =>
-      [x + Math.cos(yaw) * dx + Math.sin(yaw) * dz, y, z - Math.sin(yaw) * dx + Math.cos(yaw) * dz];
-    const orient = (pitch: number): readonly [number, number, number] => {
-      const euler = new THREE.Euler().setFromQuaternion(
-        new THREE.Quaternion().setFromEuler(new THREE.Euler(0, yaw, 0))
-          .multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(pitch, 0, 0))),
-      );
-      return [euler.x, euler.y, euler.z];
-    };
     if ((PARK_COMPANION_SEAT_IDS as readonly string[]).includes(id)) {
-      block(p.paving, ...pos(0.6, -0.02, 0.8), 3.4, 0.016, 2.4, yaw);
+      const px = x + Math.cos(yaw) * 0.6 + Math.sin(yaw) * 0.8;
+      const pz = z - Math.sin(yaw) * 0.6 + Math.cos(yaw) * 0.8;
+      block(p.paving, px, -0.02, pz, 3.4, 0.016, 2.4, yaw);
     }
-    for (const [dz, y, pitch, h, d] of [
-      [-0.2, 0.575, 0.08, 0.052, 0.11],
-      [-0.07, 0.56, 0.02, 0.052, 0.11],
-      [0.06, 0.558, -0.04, 0.052, 0.11],
-      [0.19, 0.568, 0.1, 0.06, 0.118],
-    ] as const) {
-      add(rbox, p.wood, pos(0, y, dz), [1.96, h, d], orient(pitch));
-    }
-    for (const [dz, y, pitch, h] of [
-      [-0.245, 0.73, -0.18, 0.095],
-      [-0.27, 0.865, -0.21, 0.095],
-      [-0.298, 1.005, -0.24, 0.108],
-    ] as const) {
-      add(rbox, p.wood, pos(0, y, dz), [1.96, h, 0.056], orient(pitch));
-    }
-    for (const side of [-1, 1]) {
-      const fx = side * 0.84;
-      add(rbox, p.rubber, pos(fx, 0.24, 0.17), [0.068, 0.48, 0.08], orient(-0.12));
-      add(rbox, p.rubber, pos(fx, 0.52, -0.23), [0.07, 1.02, 0.085], orient(-0.19));
-      add(rbox, p.rubber, pos(fx, 0.49, -0.01), [0.062, 0.055, 0.5], [0, yaw, 0]);
-      add(rbox, p.rubber, pos(fx, 0.74, -0.02), [0.068, 0.05, 0.52], orient(0.04));
-      add(rbox, p.rubber, pos(fx, 0.63, 0.21), [0.052, 0.18, 0.052], orient(0.1));
-      add(cylinder, alloy, pos(fx, 0.72, 0.24), [0.045, 0.072, 0.045], orient(0));
-    }
-    add(rbox, alloy, pos(0, 0.73, -0.02), [0.05, 0.044, 0.46], orient(0.04));
-    add(rbox, p.rubber, pos(0, 0.625, 0.19), [0.044, 0.17, 0.044], orient(0.1));
+    buildStreetBench(builder, { id, x, z, yaw }, 2.02, { withPad: false, yLift: 0.1 });
   }
 
   for (const [x, z] of PARK_PICNICS) {

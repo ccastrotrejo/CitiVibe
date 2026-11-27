@@ -164,7 +164,7 @@ test('live snow depth and ground pools accumulate, pause, and respond to warming
     };
   }, { basins: GROUND_PUDDLES, groundLevel: GROUND_LEVEL });
   await page.goto('/');
-  await expect(page.getByText('City is living', { exact: true })).toBeVisible({ timeout: 15000 });
+  await expect(page.getByText('City is living', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await page.getByRole('combobox', { name: 'Weather', exact: true }).selectOption('snow');
   await page.getByRole('button', { name: 'Close settings' }).click();
